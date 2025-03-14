@@ -1,6 +1,7 @@
-// scenes/GameScene.ts
-import { Scene, Engine, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, ArcRotateCamera, Mesh, TransformNode, Quaternion, Space, Animation } from "@babylonjs/core";
-import { Card, Suit, Rank } from "../game/Card";
+// src/scenes/GameScene.ts
+import { Scene, Engine, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, ArcRotateCamera, Mesh, TransformNode, Animation } from "@babylonjs/core";
+import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
+import { Card } from "../game/Card";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameUI } from "../ui/GameUI";
 
@@ -14,6 +15,7 @@ export class GameScene {
     private dealerCardContainer: TransformNode;
 
     constructor(engine: Engine, canvas: HTMLCanvasElement) {
+        console.log("GameScene constructor called");
         this.scene = new Scene(engine);
         this.blackjackGame = new BlackjackGame();
         
