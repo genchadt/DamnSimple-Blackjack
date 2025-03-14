@@ -6,14 +6,14 @@ import { BlackjackGame, GameState, GameResult } from "../game/BlackjackGame";
 export class GameUI {
     private scene: Scene;
     private game: BlackjackGame;
-    private guiTexture: AdvancedDynamicTexture;
-    private playerScoreText: TextBlock;
-    private dealerScoreText: TextBlock;
-    private gameStatusText: TextBlock;
-    private actionPanel: StackPanel;
-    private hitButton: Button;
-    private standButton: Button;
-    private newGameButton: Button;
+    private guiTexture!: AdvancedDynamicTexture;
+    private playerScoreText!: TextBlock;
+    private dealerScoreText!: TextBlock;
+    private gameStatusText!: TextBlock;
+    private actionPanel!: StackPanel;
+    private hitButton!: Button;
+    private standButton!: Button;
+    private newGameButton!: Button;
 
     constructor(scene: Scene, game: BlackjackGame) {
         this.scene = scene;

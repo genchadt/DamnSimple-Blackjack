@@ -17,6 +17,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@babylonjs/inspector": "^7.53.2",
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.5.0",
     "ts-loader": "^9.4.2",
@@ -26,10 +27,10 @@
     "webpack-dev-server": "^4.11.1"
   },
   "dependencies": {
-    "@babylonjs/core": "^5.47.0",
-    "@babylonjs/gui": "^5.47.0",
-    "@babylonjs/loaders": "^5.47.0",
-    "@babylonjs/materials": "^5.47.0",
+    "@babylonjs/core": "^7.53.2",
+    "@babylonjs/gui": "^7.53.2",
+    "@babylonjs/loaders": "^7.53.2",
+    "@babylonjs/materials": "^7.53.2",
     "damn-simple-blackjack": "file:"
   }
 }
