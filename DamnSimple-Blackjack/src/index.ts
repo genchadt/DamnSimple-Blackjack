@@ -1,7 +1,7 @@
 // src/index.ts
 import { Engine } from "@babylonjs/core";
-import { MainMenuScene } from "./src/scenes/MainMenuScene";
-import { GameScene } from "./src/scenes/GameScene";
+import { MainMenuScene } from "./scenes/MainMenuScene";
+import { GameScene } from "./scenes/GameScene";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 
 // Required for GUI

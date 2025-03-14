@@ -1,5 +1,5 @@
 // src/scenes/GameScene.ts
-import { Scene, Engine, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, ArcRotateCamera, Mesh, TransformNode, Animation } from "@babylonjs/core";
+import { Scene, Engine, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, Color4, ArcRotateCamera, Mesh, TransformNode, Animation } from "@babylonjs/core";
 import { MultiMaterial } from "@babylonjs/core/Materials/multiMaterial";
 import { Card } from "../game/Card";
 import { BlackjackGame } from "../game/BlackjackGame";
@@ -9,7 +9,7 @@ export class GameScene {
     private scene: Scene;
     private blackjackGame: BlackjackGame;
     private gameUI: GameUI;
-    private table: Mesh;
+    private table!: Mesh;
     private cardMeshes: Map<Card, Mesh> = new Map();
     private playerCardContainer: TransformNode;
     private dealerCardContainer: TransformNode;
@@ -20,7 +20,7 @@ export class GameScene {
         this.blackjackGame = new BlackjackGame();
         
         // Set background color to a dark green (casino table feel)
-        this.scene.clearColor = new Color3(0.05, 0.2, 0.05);
+        this.scene.clearColor = new Color4(0.05, 0.2, 0.05);
         
         // Create camera
         const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 12, Vector3.Zero(), this.scene);

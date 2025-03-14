@@ -1,16 +1,16 @@
 // ./scenes/MainMenuScene.ts
-import { Scene, Engine, Vector3, HemisphericLight, Color3, ArcRotateCamera } from "@babylonjs/core";
+import { Scene, Engine, Vector3, HemisphericLight, Color3, Color4,  ArcRotateCamera } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, TextBlock } from "@babylonjs/gui";
 
 export class MainMenuScene {
     private scene: Scene;
-    private guiTexture: AdvancedDynamicTexture;
+    private guiTexture!: AdvancedDynamicTexture;
 
     constructor(engine: Engine, canvas: HTMLCanvasElement, onStartGame: () => void) {
         this.scene = new Scene(engine);
         
         // Set background color
-        this.scene.clearColor = new Color3(0.1, 0.1, 0.1);
+        this.scene.clearColor = new Color4(0.1, 0.1, 0.1);
         
         // Create camera
         const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 5, Vector3.Zero(), this.scene);
