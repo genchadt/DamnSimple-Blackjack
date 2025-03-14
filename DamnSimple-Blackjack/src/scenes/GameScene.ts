@@ -1,8 +1,8 @@
 // scenes/GameScene.ts
 import { Scene, Engine, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, ArcRotateCamera, Mesh, TransformNode, Quaternion, Space, Animation } from "@babylonjs/core";
-import { Card, Suit, Rank } from "../game/game-card-ts";
-import { BlackjackGame } from "../game/game-blackjackgame-ts";
-import { GameUI } from "../ui/gameui-ts";
+import { Card, Suit, Rank } from "../game/Card";
+import { BlackjackGame } from "../game/BlackjackGame";
+import { GameUI } from "../ui/GameUI";
 
 export class GameScene {
     private scene: Scene;

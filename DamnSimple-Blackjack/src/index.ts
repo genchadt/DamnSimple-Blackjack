@@ -1,7 +1,7 @@
 // index-ts
 import { Engine } from "@babylonjs/core";
-import { MainMenuScene } from "./scenes/mainmenuscene-ts";
-import { GameScene } from "./scenes/gamescene-ts";
+import { MainMenuScene } from "./scenes/MainMenuScene";
+import { GameScene } from "./scenes/GameScene";
 
 // Required for GUI
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";

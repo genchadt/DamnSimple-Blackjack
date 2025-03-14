@@ -1,7 +1,7 @@
 // ui/GameUI.ts
 import { Scene } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control } from "@babylonjs/gui";
-import { BlackjackGame, GameState, GameResult } from "../game/game-blackjackgame-ts";
+import { BlackjackGame, GameState, GameResult } from "../game/BlackjackGame";
 
 export class GameUI {
     private scene: Scene;
