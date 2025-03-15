@@ -31,7 +31,6 @@ The game implements standard American blackjack rules with 6 decks:
 - [ ] PC/Linux version development
 - [ ] Testing and refinement
 - [ ] Mobile port
-- [ ] Additional "Damn Simple" card games
 
 ## Controls
 
