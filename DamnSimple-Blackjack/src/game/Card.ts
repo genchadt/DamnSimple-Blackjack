@@ -47,6 +47,16 @@ export class Card {
 
     public flip(): void {
         this.faceUp = !this.faceUp;
+        // Notify any listeners that the card was flipped
+        if (this.onFlip) {
+            this.onFlip(this);
+        }
+    }
+
+    private onFlip: ((card: Card) => void) | null = null;
+
+    public setFlipCallback(callback: (card: Card) => void): void {
+        this.onFlip = callback;
     }
 
     public getValue(): number {
@@ -65,4 +75,5 @@ export class Card {
     public toString(): string {
         return `${this.rank} of ${this.suit}`;
     }
+
 }
