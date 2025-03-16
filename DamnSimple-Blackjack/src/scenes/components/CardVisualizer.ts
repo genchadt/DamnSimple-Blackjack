@@ -60,11 +60,8 @@ export class CardVisualizer {
         // Initially position card at the deck
         cardMesh.position = this.deckPosition.clone();
         
-        // Calculate final position
-        const zPos = isPlayer ? 3 : -3;
-        const xPos = index * 1.2 - (isPlayer ? this.blackjackGame.getPlayerHand().length - 1 : 
-                                              this.blackjackGame.getDealerHand().length - 1) * 0.6;
-        const finalPosition = new Vector3(xPos, 0.3, zPos);
+        // Calculate final position - improved centering logic
+        const finalPosition = this.calculateCardPosition(index, isPlayer);
         
         // Set rotation to face up
         cardMesh.rotation.x = Math.PI/2;
@@ -203,13 +200,86 @@ public createCardMaterial(card: Card): StandardMaterial {
     }
 
     /**
+     * Calculates the position of a card in 3D space based on its index in the hand and whether it belongs to the player or dealer.
+     * The position is calculated such that the cards are centered horizontally and spaced evenly apart.
+     * The z position is set such that player cards are at z=3 and dealer cards are at z=-3.
+     * The y position is set to 0.3 to raise the cards slightly above the table.
+     * 
+     * @param {number} index - The index of the card in the hand.
+     * @param {boolean} isPlayer - true if the card belongs to the player, false if it belongs to the dealer.
+     * @returns {Vector3} The calculated position of the card.
+     */
+    private calculateCardPosition(index: number, isPlayer: boolean): Vector3 {
+        // Z position: player cards at z=3, dealer cards at z=-3
+        const zPos = isPlayer ? 3 : -3;
+        
+        // Get the hand
+        const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
+        const handSize = hand.length;
+        
+        // Calculate spacing and centering
+        const cardWidth = 1.1; // Card width plus small gap
+        const totalWidth = handSize * cardWidth;
+        const startX = -(totalWidth / 2) + (cardWidth / 2);
+        const xPos = startX + (index * cardWidth);
+        
+        return new Vector3(xPos, 0.3, zPos);
+    }
+
+    /**
+     * Repositions the cards in a hand (player or dealer) to accommodate any changes to the hand size.
+     * The cards are repositioned using a smooth animation with a cubic ease out function.
+     * The animation duration is 15 frames, which is approximately 500 ms at 30 fps.
+     * The cards are positioned such that they are centered horizontally and spaced evenly apart.
+     * The z position is set such that player cards are at z=3 and dealer cards are at z=-3.
+     * The y position is set to 0.3 to raise the cards slightly above the table.
+     * 
+     * @param {boolean} isPlayer - true if the hand belongs to the player, false if it belongs to the dealer.
+     */
+    public repositionCards(isPlayer: boolean): void {
+        const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
+        
+        hand.forEach((card, index) => {
+            const cardMesh = this.cardMeshes.get(card);
+            if (cardMesh) {
+                const newPosition = this.calculateCardPosition(index, isPlayer);
+                
+                // Create animation for repositioning
+                const positionAnimation = new Animation(
+                    "repositionAnimation",
+                    "position",
+                    30,
+                    Animation.ANIMATIONTYPE_VECTOR3,
+                    Animation.ANIMATIONLOOPMODE_CONSTANT
+                );
+                
+                // Add easing
+                const easingFunction = new CubicEase();
+                easingFunction.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
+                positionAnimation.setEasingFunction(easingFunction);
+                
+                // Animation keyframes - start from current position
+                const keyFrames = [
+                    { frame: 0, value: cardMesh.position.clone() },
+                    { frame: 15, value: newPosition }
+                ];
+                positionAnimation.setKeys(keyFrames);
+                
+                // Attach and run animation
+                cardMesh.animations = [positionAnimation];
+                this.scene.beginAnimation(cardMesh, 0, 15, false);
+            }
+        });
+    }
+
+    /**
      * Updates the visual representation of a card when its face is flipped.
      * Given a card object, this function gets the mesh associated with it and
      * updates the mesh's material to reflect the new face of the card.
      * 
      * @param {Card} card - The card object to update the visual representation of.
      */
-    private updateCardVisual(card: Card): void {
+    public updateCardVisual(card: Card): void {
         // Get the mesh associated with this card
         const cardMesh = this.cardMeshes.get(card);
         if (cardMesh) {
@@ -239,12 +309,16 @@ public createCardMaterial(card: Card): StandardMaterial {
             return;
         }
         
+        // Track if we created any new cards
+        let createdNewCards = false;
+        
         // Create dealer card meshes for any cards not already rendered
         dealerHand.forEach((card, index) => {
             if (!this.cardMeshes.has(card)) {
                 const mesh = this.createCardMesh(card, index, false);
                 this.cardMeshes.set(card, mesh);
                 console.log(`Created dealer card mesh for ${card.toString()}`);
+                createdNewCards = true;
             }
         });
         
@@ -254,11 +328,20 @@ public createCardMaterial(card: Card): StandardMaterial {
                 const mesh = this.createCardMesh(card, index, true);
                 this.cardMeshes.set(card, mesh);
                 console.log(`Created player card mesh for ${card.toString()}`);
+                createdNewCards = true;
             }
         });
         
+        // If we didn't create any new cards but hand sizes changed,
+        // reposition existing cards to ensure proper layout
+        if (!createdNewCards) {
+            // Reposition dealer and player cards to ensure they're centered
+            this.repositionCards(false); // Dealer cards
+            this.repositionCards(true);  // Player cards
+        }
+        
         console.log(`Rendered ${this.cardMeshes.size} cards in total`);
-    }
+    }    
 
     /**
      * Clears the table by disposing of all card visualizations.

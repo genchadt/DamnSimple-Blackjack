@@ -2,6 +2,7 @@
 import { Scene, Engine } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameUI } from "../ui/GameUI";
+import { DebugManager } from "../debug/DebugManager";
 import { TableEnvironment } from "./components/TableEnvironment";
 import { CardVisualizer } from "./components/CardVisualizer";
 import { GameController } from "./components/GameController";
@@ -10,6 +11,7 @@ export class GameScene {
     private scene: Scene;
     private blackjackGame: BlackjackGame;
     private gameUI: GameUI;
+    private debugManager: DebugManager;
     private tableEnvironment: TableEnvironment;
     private cardVisualizer: CardVisualizer;
     private gameController: GameController;
@@ -52,6 +54,9 @@ export class GameScene {
             onOpenSettings,
             this.clearTable.bind(this)
         );
+
+        // Create the debug manager
+        this.debugManager = new DebugManager(this, this.cardVisualizer);
         
         // Create the game controller
         this.gameController = new GameController(
