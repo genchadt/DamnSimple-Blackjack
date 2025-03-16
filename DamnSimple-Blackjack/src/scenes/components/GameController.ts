@@ -137,6 +137,7 @@ export class GameController {
         
         // If it's dealer's turn, set the flag to process the first move
         if (this.blackjackGame.getGameState() === GameState.DealerTurn) {
+            console.log("Setting dealerTurn flag to true in update()");
             this.dealerTurn = true;
         }
     }

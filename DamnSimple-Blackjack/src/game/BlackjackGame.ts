@@ -282,6 +282,7 @@ export class BlackjackGame {
             // Reveal dealer's hole card with a slight delay
             setTimeout(() => {
                 this.dealerHand[0].flip();
+                this.saveGameState(); // Save state after flipping the card
             }, 500);
             
             return; // Don't proceed to game over - dealer will take their turn
