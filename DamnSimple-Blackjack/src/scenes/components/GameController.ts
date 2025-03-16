@@ -53,7 +53,9 @@ export class GameController {
      * Sets up monitoring of the game state and card animations to manage the flow
      * of the game. This method is called once when the game controller is created.
      * It sets up an observable on the scene's onBeforeRender event to monitor
-     * the game state and card animations. If the dealer's turn is active and
+     * the game state and card animations. 
+     * 
+     * If the dealer's turn is active and
      * there is no animation in progress, it processes the dealer's turn by
      * calling processDealerTurn() after a 1 second delay. This method also
      * clears any existing timeout to prevent multiple calls and resets the
