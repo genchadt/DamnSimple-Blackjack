@@ -1,7 +1,8 @@
 // Add a new file: debug/DebugManager.ts
 
 import { Scene, Vector3 } from "@babylonjs/core";
-import { BlackjackGame, GameState, GameResult } from "../game/BlackjackGame";
+import { BlackjackGame } from "../game/BlackjackGame";
+import { GameState, GameResult } from "../game/GameState";
 import { Card, Suit, Rank } from "../game/Card";
 import { GameScene } from "../scenes/GameScene";
 import { CardVisualizer } from "../scenes/components/CardVisualizer";
