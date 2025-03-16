@@ -195,7 +195,9 @@ public createCardMaterial(card: Card): StandardMaterial {
         // Run the animation
         this.scene.beginAnimation(cardMesh, 0, duration / 1000 * 30, false, 1, () => {
             this.animationInProgress = false;
-            this.onAnimationComplete();
+            if (this.onAnimationComplete) {
+                this.onAnimationComplete();
+            }
         });
     }
 

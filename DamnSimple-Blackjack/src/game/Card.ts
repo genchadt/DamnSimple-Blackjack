@@ -94,7 +94,7 @@ export class Card {
      * Callback function to be called when the card is flipped.
      * This function receives the card instance as an argument.
      */
-    private onFlip: ((card: Card) => void) | null = null;
+    public onFlip: ((card: Card) => void) | null = null;
 
     /**
      * Registers a callback function to be called when the card is flipped.

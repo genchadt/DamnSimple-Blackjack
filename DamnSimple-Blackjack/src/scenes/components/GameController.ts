@@ -26,6 +26,8 @@ export class GameController {
      * if there is a need to restore a game in progress, rendering the cards and updating
      * the UI if necessary.
      */
+    // scenes/components/GameController.ts - update the constructor
+
     constructor(scene: Scene, blackjackGame: BlackjackGame, gameUI: GameUI, cardVisualizer: CardVisualizer) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
@@ -58,8 +60,21 @@ export class GameController {
      * dealerTurn flag until the next move.
      */
     private setupGameStateMonitoring(): void {
+        // Store the initial game state to detect changes
+        let previousGameState = this.blackjackGame.getGameState();
+    
         // Monitor animations and game state
         this.scene.onBeforeRenderObservable.add(() => {
+            // Check if game state has changed
+            const currentGameState = this.blackjackGame.getGameState();
+            if (currentGameState !== previousGameState) {
+                console.log(`Game state changed from ${GameState[previousGameState]} to ${GameState[currentGameState]}`);
+                previousGameState = currentGameState;
+                
+                // Update UI and render cards when game state changes
+                this.update();
+            }
+    
             // If dealer's turn and no animation is in progress, process dealer's move
             if (this.dealerTurn && !this.cardVisualizer.isAnimationInProgress() && 
                 this.blackjackGame.getGameState() === GameState.DealerTurn) {
