@@ -2,7 +2,8 @@
 import { Scene, KeyboardEventTypes } from "@babylonjs/core";
 import { Button, TextBlock, Control, Rectangle } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
-import { BlackjackGame, GameState } from "../game/BlackjackGame";
+import { BlackjackGame } from "../game/BlackjackGame";
+import { GameState } from "../game/GameState";
 
 export class GameActionUI extends BaseUI {
     private game: BlackjackGame;

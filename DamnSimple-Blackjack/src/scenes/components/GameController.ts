@@ -1,6 +1,7 @@
 // scenes/components/GameController.ts
 import { Scene } from "@babylonjs/core";
-import { BlackjackGame, GameState } from "../../game/BlackjackGame";
+import { BlackjackGame } from "../../game/BlackjackGame";
+import { GameState } from "../../game/GameState";
 import { GameUI } from "../../ui/GameUI";
 import { CardVisualizer } from "./CardVisualizer";
 

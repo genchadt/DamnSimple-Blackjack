@@ -1,6 +1,7 @@
 // ui/GameUI.ts
 import { Scene } from "@babylonjs/core";
-import { BlackjackGame, GameState } from "../game/BlackjackGame";
+import { BlackjackGame } from "../game/BlackjackGame";
+import { GameState } from "../game/GameState";
 import { BettingUI } from "./BettingUI";
 import { GameActionUI } from "./GameActionUI";
 import { StatusUI } from "./StatusUI";

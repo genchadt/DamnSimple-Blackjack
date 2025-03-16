@@ -2,7 +2,8 @@
 import { Scene } from "@babylonjs/core";
 import { Button, Control } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
-import { BlackjackGame, GameState } from "../game/BlackjackGame";
+import { BlackjackGame } from "../game/BlackjackGame";
+import { GameState } from "../game/GameState";
 
 export class NavigationUI extends BaseUI {
     private game: BlackjackGame;
