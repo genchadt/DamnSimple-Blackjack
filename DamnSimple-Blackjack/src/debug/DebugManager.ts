@@ -116,6 +116,10 @@ export class DebugManager {
         // Clear all cards
         this.clearCards(true);
         this.clearCards(false);
+
+        // Reset funds and bet
+        this.setFunds(1000);
+        this.setBet(10);
         
         // Reset game state
         this.blackjackGame.setGameState(GameState.Initial);

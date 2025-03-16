@@ -85,9 +85,13 @@ export class GameController {
      * the game ends by calling the playerStand() method and updating the UI.
      */
     public processDealerTurn(): void {
+        console.log("Processing dealer turn");
         // Check if dealer needs to hit
         const dealerScore = this.blackjackGame.getDealerScore();
+        console.log(`Dealer score: ${dealerScore}`);
+        
         if (dealerScore < 17) {
+            console.log("Dealer hits");
             // Dealer hits
             this.blackjackGame.playerHit(); // Use the same method as it just adds a card
             this.cardVisualizer.renderCards(); // Render the new card
@@ -95,6 +99,7 @@ export class GameController {
             // Set flag to continue dealer's turn after animation completes
             this.dealerTurn = true;
         } else {
+            console.log("Dealer stands");
             // Dealer stands, end the game
             this.blackjackGame.playerStand();
             this.gameUI.update();
@@ -151,8 +156,10 @@ export class GameController {
      * If it's the dealer's turn, sets a flag to process the next move of the dealer's turn.
      */
     public onAnimationComplete(): void {
+        console.log("Animation complete");
         // If it's dealer's turn, set flag to process next move
         if (this.blackjackGame.getGameState() === GameState.DealerTurn) {
+            console.log("Setting dealerTurn flag to true");
             this.dealerTurn = true;
         }
     }
