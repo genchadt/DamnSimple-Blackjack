@@ -6,6 +6,15 @@ export class MainMenuScene {
     private scene: Scene;
     private guiTexture!: AdvancedDynamicTexture;
 
+    /**
+     * Constructor for the main menu scene.
+     * Creates the scene and a camera that is attached to the canvas,
+     * and sets up the GUI with a title and a button to start the game.
+     * 
+     * @param engine The Babylon engine.
+     * @param canvas The HTML element to render to.
+     * @param onStartGame The callback to call when the user clicks the start game button.
+     */
     constructor(engine: Engine, canvas: HTMLCanvasElement, onStartGame: () => void) {
         this.scene = new Scene(engine);
         
@@ -23,6 +32,12 @@ export class MainMenuScene {
         this.createGUI(onStartGame);
     }
 
+    /**
+     * Creates the GUI elements for the main menu scene.
+     * This includes the title of the game, and a button to start the game.
+     * 
+     * @param onStartGame The callback to call when the user clicks the start game button.
+     */
     private createGUI(onStartGame: () => void): void {
         this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI", true, this.scene);
         
@@ -48,6 +63,11 @@ export class MainMenuScene {
         this.guiTexture.addControl(startButton);
     }
 
+    /**
+     * Retrieves the current Babylon.js scene instance for the main menu.
+     * 
+     * @returns {Scene} The scene associated with the main menu.
+     */
     public getScene(): Scene {
         return this.scene;
     }

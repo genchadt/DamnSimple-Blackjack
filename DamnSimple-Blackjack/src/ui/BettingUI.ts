@@ -2,7 +2,7 @@
 import { Scene } from "@babylonjs/core";
 import { Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
-import { BlackjackGame } from "../game/BlackjackGame";
+import { BlackjackGame, GameState } from "../game/BlackjackGame";
 
 export class BettingUI extends BaseUI {
     private game: BlackjackGame;
@@ -11,7 +11,15 @@ export class BettingUI extends BaseUI {
     private betPanel!: StackPanel;
     private currentBetInput!: TextBlock;
     private onConfirmBet: (bet: number) => void;
-    
+
+    /**
+     * Initializes a new instance of the BettingUI class, setting up the UI elements
+     * for placing and confirming bets in the blackjack game.
+     *
+     * @param {Scene} scene - The Babylon.js scene to which the UI belongs.
+     * @param {BlackjackGame} game - The game logic instance to interact with.
+     * @param {(bet: number) => void} onConfirmBet - Callback function to be called when the bet is confirmed.
+     */
     constructor(scene: Scene, game: BlackjackGame, onConfirmBet: (bet: number) => void) {
         super(scene);
         this.game = game;
@@ -79,7 +87,14 @@ export class BettingUI extends BaseUI {
         });
         this.betPanel.addControl(confirmBetButton);
     }
-    
+
+    /**
+     * Adjusts the current bet by the specified amount (in dollars). If the new bet
+     * is within the valid range (i.e. between 10 and the player's current funds),
+     * it updates the current bet value and displays the new value in the UI.
+     * 
+     * @param amount The amount to adjust the current bet by (positive or negative).
+     */
     private adjustBet(amount: number): void {
         const newBet = this.currentBet + amount;
         if (newBet >= 10 && newBet <= this.game.getPlayerFunds()) {
@@ -87,12 +102,20 @@ export class BettingUI extends BaseUI {
             this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
         }
     }
-    
+
+    /**
+     * Hides the betting UI and calls the onConfirmBet callback with the current
+     * bet amount. This is called when the player confirms their bet.
+     */
     private confirmBet(): void {
         this.betPanel.isVisible = false;
         this.onConfirmBet(this.currentBet);
     }
-    
+
+    /**
+     * Shows the betting UI and updates the current bet to match the game's current
+     * bet amount. If the game's current bet is 0, the current bet is not changed.
+     */
     public show(): void {
         // Update current bet to match the game's current bet
         this.currentBet = this.game.getCurrentBet() > 0 ? 
@@ -101,21 +124,40 @@ export class BettingUI extends BaseUI {
         this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
         this.betPanel.isVisible = true;
     }
-    
+
+    /**
+     * Hides the betting UI from the scene.
+     */
     public hide(): void {
         this.betPanel.isVisible = false;
     }
-    
+
+    /**
+     * Updates the currency sign used in the betting UI to the specified value.
+     * This is called from the game when the currency sign is changed.
+     * 
+     * @param sign The new currency sign to use (e.g. "$", " ", etc.).
+     */
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
         this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
     }
-    
+
+    /**
+     * Updates the betting UI based on the current game state. If the current bet
+     * exceeds the player's funds, the current bet is adjusted to match the player's
+     * funds. The betting UI is shown when the game is in the Betting state.
+     */
     public update(): void {
         // Update bet limits based on player funds
         if (this.currentBet > this.game.getPlayerFunds()) {
             this.currentBet = this.game.getPlayerFunds();
             this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
+        }
+        
+        // Show betting UI when in Betting state
+        if (this.game.getGameState() === GameState.Betting) {
+            this.show();
         }
     }
 }

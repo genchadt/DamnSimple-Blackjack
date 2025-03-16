@@ -6,6 +6,16 @@ export class SettingsScene {
     private scene: Scene;
     private guiTexture!: AdvancedDynamicTexture;
     
+    /**
+     * Creates a new Settings Scene for the user to adjust game settings.
+     * 
+     * @param engine - The Babylon engine.
+     * @param canvas - The HTML element to render to.
+     * @param onBack - The callback to call when the user clicks the back button.
+     * @param onResetFunds - The callback to call when the user clicks the reset funds button.
+     * @param onLanguageChange - The callback to call when the user selects a new language.
+     * @param onCurrencyChange - The callback to call when the user selects a new currency.
+     */
     constructor(
         engine: Engine, 
         canvas: HTMLCanvasElement, 
@@ -29,7 +39,16 @@ export class SettingsScene {
         // Create GUI
         this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange);
     }
-    
+
+    /**
+     * Creates the GUI for the settings scene, including language and currency selection,
+     * a reset funds button, and a back button.
+     *
+     * @param onBack - Callback function invoked when the back button is clicked, returning to the game.
+     * @param onResetFunds - Callback function invoked when the reset funds button is clicked.
+     * @param onLanguageChange - Callback function invoked with the new language when a language button is clicked.
+     * @param onCurrencyChange - Callback function invoked with the new currency when a currency button is clicked.
+     */
     private createGUI(
         onBack: () => void,
         onResetFunds: () => void,
@@ -140,6 +159,13 @@ export class SettingsScene {
         panel.addControl(backButton);
     }
     
+    /**
+     * Shows a confirmation dialog with a yes/no question, and calls the onConfirm 
+     * callback function if the user clicks yes. The dialog is removed from the GUI 
+     * when the user clicks either button.
+     * 
+     * @param onConfirm - Callback function invoked when the user clicks the yes button.
+     */
     private showConfirmDialog(onConfirm: () => void): void {
         // Dialog panel
         const dialogPanel = new StackPanel();
@@ -188,6 +214,11 @@ export class SettingsScene {
         buttonsPanel.addControl(noButton);
     }
     
+    /**
+     * Returns the scene that this settings scene belongs to.
+     * 
+     * @returns The scene associated with this settings scene.
+     */
     public getScene(): Scene {
         return this.scene;
     }

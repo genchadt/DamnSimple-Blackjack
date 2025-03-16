@@ -13,6 +13,13 @@ export class StatusUI extends BaseUI {
     private betText!: TextBlock;
     private currencySign: string = "$";
     
+    /**
+     * Creates a new StatusUI, which displays the player's current score, the dealer's current score, and
+     * the current game status. Also displays the player's current funds and current bet.
+     * 
+     * @param {Scene} scene The scene to add the UI elements to.
+     * @param {BlackjackGame} game The game object to monitor for updates.
+     */
     constructor(scene: Scene, game: BlackjackGame) {
         super(scene);
         this.game = game;
@@ -71,11 +78,23 @@ export class StatusUI extends BaseUI {
         fundsPanel.addControl(this.betText);
     }
     
+    /**
+     * Updates the currency sign displayed on the UI (e.g. "$" or "GBP").
+     * 
+     * @param {string} sign The new currency sign to display.
+     */
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
         this.update();
     }
     
+    /**
+     * Updates the UI to reflect the current game state. This includes updating
+     * the player's and dealer's scores, the player's available funds, the current bet amount,
+     * and the game status message. The dealer's full score is shown only when it's their turn
+     * or when the game is over. The game status message provides more descriptive feedback 
+     * based on the outcome of the game or the player's current turn.
+     */
     public update(): void {
         // Update scores
         this.playerScoreText.text = `Player: ${this.game.getPlayerScore()}`;

@@ -14,7 +14,21 @@ export class NavigationUI extends BaseUI {
     private onLeaveTable: () => void;
     private onNewGame: () => void;
     private onOpenSettings: () => void;
-    
+
+    /**
+     * Initializes a new instance of the NavigationUI class.
+     * 
+     * @param {Scene} scene - The Babylon.js scene to which the UI belongs.
+     * @param {BlackjackGame} game - The game logic instance to interact with.
+     * @param {() => void} onSitDown - Callback function to call when the player sits down.
+     * @param {() => void} onLeaveTable - Callback function to call when the player leaves the table.
+     * @param {() => void} onNewGame - Callback function to call when starting a new game.
+     * @param {() => void} onOpenSettings - Callback function to open the settings menu.
+     * 
+     * This constructor sets up the navigation UI components necessary for the blackjack game,
+     * including the buttons for sitting down, leaving the table, starting a new game, and opening
+     * the settings menu.
+     */
     constructor(
         scene: Scene, 
         game: BlackjackGame, 
@@ -33,6 +47,10 @@ export class NavigationUI extends BaseUI {
         this.createButtons();
     }
     
+    /**
+     * Creates the buttons for the navigation UI: "Sit Down", "Leave Table", "New Game", and "Settings".
+     * The buttons are configured with the correct text, size, color, alignment, and click handlers.
+     */
     private createButtons(): void {
         // Create "Sit Down" button for initial state
         this.sitDownButton = Button.CreateSimpleButton("sitDownButton", "Sit Down");
@@ -95,12 +113,21 @@ export class NavigationUI extends BaseUI {
         this.guiTexture.addControl(this.settingsButton);
     }
     
+    /**
+     * Shows the initial state of the navigation UI, with the sit down button visible.
+     * This is the state of the UI when the player has not yet sat down at the table.
+     */
     public showInitialState(): void {
         this.sitDownButton.isVisible = true;
         this.leaveTableButton.isVisible = false;
         this.newGameButton.isVisible = false;
     }
     
+    /**
+     * Updates the visibility of navigation buttons based on the current game state.
+     * Hides the "Sit Down" button and shows the "Leave Table" button.
+     * If the game is over, the "New Game" button is made visible.
+     */
     public showGameState(): void {
         this.sitDownButton.isVisible = false;
         this.leaveTableButton.isVisible = true;
@@ -111,12 +138,45 @@ export class NavigationUI extends BaseUI {
             this.newGameButton.isVisible = false;
         }
     }
-    
+
+    /**
+     * Updates the navigation UI based on the current game state.
+     * - In the initial state, only the "Sit Down" button is visible.
+     * - Once the player has sat down, the "Sit Down" button is hidden and
+     *   the "Leave Table" button becomes visible.
+     * - The "Leave Table" button is disabled during active gameplay (PlayerTurn or DealerTurn)
+     *   and enabled between hands or at the end of a game.
+     * - The "New Game" button is never shown, as the repurposed "Hit" button is used instead
+     *   in the GameOver state.
+     */
     public update(): void {
-        if (this.game.getGameState() === GameState.Initial) {
-            this.showInitialState();
+        const gameState = this.game.getGameState();
+        
+        if (gameState === GameState.Initial) {
+            // Initial state - show sit down button
+            this.sitDownButton.isVisible = true;
+            this.leaveTableButton.isVisible = false;
+            this.newGameButton.isVisible = false;
         } else {
-            this.showGameState();
+            // Player has sat down - hide sit down button
+            this.sitDownButton.isVisible = false;
+            
+            // Show leave table button, but disable during active gameplay
+            this.leaveTableButton.isVisible = true;
+            
+            if (gameState === GameState.PlayerTurn || gameState === GameState.DealerTurn) {
+                // Disable leave table during active gameplay
+                this.leaveTableButton.isEnabled = false;
+                this.leaveTableButton.background = "#666666"; // Gray out the button
+            } else {
+                // Enable leave table between hands
+                this.leaveTableButton.isEnabled = true;
+                this.leaveTableButton.background = "#aa3333"; // Normal color
+            }
+            
+            // Never show the blue New Game button when in GameOver state
+            // We'll use the repurposed Hit button (W key) instead
+            this.newGameButton.isVisible = false;
         }
     }
 }
