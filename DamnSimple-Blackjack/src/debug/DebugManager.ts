@@ -1,5 +1,3 @@
-// Add a new file: debug/DebugManager.ts
-
 import { Scene, Vector3 } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState, GameResult } from "../game/GameState";
