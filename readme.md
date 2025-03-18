@@ -2,11 +2,10 @@
 
 A minimalist yet engaging blackjack game focused on delivering a streamlined card playing experience.
 
-![Blackjack Game](https://example.com/placeholder-image.png)
-
 ## Overview
 
-Damn Simple Blackjack is exactly what it sounds like - a straightforward implementation of blackjack that lets players jump right into the action without unnecessary complexity. The game focuses on the classic 6-deck American blackjack ruleset while maintaining a clean, intuitive interface.
+Damn Simple Blackjack is exactly what it sounds like - a straightforward implementation of blackjack that lets players jump right into the action without unnecessary complexity. The game focuses on the classic 6-deck American blackjack ruleset while maintaining a clean, intuitive interface. The overarching goal is to provide a place for people to enjoy
+simple card games without needing to worry about paying for funds, closing out of ads, etc.
 
 ## Features
 
@@ -19,6 +18,7 @@ Damn Simple Blackjack is exactly what it sounds like - a straightforward impleme
 ## Game Rules
 
 The game implements standard American blackjack rules with 6 decks:
+
 - Dealer stands on soft 17
 - Blackjack pays 3:2
 - Double down allowed on any two cards
@@ -69,9 +69,13 @@ graph TD
 git clone https://github.com/yourusername/damn-simple-blackjack.git
 
 # Navigate to the project directory
-cd damn-simple-blackjack
+cd DamnSimple-Blackjack
 
-# Run the game (instructions will vary based on final implementation)
+# Install dependencies
+npm install
+
+# Start the game
+npm start
 ```
 
 ## Contributing
