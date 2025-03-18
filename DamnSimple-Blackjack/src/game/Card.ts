@@ -79,7 +79,6 @@ export class Card {
 
     /**
      * Flips the card face up or face down.
-     * 
      * This function calls any registered callbacks with the card instance as an argument.
      */
     public flip(): void {
@@ -125,6 +124,11 @@ export class Card {
         }
     }
 
+    /**
+     * Returns a string representation of the card, including its rank and suit.
+     * 
+     * @returns {string} A string in the format "Rank of Suit".
+     */
     public toString(): string {
         return `${this.rank} of ${this.suit}`;
     }

@@ -78,6 +78,9 @@ export class BlackjackGame {
 
     /**
      * Adds a callback function to be called when a card is flipped.
+     * 
+     * @param {function} callback - The callback function to be called when a card is flipped.
+     * @param {Card} card - The card that was flipped.
      */
     public addCardFlipCallback(callback: (card: Card) => void): void {
         this.handManager.addCardFlipCallback(callback);
@@ -85,6 +88,8 @@ export class BlackjackGame {
 
     /**
      * Calculates the total value of a hand in Blackjack.
+     * 
+     * @param {Card[]} hand - The hand of cards to calculate the value for.
      */
     public calculateHandValue(hand: Card[]): number {
         return ScoreCalculator.calculateHandValue(hand);
@@ -92,6 +97,8 @@ export class BlackjackGame {
 
     /**
      * Retrieves the player's hand.
+     * 
+     * @return {Card[]} The player's hand of cards.
      */
     public getPlayerHand(): Card[] {
         return this.handManager.getPlayerHand();
@@ -99,6 +106,8 @@ export class BlackjackGame {
 
     /**
      * Retrieves the dealer's hand.
+     * 
+     * @return {Card[]} The dealer's hand of cards.
      */
     public getDealerHand(): Card[] {
         return this.handManager.getDealerHand();
@@ -106,6 +115,8 @@ export class BlackjackGame {
 
     /**
      * Retrieves the current game state.
+     * 
+     * @return {GameState} The current state of the game.
      */
     public getGameState(): GameState {
         return this.gameActions.getGameState();
@@ -113,6 +124,8 @@ export class BlackjackGame {
 
     /**
      * Retrieves the result of the game.
+     * 
+     * @return {GameResult} The result of the game.
      */
     public getGameResult(): GameResult {
         return this.gameActions.getGameResult();
@@ -120,6 +133,8 @@ export class BlackjackGame {
 
     /**
      * Calculates the total value of the player's hand.
+     * 
+     * @return {number} The total value of the player's hand.
      */
     public getPlayerScore(): number {
         return ScoreCalculator.calculateHandValue(this.handManager.getPlayerHand());
@@ -127,6 +142,8 @@ export class BlackjackGame {
 
     /**
      * Calculates the total value of the dealer's hand.
+     * 
+     * @return {number} The total value of the dealer's hand.
      */
     public getDealerScore(): number {
         return ScoreCalculator.calculateHandValue(this.handManager.getDealerHand());
@@ -134,6 +151,8 @@ export class BlackjackGame {
     
     /**
      * Retrieves the player's current funds.
+     * 
+     * @return {number} The player's current funds.
      */
     public getPlayerFunds(): number {
         return this.playerFunds.getFunds();
@@ -141,6 +160,8 @@ export class BlackjackGame {
     
     /**
      * Retrieves the current bet amount for the game.
+     * 
+     * @return {number} The current bet amount.
      */
     public getCurrentBet(): number {
         return this.gameActions.getCurrentBet();

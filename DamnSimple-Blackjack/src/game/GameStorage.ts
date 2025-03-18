@@ -9,6 +9,17 @@ export class GameStorage {
     private static readonly STORAGE_KEY_BET = "damnSimpleBlackjack_currentBet";
     private static readonly STORAGE_KEY_RESULT = "damnSimpleBlackjack_gameResult";
 
+    /**
+     * Saves the current game state to local storage.
+     * This includes the game state, current bet, game result, and both player
+     * and dealer hands. Each hand is serialized to JSON format.
+     *
+     * @param {GameState} gameState - The current state of the game.
+     * @param {number} currentBet - The current bet amount.
+     * @param {GameResult} gameResult - The result of the game.
+     * @param {Card[]} playerHand - The player's hand of cards.
+     * @param {Card[]} dealerHand - The dealer's hand of cards.
+     */
     public static saveGameState(
         gameState: GameState, 
         currentBet: number, 
@@ -41,6 +52,25 @@ export class GameStorage {
         }
     }
 
+    /**
+     * Loads the game state from local storage. If the state is not saved, all
+     * properties will be null. If the state is saved but invalid, all properties
+     * will be null. If the state is saved and valid, the `gameState` property will
+     * always be set, and the other properties will be set if the state is not
+     * `GameState.Initial`.
+     *
+     * @returns An object with the following properties:
+     * - `gameState`: The current state of the game. If the state is not saved or
+     *   invalid, this will be null.
+     * - `currentBet`: The current bet amount. If the state is not saved or
+     *   invalid, this will be null.
+     * - `gameResult`: The result of the game. If the state is not saved or
+     *   invalid, this will be null.
+     * - `playerHand`: The player's hand of cards. If the state is not saved or
+     *   invalid, this will be null.
+     * - `dealerHand`: The dealer's hand of cards. If the state is not saved or
+     *   invalid, this will be null.
+     */
     public static loadGameState(): {
         gameState: GameState | null,
         currentBet: number | null,

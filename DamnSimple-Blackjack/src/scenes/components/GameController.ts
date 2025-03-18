@@ -28,7 +28,6 @@ export class GameController {
      * the UI if necessary.
      */
     // scenes/components/GameController.ts - update the constructor
-
     constructor(scene: Scene, blackjackGame: BlackjackGame, gameUI: GameUI, cardVisualizer: CardVisualizer) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;

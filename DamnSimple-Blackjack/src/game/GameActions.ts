@@ -14,34 +14,93 @@ export class GameActions {
     private currentBet: number = 0;
     private lastBet: number = 10;
 
+    /**
+     * Initializes a new instance of the GameActions class with the specified
+     * HandManager and PlayerFunds instances.
+     *
+     * @param {HandManager} handManager - The hand manager responsible for managing
+     * the cards and hands in the game.
+     * @param {PlayerFunds} playerFunds - The player funds manager responsible for
+     * tracking and managing the player's funds.
+     */
     constructor(handManager: HandManager, playerFunds: PlayerFunds) {
         this.handManager = handManager;
         this.playerFunds = playerFunds;
     }
 
+    /**
+     * Sets the game state to the given value, saving the new state to local storage.
+     * @param state The new game state to set.
+     */
     public setGameState(state: GameState): void {
         this.gameState = state;
         this.saveGameState();
     }
 
+    /**
+     * Retrieves the current game state.
+     * 
+     * @return {GameState} The current state of the game, which is one of
+     * Initial, Betting, PlayerTurn, DealerTurn, or GameOver.
+     */
     public getGameState(): GameState {
         return this.gameState;
     }
 
+    /**
+     * Retrieves the result of the current game.
+     * 
+     * @return {GameResult} The result of the game, indicating whether the player
+     * wins, the dealer wins, a push occurs, a player blackjack, or if the game
+     * is still in progress.
+     */
     public getGameResult(): GameResult {
         return this.gameResult;
     }
 
+    /**
+     * Retrieves the current bet amount for the game.
+     * 
+     * @return {number} The current bet amount.
+     */
     public getCurrentBet(): number {
         return this.currentBet;
     }
 
+    /**
+     * Sets the current bet amount to the specified value.
+     * If the amount is valid (positive and less than or equal to the player's funds),
+     * the current bet will be updated and saved to local storage.
+     * @param amount The bet amount to set.
+     */
     public setCurrentBet(amount: number): void {
         if (amount > 0 && amount <= this.playerFunds.getFunds()) {
             this.currentBet = amount;
         }
     }
 
+    /**
+     * Starts a new game of blackjack with the specified bet amount.
+     * This method will:
+     * - Check if the player has enough funds to play with the specified bet
+     *   amount. If not, the method will return false.
+     * - Deduct the bet amount from the player's funds.
+     * - Reset both player and dealer hands.
+     * - Refresh the deck if needed.
+     * - Deal two cards to both the player and dealer.
+     * - Set the game state to GameState.PlayerTurn.
+     * - Set the game result to GameResult.InProgress.
+     * - Check if the player has a blackjack (Ace and 10-value card as initial
+     *   two cards). If so, the method will trigger a game over with the result
+     *   set to GameResult.PlayerBlackjack or GameResult.Push, depending on if
+     *   the dealer also has a blackjack.
+     * - Save the game state to local storage.
+     * 
+     * @param {number} [bet=this.lastBet] The amount to bet for the new game.
+     * 
+     * @returns {boolean} - true if the game was started successfully, false if
+     *   not (player does not have enough funds).
+     */
     public startNewGame(bet: number = this.lastBet): boolean {
         // Check if player has enough funds
         if (!this.playerFunds.deductFunds(bet)) {
@@ -86,6 +145,11 @@ export class GameActions {
         return true;
     }
 
+    /**
+     * Executes a hit action for the player or dealer.
+     * If the player busts, the dealer's hole card is revealed and the game ends.
+     * If the dealer busts, the player wins.
+     */
     public playerHit(): void {
         if (this.gameState !== GameState.PlayerTurn && this.gameState !== GameState.DealerTurn) {
             return;
@@ -115,6 +179,17 @@ export class GameActions {
         this.saveGameState();
     }
 
+    /**
+     * Handles the player's decision to stand, transitioning the game state accordingly.
+     * - If the player stands during their turn, the game state changes to `DealerTurn`,
+     *   and the dealer's hole card is revealed after a slight delay.
+     * - If the player stands during the dealer's turn, it signifies the end of the dealer's moves.
+     *   The winner is determined by comparing the player's and dealer's hand values:
+     *   - The player wins if the dealer busts or if the player's hand value is greater.
+     *   - The dealer wins if their hand value is greater than the player's.
+     *   - A tie (push) occurs if both hand values are equal.
+     * - The game state is set to `GameOver` after determining the result, and the game state is saved.
+     */
     public playerStand(): void {
         if (this.gameState !== GameState.PlayerTurn && this.gameState !== GameState.DealerTurn) {
             return;
@@ -153,6 +228,14 @@ export class GameActions {
         this.saveGameState();
     }
 
+    /**
+     * Doubles the current bet and deals one more card to the player's hand.
+     * After doubling down, the player is automatically forced to stand.
+     * If the player does not have enough funds to double down, the action
+     * will be cancelled and false will be returned.
+     * 
+     * @returns true if the double down action was successful, otherwise false.
+     */
     public doubleDown(): boolean {
         if (this.gameState !== GameState.PlayerTurn || this.handManager.getPlayerHand().length > 2) {
             return false;
@@ -179,6 +262,11 @@ export class GameActions {
         return true;
     }
 
+    /**
+     * Saves the current game state to local storage.
+     * This includes the game state, current bet, game result, and both player
+     * and dealer hands, serializing each hand to JSON format.
+     */
     private saveGameState(): void {
         GameStorage.saveGameState(
             this.gameState,
@@ -189,6 +277,12 @@ export class GameActions {
         );
     }
 
+    /**
+     * Loads the game state from local storage. If the state is not saved, the
+     * method will return false. Otherwise, it will return true.
+     *
+     * @returns {boolean} - Returns true if the state is loaded successfully, false if not.
+     */
     public loadGameState(): boolean {
         const state = GameStorage.loadGameState();
         if (!state.gameState) {
