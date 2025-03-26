@@ -1,127 +1,74 @@
-// game/HandManager.ts
+// src/game/handmanager-ts (Simplified: Deck + Flip Callbacks)
 import { Card } from "./Card";
 import { Deck } from "./Deck";
 
 export class HandManager {
     private deck: Deck;
-    private playerHand: Card[] = [];
-    private dealerHand: Card[] = [];
-    private cardFlipCallbacks: ((card: Card) => void)[] = [];
+    private cardFlipCallbacks: Map<string, (card: Card) => void> = new Map(); // Use Map for easier removal if needed
 
-    /**
-     * Creates a new instance of the HandManager class.
-     * 
-     * This constructor initializes a new instance of the Deck class and assigns it to the deck property.
-     */
     constructor() {
-        this.deck = new Deck();
+        this.deck = new Deck(); // Using 1 deck by default
     }
 
     /**
-     * Resets the player's and dealer's hands to empty arrays.
+     * Draws a card from the deck.
+     * Returns undefined if the deck is empty (should ideally not happen with reshuffling).
      */
-    public resetHands(): void {
-        this.playerHand = [];
-        this.dealerHand = [];
+    public drawCard(): Card | undefined {
+        return this.deck.drawCard();
     }
 
     /**
-     * Retrieves the player's hand.
-     * 
-     * @returns {Card[]} The player's hand of cards.
-     */
-    public getPlayerHand(): Card[] {
-        return this.playerHand;
-    }
-
-    /**
-     * Retrieves the dealer's hand.
-     * 
-     * @returns {Card[]} The dealer's hand of cards.
-     */
-    public getDealerHand(): Card[] {
-        return this.dealerHand;
-    }
-
-    /**
-     * Adds a callback function to be called when a card is flipped.
-     * The callback receives the card instance as an argument.
-     * 
-     * @param {((card: Card) => void)} callback - The function to be called when a card is flipped.
-     */
-    public addCardFlipCallback(callback: (card: Card) => void): void {
-        this.cardFlipCallbacks.push(callback);
-    }
-
-    /**
-     * Deals a card to the specified hand and sets its face-up state.
-     * 
-     * @param {Card[]} hand - The hand to which the card will be added.
-     * @param {boolean} faceUp - If true, the card will be flipped face up; otherwise, it remains face down.
-     * 
-     * The card is drawn from the deck and added to the specified hand. If the card is to be face up,
-     * it is flipped after a short delay to allow for rendering. The function also sets up any card flip
-     * callbacks that have been registered.
-     */
-    public dealCard(hand: Card[], faceUp: boolean): void {
-        const card = this.deck.drawCard();
-        if (card) {
-            // Add the card to the hand first
-            hand.push(card);
-            
-            // Set up flip callback for this card
-            for (const callback of this.cardFlipCallbacks) {
-                card.setFlipCallback(callback);
-            }
-            
-            // Then flip it if needed (with slight delay to allow rendering)
-            if (faceUp) {
-                setTimeout(() => {
-                    card.setFaceUp(true);
-                    if (card.onFlip) {
-                        card.onFlip(card);
-                    }
-                }, 300);
-            }
-        }
-    }
-
-    /**
-     * Deals the initial cards to the player and dealer, with the first dealer card
-     * face down (hole card) and all other cards face up.
-     */
-    public dealInitialCards(): void {
-        // First dealer card face down
-        this.dealCard(this.dealerHand, false);
-        
-        // First player card face up
-        this.dealCard(this.playerHand, true);
-        
-        // Second dealer card face up
-        this.dealCard(this.dealerHand, true);
-        
-        // Second player card face up
-        this.dealCard(this.playerHand, true);
-    }
-
-    /**
-     * Resets the deck when there are less than 15 cards remaining to prevent the deck
-     * from running out of cards mid-game.
+     * Resets and shuffles the deck if the number of cards remaining is low.
      */
     public refreshDeckIfNeeded(): void {
-        if (this.deck.getCardsRemaining() < 15) {
-            this.deck.reset();
+        if (this.deck.needsShuffle()) {
+            this.deck.reset(); // Resets with the same number of decks it was initialized with
         }
     }
 
     /**
-     * Reveals the dealer's hole card by flipping the first card in the dealer's hand.
-     * This action is typically performed at the end of the player's turn or game
-     * when the dealer's hand needs to be fully visible for score evaluation.
+     * Adds a callback function to be called when ANY card managed by this game is flipped.
+     * The callback receives the card instance as an argument.
+     * @param id A unique ID for the callback (e.g., 'cardVisualizer')
+     * @param callback The function to be called when a card is flipped.
      */
-    public revealDealerHoleCard(): void {
-        if (this.dealerHand.length > 0) {
-            this.dealerHand[0].flip();
-        }
+    public addCardFlipCallback(id: string, callback: (card: Card) => void): void {
+        this.cardFlipCallbacks.set(id, callback);
+        console.log(`Registered flip callback with ID: ${id}`);
     }
+
+    /**
+     * Removes a previously registered card flip callback.
+     * @param id The unique ID of the callback to remove.
+     */
+    public removeCardFlipCallback(id: string): void {
+        this.cardFlipCallbacks.delete(id);
+    }
+
+    /**
+     * Registers the global flip listeners onto a specific card instance.
+     * This should be called whenever a card is created or restored.
+     * @param card The card instance to register listeners on.
+     */
+    public registerFlipCallback(card: Card): void {
+        card.setFlipCallback((flippedCard) => {
+            console.log(`Flip detected for ${flippedCard.toString()}, notifying ${this.cardFlipCallbacks.size} listeners.`);
+            this.cardFlipCallbacks.forEach((callback, id) => {
+                 // console.log(`Notifying listener: ${id}`);
+                try {
+                    callback(flippedCard);
+                } catch (e) {
+                    console.error(`Error in flip callback '${id}':`, e);
+                }
+            });
+        });
+    }
+
+    // --- Methods removed as hands are managed by BlackjackGame ---
+    // resetHands()
+    // getPlayerHand()
+    // getDealerHand()
+    // dealInitialCards() -> Logic moved to GameActions
+    // revealDealerHoleCard() -> Logic moved to GameActions (requestRevealDealerHoleCard)
 }

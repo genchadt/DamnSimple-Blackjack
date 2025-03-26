@@ -1,388 +1,501 @@
-// scenes/components/CardVisualizer.ts
-import { Scene, Vector3, MeshBuilder, StandardMaterial, Color3,
-    Mesh, Animation, DynamicTexture, EasingFunction, CubicEase } from "@babylonjs/core";
+// src/scenes/components/cardvisualizer-ts (Uses animation callback, Map for meshes)
+import { Scene, Vector3, MeshBuilder, StandardMaterial, Color3, Texture,
+    Mesh, Animation, DynamicTexture, EasingFunction, CubicEase, QuadraticEase, AnimationEvent } from "@babylonjs/core";
 import { Card, Suit, Rank } from "../../game/Card";
 import { BlackjackGame } from "../../game/BlackjackGame";
 import { GameState } from "../../game/GameState";
 
 export class CardVisualizer {
-    //#region Properties
     private scene: Scene;
     private blackjackGame: BlackjackGame;
-    private cardMeshes: Map<Card, Mesh> = new Map();
+    // Use card's uniqueId as key for reliability
+    private cardMeshes: Map<string, Mesh> = new Map();
     private deckPosition: Vector3;
     private animationInProgress: boolean = false;
-    private onAnimationComplete: () => void;
-    //#endregion
+    private onAnimationCompleteCallback: (() => void) | null = null;
 
-    //#region Constructor
-    /**
-     * Initializes a new instance of the CardVisualizer class.
-     * 
-     * @param {Scene} scene - The Babylon.js scene where the card visualizations will be rendered.
-     * @param {BlackjackGame} blackjackGame - The game logic instance to interact with and visualize card changes.
-     * @param {Vector3} deckPosition - The starting position of the card deck in the scene.
-     * @param {() => void} onAnimationComplete - Callback function to be called when a card animation completes.
-     * 
-     * This constructor sets up the card visualizer, linking it to the game logic and 
-     * registering necessary callbacks to update card visuals when their state changes.
-     */
-    constructor(scene: Scene, blackjackGame: BlackjackGame, deckPosition: Vector3, onAnimationComplete: () => void) {
+    // Card dimensions
+    private static readonly CARD_WIDTH = 1.0;
+    private static readonly CARD_HEIGHT = 1.4;
+    private static readonly CARD_SPACING = 1.2; // Width + gap
+
+    // Animation parameters
+    private static readonly DEAL_DURATION_MS = 400; // Faster deal
+    private static readonly REPOSITION_DURATION_MS = 300;
+    private static readonly FLIP_DURATION_MS = 300;
+    private static readonly FPS = 60;
+
+
+    constructor(scene: Scene, blackjackGame: BlackjackGame, deckPosition: Vector3) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
         this.deckPosition = deckPosition;
-        this.onAnimationComplete = onAnimationComplete;
-        
-        // Register callback for card flips
-        this.blackjackGame.addCardFlipCallback((card) => {
-            this.updateCardVisual(card);
-        });
-    }
-    //#endregion
 
-    //#region Public Methods
-    /**
-     * Creates a visual mesh representation of a card and animates it from the deck to its final position.
-     *
-     * @param {Card} card - The card object containing suit, rank, and face-up status.
-     * @param {number} index - The index of the card in the player's or dealer's hand.
-     * @param {boolean} isPlayer - Determines if the card belongs to the player's hand.
-     * @returns {Mesh} The mesh representing the card in the scene.
-     *
-     * This function creates a plane mesh for the card, positions it at the deck, calculates 
-     * its final position based on the hand it belongs to, sets the card facing up, and assigns
-     * a material to it. The card is then animated from the deck to the calculated position.
-     */
-    public createCardMesh(card: Card, index: number, isPlayer: boolean): Mesh {
-        console.log(`Creating card mesh for ${card.toString()}, face up: ${card.isFaceUp()}`);
-        
-        // Create a plane for the card
-        const cardMesh = MeshBuilder.CreatePlane(
-            `card_${card.getSuit()}_${card.getRank()}`, 
-            { width: 1, height: 1.4 }, 
-            this.scene
+        // Register callback for card flips (visual update)
+        // Use a unique ID for this visualizer's callback
+        this.blackjackGame.getHandManager().addCardFlipCallback(
+             "cardVisualizerFlipHandler", // Unique ID
+             (card) => {
+                console.log(`CardVisualizer received flip notification for ${card.toString()}`);
+                this.updateCardVisual(card);
+             }
         );
-        
-        // Initially position card at the deck
-        cardMesh.position = this.deckPosition.clone();
-        
-        // Calculate final position - improved centering logic
-        const finalPosition = this.calculateCardPosition(index, isPlayer);
-        
-        // Set rotation to face up
-        cardMesh.rotation.x = Math.PI/2;
-        
-        // Create material
-        const cardMaterial = this.createCardMaterial(card);
-        cardMesh.material = cardMaterial;
-        
-        // Add animation to move card from deck to position
-        this.animateCardDealing(cardMesh, finalPosition, 500);
-        
-        return cardMesh;
     }
 
     /**
-     * Renders the cards in the player's and dealer's hands by creating or updating
-     * the visual representation of each card. This function is called when the game
-     * state changes and cards need to be rendered or updated.
+     * Sets the callback function to be invoked when a visual animation completes.
+     * @param callback The function to call on animation completion.
      */
-    public renderCards(): void {
-        console.log("Rendering cards...");
-        
-        // Get hands
-        const playerHand = this.blackjackGame.getPlayerHand();
-        const dealerHand = this.blackjackGame.getDealerHand();
-        
-        console.log(`Player hand has ${playerHand.length} cards`);
-        console.log(`Dealer hand has ${dealerHand.length} cards`);
-        
-        // Handle empty hands (should only happen in Initial state)
-        if (playerHand.length === 0 && dealerHand.length === 0) {
-            console.log("No cards to render");
+     public setOnAnimationCompleteCallback(callback: () => void): void {
+        this.onAnimationCompleteCallback = callback;
+    }
+
+    /**
+     * Creates a visual mesh for a card, deals it face down initially,
+     * then animates it to its position and flips it if needed.
+     */
+    public createCardMesh(card: Card, index: number, isPlayer: boolean, faceUp: boolean): void {
+        const cardId = card.getUniqueId();
+        if (this.cardMeshes.has(cardId)) {
+            console.warn(`Card mesh already exists for ${card.toString()}. Repositioning instead.`);
+            this.repositionCard(card, index, isPlayer);
             return;
         }
-        
-        // Clear existing cards if we're starting a new game
-        // This prevents duplicate cards from appearing
-        if (this.blackjackGame.getGameState() === GameState.PlayerTurn && 
-            playerHand.length === 2 && dealerHand.length === 2 && 
-            this.cardMeshes.size > 0) {
-            console.log("Starting new game, clearing existing cards");
-            this.clearTable();
-        }
-        
-        // Track if we created any new cards
+
+        console.log(`Creating card mesh for ${card.toString()} (faceUp=${faceUp}) at index ${index}, isPlayer=${isPlayer}`);
+
+        const cardMesh = MeshBuilder.CreatePlane(
+            `card_${cardId}`,
+            { width: CardVisualizer.CARD_WIDTH, height: CardVisualizer.CARD_HEIGHT, sideOrientation: Mesh.DOUBLESIDE },
+            this.scene
+        );
+
+        // Initial state: At deck, face down visually (material will be updated later if needed)
+        cardMesh.position = this.deckPosition.clone();
+        cardMesh.rotation = new Vector3(0, Math.PI, 0); // Start face down (assuming back texture is default)
+        cardMesh.material = this.createCardMaterial(card, false); // Create face-down material initially
+
+        // Store mesh immediately
+        this.cardMeshes.set(cardId, cardMesh);
+
+        // Calculate final position
+        const finalPosition = this.calculateCardPosition(index, isPlayer, this.getHandSize(isPlayer));
+        const finalRotation = new Vector3(0, faceUp ? 0 : Math.PI, 0); // Target rotation based on faceUp
+
+        // Animate dealing (position and rotation)
+        this.animateCardDealing(cardMesh, finalPosition, finalRotation, faceUp, card);
+    }
+
+    /** Helper to get current hand size */
+    private getHandSize(isPlayer: boolean): number {
+        return isPlayer ? this.blackjackGame.getPlayerHand().length : this.blackjackGame.getDealerHand().length;
+    }
+
+    /**
+     * Renders cards based on the current game state.
+     * If restoring, creates all cards without animation.
+     * Otherwise, finds missing cards and creates/animates them.
+     * @param isRestoring - If true, creates cards instantly at final positions.
+     */
+    public renderCards(isRestoring: boolean = false): void {
+        console.log(`Rendering cards... isRestoring: ${isRestoring}`);
+        const playerHand = this.blackjackGame.getPlayerHand();
+        const dealerHand = this.blackjackGame.getDealerHand();
+
+        const allHands = [
+            { hand: playerHand, isPlayer: true },
+            { hand: dealerHand, isPlayer: false }
+        ];
+
         let createdNewCards = false;
-        
-        // Create dealer card meshes for any cards not already rendered
-        dealerHand.forEach((card, index) => {
-            if (!this.cardMeshes.has(card)) {
-                const mesh = this.createCardMesh(card, index, false);
-                this.cardMeshes.set(card, mesh);
-                console.log(`Created dealer card mesh for ${card.toString()}`);
-                createdNewCards = true;
+
+        allHands.forEach(({ hand, isPlayer }) => {
+            // Reposition existing cards first if not restoring
+            if (!isRestoring) {
+                 this.repositionCards(isPlayer, hand);
             }
+
+            // Create missing cards
+            hand.forEach((card, index) => {
+                const cardId = card.getUniqueId();
+                if (!this.cardMeshes.has(cardId)) {
+                    createdNewCards = true;
+                    if (isRestoring) {
+                        // Create instantly at final position
+                        this.createCardMeshInstant(card, index, isPlayer);
+                    } else {
+                        // This path should ideally not be hit often if createCardMesh is called correctly on deal
+                        console.warn(`renderCards creating missing card: ${card.toString()}. Should be created on deal.`);
+                        // Create with animation (will be triggered by game logic via notifyCardDealt)
+                        // this.createCardMesh(card, index, isPlayer, card.isFaceUp());
+                    }
+                }
+                 // Ensure existing card visuals match logical state (especially for restore)
+                 else if (isRestoring) {
+                     this.updateCardVisual(card, true); // Force update material/rotation on restore
+                 }
+            });
         });
-        
-        // Create player card meshes for any cards not already rendered
-        playerHand.forEach((card, index) => {
-            if (!this.cardMeshes.has(card)) {
-                const mesh = this.createCardMesh(card, index, true);
-                this.cardMeshes.set(card, mesh);
-                console.log(`Created player card mesh for ${card.toString()}`);
-                createdNewCards = true;
-            }
-        });
-        
-        // If we didn't create any new cards but hand sizes changed,
-        // reposition existing cards to ensure proper layout
-        if (!createdNewCards) {
-            // Reposition dealer and player cards to ensure they're centered
-            this.repositionCards(false); // Dealer cards
-            this.repositionCards(true);  // Player cards
-        }
-        
-        console.log(`Rendered ${this.cardMeshes.size} cards in total`);
+
+         // Clean up meshes for cards no longer in hands (e.g., after reset)
+         const currentCardIds = new Set([...playerHand, ...dealerHand].map(c => c.getUniqueId()));
+         this.cardMeshes.forEach((mesh, cardId) => {
+             if (!currentCardIds.has(cardId)) {
+                 console.log(`Disposing stale card mesh: ${mesh.name}`);
+                 mesh.dispose();
+                 this.cardMeshes.delete(cardId);
+             }
+         });
+
+
+        console.log(`Render complete. Total meshes: ${this.cardMeshes.size}`);
     }
 
-    /**
-     * Repositions the cards in a hand (player or dealer) to accommodate any changes to the hand size.
-     * The cards are repositioned using a smooth animation with a cubic ease out function.
-     * The animation duration is 15 frames, which is approximately 500 ms at 30 fps.
-     * The cards are positioned such that they are centered horizontally and spaced evenly apart.
-     * The z position is set such that player cards are at z=3 and dealer cards are at z=-3.
-     * The y position is set to 0.3 to raise the cards slightly above the table.
-     * 
-     * @param {boolean} isPlayer - true if the hand belongs to the player, false if it belongs to the dealer.
-     */
-    public repositionCards(isPlayer: boolean): void {
-        const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
-        
+     /** Creates card instantly at final position/rotation. Used for restore. */
+     private createCardMeshInstant(card: Card, index: number, isPlayer: boolean): void {
+        const cardId = card.getUniqueId();
+         console.log(`Creating card mesh INSTANTLY for ${card.toString()} (faceUp=${card.isFaceUp()})`);
+
+        const cardMesh = MeshBuilder.CreatePlane(
+            `card_${cardId}`,
+            { width: CardVisualizer.CARD_WIDTH, height: CardVisualizer.CARD_HEIGHT, sideOrientation: Mesh.DOUBLESIDE },
+            this.scene
+        );
+
+        const position = this.calculateCardPosition(index, isPlayer, this.getHandSize(isPlayer));
+        const rotation = new Vector3(0, card.isFaceUp() ? 0 : Math.PI, 0);
+
+        cardMesh.position = position;
+        cardMesh.rotation = rotation;
+        cardMesh.material = this.createCardMaterial(card, card.isFaceUp()); // Create correct material
+
+        this.cardMeshes.set(cardId, cardMesh);
+    }
+
+
+    /** Repositions cards in a hand smoothly */
+    private repositionCards(isPlayer: boolean, hand: Card[]): void {
+        const handSize = hand.length;
         hand.forEach((card, index) => {
-            const cardMesh = this.cardMeshes.get(card);
+            const cardId = card.getUniqueId();
+            const cardMesh = this.cardMeshes.get(cardId);
             if (cardMesh) {
-                const newPosition = this.calculateCardPosition(index, isPlayer);
-                
-                // Create animation for repositioning
-                const positionAnimation = new Animation(
-                    "repositionAnimation",
-                    "position",
-                    30,
-                    Animation.ANIMATIONTYPE_VECTOR3,
-                    Animation.ANIMATIONLOOPMODE_CONSTANT
-                );
-                
-                // Add easing
-                const easingFunction = new CubicEase();
-                easingFunction.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
-                positionAnimation.setEasingFunction(easingFunction);
-                
-                // Animation keyframes - start from current position
-                const keyFrames = [
-                    { frame: 0, value: cardMesh.position.clone() },
-                    { frame: 15, value: newPosition }
-                ];
-                positionAnimation.setKeys(keyFrames);
-                
-                // Attach and run animation
-                cardMesh.animations = [positionAnimation];
-                this.scene.beginAnimation(cardMesh, 0, 15, false);
+                const newPosition = this.calculateCardPosition(index, isPlayer, handSize);
+                // Only animate if position actually changes significantly
+                if (!cardMesh.position.equalsWithEpsilon(newPosition, 0.01)) {
+                    // console.log(`Repositioning ${card.toString()} to ${newPosition}`);
+                    this.animateVector3(
+                        cardMesh,
+                        "position",
+                        newPosition,
+                        CardVisualizer.REPOSITION_DURATION_MS,
+                        new QuadraticEase() // Use a different ease for reposition
+                    );
+                }
             }
         });
     }
 
-    /**
-     * Updates the visual representation of a card when its face is flipped.
-     * Given a card object, this function gets the mesh associated with it and
-     * updates the mesh's material to reflect the new face of the card.
-     * 
-     * @param {Card} card - The card object to update the visual representation of.
-     */
-    public updateCardVisual(card: Card): void {
-        // Get the mesh associated with this card
-        const cardMesh = this.cardMeshes.get(card);
-        if (cardMesh) {
-            // Update the material to show the card's new face
-            cardMesh.material = this.createCardMaterial(card);
+     /** Repositions a single card */
+     private repositionCard(card: Card, index: number, isPlayer: boolean): void {
+         const cardId = card.getUniqueId();
+         const cardMesh = this.cardMeshes.get(cardId);
+         const handSize = this.getHandSize(isPlayer);
+         if (cardMesh) {
+             const newPosition = this.calculateCardPosition(index, isPlayer, handSize);
+             if (!cardMesh.position.equalsWithEpsilon(newPosition, 0.01)) {
+                 this.animateVector3(
+                     cardMesh,
+                     "position",
+                     newPosition,
+                     CardVisualizer.REPOSITION_DURATION_MS,
+                     new QuadraticEase()
+                 );
+             }
+         }
+     }
+
+
+    /** Updates the visual (material, rotation) of a card, optionally animating the flip */
+    public updateCardVisual(card: Card, forceImmediate: boolean = false): void {
+        const cardId = card.getUniqueId();
+        const cardMesh = this.cardMeshes.get(cardId);
+        if (!cardMesh) {
+             console.warn(`Cannot update visual for card ${card.toString()}, mesh not found.`);
+             return;
+        }
+
+        console.log(`Updating visual for ${card.toString()} to faceUp=${card.isFaceUp()}, forceImmediate=${forceImmediate}`);
+
+        const targetRotationY = card.isFaceUp() ? 0 : Math.PI;
+
+        if (forceImmediate || Math.abs(cardMesh.rotation.y - targetRotationY) < 0.01) {
+            // If immediate or already correct, just set material and rotation directly
+            cardMesh.material = this.createCardMaterial(card, card.isFaceUp());
+            cardMesh.rotation.y = targetRotationY;
+        } else {
+             // Animate the flip (Y-axis rotation)
+             this.animateFlip(cardMesh, card.isFaceUp(), card);
         }
     }
 
-    /**
-     * Clears the table by disposing of all card visualizations.
-     * This method is called when the user starts a new game or leaves the table.
-     * It disposes of all the meshes associated with the cards in the player's and dealer's hand
-     * and clears the map of card meshes.
-     */
+    /** Clears all card meshes from the scene */
     public clearTable(): void {
-        console.log("Clearing table");
-        // Dispose all card meshes
+        console.log("Clearing table visuals...");
+        this.animationInProgress = false; // Stop tracking animations
         this.cardMeshes.forEach(mesh => mesh.dispose());
         this.cardMeshes.clear();
     }
 
-    /**
-     * Retrieves whether or not an animation is currently in progress.
-     * 
-     * @returns {boolean} true if an animation is in progress, false otherwise.
-     */
     public isAnimationInProgress(): boolean {
         return this.animationInProgress;
     }
-    //#endregion
 
-    //#region Private Methods
-    /**
-     * Calculates the position of a card in 3D space based on its index in the hand and whether it belongs to the player or dealer.
-     * The position is calculated such that the cards are centered horizontally and spaced evenly apart.
-     * The z position is set such that player cards are at z=3 and dealer cards are at z=-3.
-     * The y position is set to 0.3 to raise the cards slightly above the table.
-     * 
-     * @param {number} index - The index of the card in the hand.
-     * @param {boolean} isPlayer - true if the card belongs to the player, false if it belongs to the dealer.
-     * @returns {Vector3} The calculated position of the card.
-     */
-    private calculateCardPosition(index: number, isPlayer: boolean): Vector3 {
-        // Z position: player cards at z=3, dealer cards at z=-3
-        const zPos = isPlayer ? 3 : -3;
-        
-        // Get the hand
-        const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
-        const handSize = hand.length;
-        
-        // Calculate spacing and centering
-        const cardWidth = 1.1; // Card width plus small gap
-        const totalWidth = handSize * cardWidth;
-        const startX = -(totalWidth / 2) + (cardWidth / 2);
-        const xPos = startX + (index * cardWidth);
-        
-        return new Vector3(xPos, 0.3, zPos);
-    }
+    // --- Private Animation Helpers ---
 
-    /**
-     * Animates the movement of a card mesh from the deck to the target position over a given duration.
-     * The animation is created with a cubic ease out function for a smooth animation.
-     * When the animation completes, the onAnimationComplete callback function is called.
-     * 
-     * @param {Mesh} cardMesh - The mesh representing the card.
-     * @param {Vector3} targetPosition - The final position of the card.
-     * @param {number} duration - The duration of the animation in milliseconds.
-     */
-    private animateCardDealing(cardMesh: Mesh, targetPosition: Vector3, duration: number): void {
+    /** Animates dealing: position and rotation */
+    private animateCardDealing(mesh: Mesh, targetPos: Vector3, targetRot: Vector3, faceUp: boolean, card: Card): void {
         this.animationInProgress = true;
-        
-        // Create position animation
-        const positionAnimation = new Animation(
-            "positionAnimation",
-            "position",
-            30, // frames per second
-            Animation.ANIMATIONTYPE_VECTOR3,
-            Animation.ANIMATIONLOOPMODE_CONSTANT
-        );
-        
-        // Add easing for smooth animation
-        const easingFunction = new CubicEase();
-        easingFunction.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
-        positionAnimation.setEasingFunction(easingFunction);
-        
-        // Animation keyframes
-        const keyFrames = [
-            { frame: 0, value: cardMesh.position.clone() },
-            { frame: duration / 1000 * 30, value: targetPosition }
-        ];
-        positionAnimation.setKeys(keyFrames);
-        
-        // Attach animation to the mesh
-        cardMesh.animations = [positionAnimation];
-        
-        // Run the animation
-        this.scene.beginAnimation(cardMesh, 0, duration / 1000 * 30, false, 1, () => {
+        const durationFrames = CardVisualizer.DEAL_DURATION_MS / 1000 * CardVisualizer.FPS;
+        const easing = new CubicEase();
+        easing.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
+
+        // Position Animation
+        const posAnim = new Animation("dealPosAnim", "position", CardVisualizer.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+        posAnim.setKeys([
+            { frame: 0, value: mesh.position.clone() },
+            { frame: durationFrames, value: targetPos }
+        ]);
+        posAnim.setEasingFunction(easing);
+
+        // Rotation Animation (Y-axis only for flip)
+        const rotAnim = new Animation("dealRotAnim", "rotation.y", CardVisualizer.FPS, Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CONSTANT);
+        rotAnim.setKeys([
+            { frame: 0, value: mesh.rotation.y },
+            { frame: durationFrames, value: targetRot.y } // Target Y rotation
+        ]);
+        rotAnim.setEasingFunction(easing);
+
+         // Update material halfway through rotation if flipping face up
+         if (faceUp && mesh.rotation.y !== targetRot.y) {
+             const materialUpdateEvent = new AnimationEvent(
+                 durationFrames / 2, // Halfway point
+                 () => {
+                     console.log(`Updating material mid-deal for ${card.toString()}`);
+                     mesh.material = this.createCardMaterial(card, true);
+                 },
+                 true // onlyOnce
+             );
+             rotAnim.addEvent(materialUpdateEvent);
+         }
+
+
+        // Run animations
+        this.scene.beginDirectAnimation(mesh, [posAnim, rotAnim], 0, durationFrames, false, 1, () => {
             this.animationInProgress = false;
-            if (this.onAnimationComplete) {
-                this.onAnimationComplete();
+            console.log(`Deal animation complete for ${mesh.name}`);
+            if (this.onAnimationCompleteCallback) {
+                this.onAnimationCompleteCallback();
             }
         });
     }
 
-    //#region Card Material Setup
-    /**
-     * Creates a material for a card in the scene based on the given Card instance.
-     * The material is created based on the card's suit and rank, and whether the card is face up or down.
-     * If the card is face up, the material displays the rank and suit of the card; if the card is face down, it displays the card back pattern.
-     * The material is also slightly emissive to make the card less affected by lighting.
-     * 
-     * @param {Card} card - The card that the material is being created for.
-     * @returns {StandardMaterial} The material created for the card.
-     */
-    public createCardMaterial(card: Card): StandardMaterial {
-        // Create dynamic texture for the card
-        const texture = new DynamicTexture(
-            `texture_${card.getSuit()}_${card.getRank()}`,
-            { width: 256, height: 356 },
-            this.scene,
-            false
+     /** Animates flip: Y-axis rotation with material change halfway */
+     private animateFlip(mesh: Mesh, faceUp: boolean, card: Card): void {
+        this.animationInProgress = true;
+        const durationFrames = CardVisualizer.FLIP_DURATION_MS / 1000 * CardVisualizer.FPS;
+        const easing = new QuadraticEase(); // Different ease for flip
+        easing.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
+
+        const startRotationY = mesh.rotation.y;
+        const targetRotationY = faceUp ? 0 : Math.PI;
+
+        const rotAnim = new Animation("flipRotAnim", "rotation.y", CardVisualizer.FPS, Animation.ANIMATIONTYPE_FLOAT, Animation.ANIMATIONLOOPMODE_CONSTANT);
+        rotAnim.setKeys([
+            { frame: 0, value: startRotationY },
+            { frame: durationFrames, value: targetRotationY }
+        ]);
+        rotAnim.setEasingFunction(easing);
+
+        // Event to change material halfway through the flip
+        const materialUpdateEvent = new AnimationEvent(
+            durationFrames / 2,
+            () => {
+                console.log(`Updating material mid-flip for ${card.toString()}`);
+                mesh.material = this.createCardMaterial(card, faceUp);
+            },
+            true // onlyOnce
         );
-        const ctx = texture.getContext() as CanvasRenderingContext2D;
-        
-        // Fill background white or red based on face up/down
-        if (card.isFaceUp()) {
-            ctx.fillStyle = "#FFFFFF";
-        } else {
-            // Match the deck color - using the same dark red as the deck
-            ctx.fillStyle = "#880000";
-        }
-        ctx.fillRect(0, 0, 256, 356);
-        
-        // Add border
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 8;
-        ctx.strokeRect(10, 10, 236, 336);
-        
-        if (card.isFaceUp()) {
-            // Card text
-            ctx.fillStyle = (card.getSuit() === Suit.Hearts || card.getSuit() === Suit.Diamonds) ? 
-                        "#FF0000" : "#000000";
-            ctx.font = "bold 50px Arial";
-            ctx.textAlign = "center";
-            
-            // Draw rank and suit
-            const suitSymbols = {
-                [Suit.Hearts]: "♥",
-                [Suit.Diamonds]: "♦",
-                [Suit.Clubs]: "♣",
-                [Suit.Spades]: "♠"
-            };
-            
-            ctx.fillText(`${card.getRank()} ${suitSymbols[card.getSuit()]}`, 128, 100);
-            ctx.fillText(suitSymbols[card.getSuit()], 128, 200);
-        } else {
-            // Draw card back pattern - matching the deck color
-            ctx.fillStyle = "#880000";
-            ctx.fillRect(30, 30, 196, 296);
-            
-            // Draw some pattern
-            ctx.strokeStyle = "#FFFFFF";
-            ctx.lineWidth = 2;
-            for (let i = 0; i < 7; i++) {
-                for (let j = 0; j < 10; j++) {
-                    if ((i + j) % 2 === 0) {
-                        ctx.strokeRect(40 + i * 25, 40 + j * 25, 20, 20);
-                    }
-                }
+        rotAnim.addEvent(materialUpdateEvent);
+
+        // Run animation
+        this.scene.beginDirectAnimation(mesh, [rotAnim], 0, durationFrames, false, 1, () => {
+            this.animationInProgress = false;
+            console.log(`Flip animation complete for ${mesh.name}`);
+            // Ensure final rotation is exact
+            mesh.rotation.y = targetRotationY;
+            if (this.onAnimationCompleteCallback) {
+                this.onAnimationCompleteCallback();
             }
-        }
-        
-        texture.update();
-        
-        // Create material
-        const cardMaterial = new StandardMaterial(`material_${card.getSuit()}_${card.getRank()}`, this.scene);
-        cardMaterial.diffuseTexture = texture;
-        cardMaterial.specularColor = new Color3(0, 0, 0);
-        
-        // Make card slightly emissive so it's not affected by lighting
-        cardMaterial.emissiveColor = new Color3(0.5, 0.5, 0.5);
-        
-        return cardMaterial;
+        });
     }
-    //#endregion
+
+
+    /** Generic animation for Vector3 properties */
+    private animateVector3(mesh: Mesh, property: string, targetValue: Vector3, durationMs: number, easing?: EasingFunction): void {
+        this.animationInProgress = true;
+        const durationFrames = durationMs / 1000 * CardVisualizer.FPS;
+        const effectiveEasing = easing ?? new CubicEase();
+        if (!easing) effectiveEasing.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
+
+        const anim = new Animation(
+            `${property}Anim_${mesh.name}`,
+            property,
+            CardVisualizer.FPS,
+            Animation.ANIMATIONTYPE_VECTOR3,
+            Animation.ANIMATIONLOOPMODE_CONSTANT
+        );
+        anim.setKeys([
+            { frame: 0, value: mesh.position.clone() }, // Assumes property is position for clone, adjust if needed
+            { frame: durationFrames, value: targetValue }
+        ]);
+        anim.setEasingFunction(effectiveEasing);
+
+        this.scene.beginDirectAnimation(mesh, [anim], 0, durationFrames, false, 1, () => {
+            this.animationInProgress = false;
+             // console.log(`${property} animation complete for ${mesh.name}`);
+            if (this.onAnimationCompleteCallback) {
+                this.onAnimationCompleteCallback();
+            }
+        });
+    }
+
+
+    /** Calculates card position */
+    private calculateCardPosition(index: number, isPlayer: boolean, handSize: number): Vector3 {
+        const zPos = isPlayer ? 2.5 : -2.5; // Adjusted Z positions
+        const yPos = 0.15; // Slightly above table
+
+        const totalWidth = handSize * CardVisualizer.CARD_SPACING;
+        // Start X calculation: -(TotalWidth / 2) + (CardSpacing / 2)
+        const startX = -(totalWidth / 2) + (CardVisualizer.CARD_SPACING / 2);
+        const xPos = startX + (index * CardVisualizer.CARD_SPACING);
+
+        return new Vector3(xPos, yPos, zPos);
+    }
+
+    // --- Card Material Creation ---
+    // Cache materials to avoid recreating textures constantly
+    private materialCache: Map<string, StandardMaterial> = new Map();
+    private cardBackMaterial: StandardMaterial | null = null;
+
+    private createCardMaterial(card: Card, faceUp: boolean): StandardMaterial {
+        const cacheKey = faceUp ? `${card.getSuit()}-${card.getRank()}` : "cardBack";
+
+        // Return cached material if available
+        if (this.materialCache.has(cacheKey)) {
+            return this.materialCache.get(cacheKey)!;
+        }
+         // Special handling for card back
+         if (!faceUp && this.cardBackMaterial) {
+             return this.cardBackMaterial;
+         }
+
+
+        console.log(`Creating material: ${cacheKey}`);
+        const textureSize = { width: 256, height: 358 }; // Standard poker size ratio
+        const texture = new DynamicTexture(
+            `texture_${cacheKey}`,
+            textureSize,
+            this.scene,
+            true // generateMipMaps
+        );
+        const ctx = texture.getContext();
+        ctx.imageSmoothingEnabled = true; // Enable smoothing
+
+        // Draw background
+        ctx.fillStyle = faceUp ? "#FEFEFE" : "#B22222"; // White or Firebrick Red
+        ctx.fillRect(0, 0, textureSize.width, textureSize.height);
+
+        // Draw border
+        const borderWidth = 8;
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = borderWidth / 2; // Thinner border
+        ctx.strokeRect(borderWidth / 2, borderWidth / 2, textureSize.width - borderWidth, textureSize.height - borderWidth);
+
+        if (faceUp) {
+            // Card Face Content
+            const suit = card.getSuit();
+            const rank = card.getRank();
+            const color = (suit === Suit.Hearts || suit === Suit.Diamonds) ? "#FF0000" : "#000000"; // Red or Black
+            const suitSymbols = { Hearts: "♥", Diamonds: "♦", Clubs: "♣", Spades: "♠" };
+            const symbol = suitSymbols[suit];
+
+            // Font settings
+            const rankFontSize = 48;
+            const suitFontSize = 40;
+            const cornerRankFontSize = 24;
+            const cornerSuitFontSize = 20;
+            ctx.font = `bold ${rankFontSize}px Arial`;
+            ctx.fillStyle = color;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Main rank and suit
+            ctx.fillText(rank, textureSize.width / 2, textureSize.height * 0.3);
+            ctx.font = `bold ${suitFontSize}px Arial`;
+            ctx.fillText(symbol, textureSize.width / 2, textureSize.height * 0.65);
+
+            // Corner ranks and suits
+            ctx.textAlign = "left";
+            ctx.textBaseline = "top";
+            ctx.font = `bold ${cornerRankFontSize}px Arial`;
+            ctx.fillText(rank, 15, 10);
+            ctx.font = `bold ${cornerSuitFontSize}px Arial`;
+            ctx.fillText(symbol, 15, 10 + cornerRankFontSize + 2);
+
+            // Bottom-right corner (rotated)
+            ctx.save();
+            ctx.textAlign = "right";
+            ctx.textBaseline = "bottom";
+            ctx.translate(textureSize.width - 15, textureSize.height - 10);
+            ctx.rotate(Math.PI);
+            ctx.font = `bold ${cornerRankFontSize}px Arial`;
+            ctx.fillText(rank, 0, 0);
+            ctx.font = `bold ${cornerSuitFontSize}px Arial`;
+            ctx.fillText(symbol, 0, -(cornerRankFontSize + 2));
+            ctx.restore();
+
+        } else {
+            // Card Back Pattern (Simple)
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.lineWidth = 1;
+            for (let i = 0; i < textureSize.width; i += 10) {
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, textureSize.height);
+                ctx.moveTo(0, i);
+                ctx.lineTo(textureSize.width, i);
+            }
+            ctx.stroke();
+        }
+
+        texture.update(false); // Update texture, false = no mipmap regen yet
+
+        // Create material
+        const material = new StandardMaterial(`material_${cacheKey}`, this.scene);
+        material.diffuseTexture = texture;
+        material.specularColor = new Color3(0.1, 0.1, 0.1); // Reduce specular highlights
+        material.backFaceCulling = false; // Render both sides
+         // Slight emission to make cards pop a bit
+         material.emissiveColor = new Color3(0.1, 0.1, 0.1);
+
+
+        // Cache the material
+        this.materialCache.set(cacheKey, material);
+         if (!faceUp) {
+             this.cardBackMaterial = material;
+         }
+
+        return material;
+    }
 }

@@ -1,54 +1,36 @@
-// scenes/SettingsScene.ts
+// src/scenes/settingsscene-ts (Added dispose method)
 import { Scene, Engine, Vector3, HemisphericLight, Color3, Color4, ArcRotateCamera } from "@babylonjs/core";
-import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control } from "@babylonjs/gui";
+import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui"; // Import Rectangle
 
 export class SettingsScene {
     private scene: Scene;
     private guiTexture!: AdvancedDynamicTexture;
-    
-    /**
-     * Creates a new Settings Scene for the user to adjust game settings.
-     * 
-     * @param engine - The Babylon engine.
-     * @param canvas - The HTML element to render to.
-     * @param onBack - The callback to call when the user clicks the back button.
-     * @param onResetFunds - The callback to call when the user clicks the reset funds button.
-     * @param onLanguageChange - The callback to call when the user selects a new language.
-     * @param onCurrencyChange - The callback to call when the user selects a new currency.
-     */
+
     constructor(
-        engine: Engine, 
-        canvas: HTMLCanvasElement, 
+        engine: Engine,
+        canvas: HTMLCanvasElement,
         onBack: () => void,
         onResetFunds: () => void,
         onLanguageChange: (lang: string) => void,
         onCurrencyChange: (currency: string) => void
     ) {
         this.scene = new Scene(engine);
-        
+
         // Set background color
-        this.scene.clearColor = new Color4(0.05, 0.2, 0.05);
-        
+        this.scene.clearColor = new Color4(0.05, 0.1, 0.15, 1.0); // Slightly different color
+
         // Create camera
-        const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 5, Vector3.Zero(), this.scene);
-        camera.attachControl(canvas, true);
-        
+        const camera = new ArcRotateCamera("settingsCamera", -Math.PI / 2, Math.PI / 2, 5, Vector3.Zero(), this.scene);
+        // camera.attachControl(canvas, false); // No camera control needed
+
         // Create light
-        const light = new HemisphericLight("light", new Vector3(0, 1, 0), this.scene);
-        
+        const light = new HemisphericLight("settingsLight", new Vector3(0, 1, 0), this.scene);
+        light.intensity = 0.8;
+
         // Create GUI
         this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange);
     }
 
-    /**
-     * Creates the GUI for the settings scene, including language and currency selection,
-     * a reset funds button, and a back button.
-     *
-     * @param onBack - Callback function invoked when the back button is clicked, returning to the game.
-     * @param onResetFunds - Callback function invoked when the reset funds button is clicked.
-     * @param onLanguageChange - Callback function invoked with the new language when a language button is clicked.
-     * @param onCurrencyChange - Callback function invoked with the new currency when a currency button is clicked.
-     */
     private createGUI(
         onBack: () => void,
         onResetFunds: () => void,
@@ -56,170 +38,197 @@ export class SettingsScene {
         onCurrencyChange: (currency: string) => void
     ): void {
         this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("SettingsUI", true, this.scene);
-        
+
         // Main panel
-        const panel = new StackPanel();
-        panel.width = "400px";
+        const panel = new StackPanel("settingsPanel");
+        panel.width = "450px"; // Slightly wider
+        panel.paddingTop = "20px";
+        panel.paddingBottom = "20px";
         panel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
+        panel.background = "rgba(0, 0, 0, 0.5)"; // Semi-transparent background
+        panel.cornerRadius = 10;
         this.guiTexture.addControl(panel);
-        
+
         // Title
-        const titleText = new TextBlock();
-        titleText.text = "Settings";
+        const titleText = new TextBlock("settingsTitle", "Settings");
         titleText.color = "white";
-        titleText.fontSize = 36;
-        titleText.height = "70px";
+        titleText.fontSize = 32; // Slightly smaller title
+        titleText.height = "60px";
         panel.addControl(titleText);
-        
-        // Language selection
-        const languageTitle = new TextBlock();
-        languageTitle.text = "Language";
-        languageTitle.color = "white";
-        languageTitle.fontSize = 24;
-        languageTitle.height = "50px";
-        panel.addControl(languageTitle);
-        
-        // Language buttons
-        const languagePanel = new StackPanel();
+
+        // --- Language ---
+        this.createSectionTitle(panel, "Language");
+        const languagePanel = new StackPanel("languagePanel");
         languagePanel.isVertical = false;
         languagePanel.height = "50px";
+        languagePanel.spacing = 15; // Add spacing between buttons
         panel.addControl(languagePanel);
-        
-        const languages = ["English", "Spanish", "French"];
+
+        const languages = ["English", "Spanish", "French"]; // Example languages
         languages.forEach(lang => {
-            const langButton = Button.CreateSimpleButton(`${lang}Button`, lang);
-            langButton.width = "120px";
-            langButton.height = "40px";
-            langButton.color = "white";
-            langButton.background = "green";
-            langButton.onPointerClickObservable.add(() => {
+            const langButton = this.createOptionButton(`${lang}Button`, lang, () => {
                 onLanguageChange(lang.toLowerCase());
+                // Add visual feedback (e.g., change button style) - Optional
             });
             languagePanel.addControl(langButton);
         });
-        
-        // Currency selection
-        const currencyTitle = new TextBlock();
-        currencyTitle.text = "Currency";
-        currencyTitle.color = "white";
-        currencyTitle.fontSize = 24;
-        currencyTitle.height = "50px";
-        panel.addControl(currencyTitle);
-        
-        // Currency buttons
-        const currencyPanel = new StackPanel();
-        currencyPanel.isVertical = false;
-        currencyPanel.height = "50px";
-        panel.addControl(currencyPanel);
-        
-        const currencies = ["$", "€", "£", "¥"];
-        currencies.forEach(currency => {
-            const currencyButton = Button.CreateSimpleButton(`${currency}Button`, currency);
-            currencyButton.width = "80px";
-            currencyButton.height = "40px";
-            currencyButton.color = "white";
-            currencyButton.background = "green";
-            currencyButton.onPointerClickObservable.add(() => {
-                onCurrencyChange(currency);
-            });
-            currencyPanel.addControl(currencyButton);
-        });
-        
+
+         // --- Currency ---
+         this.createSectionTitle(panel, "Currency");
+         const currencyPanel = new StackPanel("currencyPanel");
+         currencyPanel.isVertical = false;
+         currencyPanel.height = "50px";
+         currencyPanel.spacing = 15;
+         panel.addControl(currencyPanel);
+
+         const currencies = ["$", "€", "£", "¥"]; // Example currencies
+         currencies.forEach(currency => {
+             const currencyButton = this.createOptionButton(`${currency}Button`, currency, () => {
+                 onCurrencyChange(currency);
+             });
+             currencyButton.width = "60px"; // Smaller currency buttons
+             currencyPanel.addControl(currencyButton);
+         });
+
         // Spacer
-        const spacer = new TextBlock();
-        spacer.height = "30px";
-        panel.addControl(spacer);
-        
-        // Reset funds button
+        this.createSpacer(panel, "20px");
+
+        // --- Reset Funds ---
         const resetFundsButton = Button.CreateSimpleButton("resetFundsButton", "Reset Funds");
         resetFundsButton.width = "200px";
         resetFundsButton.height = "50px";
         resetFundsButton.color = "white";
-        resetFundsButton.background = "red";
-        resetFundsButton.onPointerClickObservable.add(() => {
-            this.showConfirmDialog(onResetFunds);
+        resetFundsButton.background = "orange"; // Warning color
+        resetFundsButton.cornerRadius = 8;
+        resetFundsButton.onPointerUpObservable.add(() => {
+            this.showConfirmDialog("Are you sure you want to reset your funds?", onResetFunds);
         });
         panel.addControl(resetFundsButton);
-        
+
         // Spacer
-        const spacer2 = new TextBlock();
-        spacer2.height = "30px";
-        panel.addControl(spacer2);
-        
-        // Back button
+        this.createSpacer(panel, "30px");
+
+        // --- Back Button ---
         const backButton = Button.CreateSimpleButton("backButton", "Back to Game");
         backButton.width = "200px";
         backButton.height = "50px";
         backButton.color = "white";
-        backButton.background = "blue";
-        backButton.onPointerClickObservable.add(() => {
+        backButton.background = "cornflowerblue"; // Softer blue
+        backButton.cornerRadius = 8;
+        backButton.onPointerUpObservable.add(() => {
             onBack();
         });
         panel.addControl(backButton);
     }
-    
-    /**
-     * Shows a confirmation dialog with a yes/no question, and calls the onConfirm 
-     * callback function if the user clicks yes. The dialog is removed from the GUI 
-     * when the user clicks either button.
-     * 
-     * @param onConfirm - Callback function invoked when the user clicks the yes button.
-     */
-    private showConfirmDialog(onConfirm: () => void): void {
+
+    // Helper for section titles
+    private createSectionTitle(parent: StackPanel, text: string): void {
+        const title = new TextBlock();
+        title.text = text;
+        title.color = "#CCCCCC"; // Lighter gray
+        title.fontSize = 20;
+        title.height = "40px";
+        title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        title.paddingLeft = "10px";
+        parent.addControl(title);
+    }
+
+     // Helper for option buttons
+     private createOptionButton(name: string, text: string, onClick: () => void): Button {
+         const button = Button.CreateSimpleButton(name, text);
+         button.width = "100px";
+         button.height = "40px";
+         button.color = "white";
+         button.background = "darkgreen"; // Darker green
+         button.cornerRadius = 5;
+         button.onPointerUpObservable.add(onClick);
+         return button;
+     }
+
+
+    // Helper for spacers
+    private createSpacer(parent: StackPanel, height: string): void {
+        const spacer = new Control(); // Use Control for pure spacing
+        spacer.height = height;
+        parent.addControl(spacer);
+    }
+
+    /** Shows a confirmation dialog */
+    private showConfirmDialog(message: string, onConfirm: () => void): void {
+        // Container for the dialog + overlay
+        const dialogContainer = new Rectangle("confirmDialogContainer");
+        dialogContainer.width = 1.0; // Fullscreen
+        dialogContainer.height = 1.0;
+        dialogContainer.background = "rgba(0, 0, 0, 0.7)"; // Dark overlay
+        dialogContainer.zIndex = 100; // Ensure it's on top
+        this.guiTexture.addControl(dialogContainer);
+
         // Dialog panel
-        const dialogPanel = new StackPanel();
+        const dialogPanel = new StackPanel("confirmDialogPanel");
         dialogPanel.width = "400px";
-        dialogPanel.height = "200px";
-        dialogPanel.background = "gray";
-        dialogPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        // dialogPanel.height = "180px"; // Auto height based on content
+        dialogPanel.paddingTop = "20px";
+        dialogPanel.paddingBottom = "20px";
+        dialogPanel.paddingLeft = "15px";
+        dialogPanel.paddingRight = "15px";
+        dialogPanel.background = "#444444"; // Dark gray
+        dialogPanel.cornerRadius = 10;
         dialogPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        this.guiTexture.addControl(dialogPanel);
-        
+        dialogContainer.addControl(dialogPanel);
+
         // Dialog text
-        const dialogText = new TextBlock();
-        dialogText.text = "Are you sure you want to reset your funds?";
+        const dialogText = new TextBlock("confirmText", message);
         dialogText.color = "white";
-        dialogText.fontSize = 20;
+        dialogText.fontSize = 18;
         dialogText.height = "80px";
+        dialogText.textWrapping = true;
         dialogPanel.addControl(dialogText);
-        
+
         // Buttons panel
-        const buttonsPanel = new StackPanel();
+        const buttonsPanel = new StackPanel("confirmButtonsPanel");
         buttonsPanel.isVertical = false;
         buttonsPanel.height = "50px";
+        buttonsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        buttonsPanel.spacing = 20;
         dialogPanel.addControl(buttonsPanel);
-        
+
         // Yes button
         const yesButton = Button.CreateSimpleButton("yesButton", "Yes");
         yesButton.width = "100px";
         yesButton.height = "40px";
         yesButton.color = "white";
-        yesButton.background = "green";
-        yesButton.onPointerClickObservable.add(() => {
+        yesButton.background = "darkred"; // Confirm action color
+        yesButton.cornerRadius = 5;
+        yesButton.onPointerUpObservable.add(() => {
             onConfirm();
-            this.guiTexture.removeControl(dialogPanel);
+            this.guiTexture.removeControl(dialogContainer); // Dispose container
         });
         buttonsPanel.addControl(yesButton);
-        
+
         // No button
         const noButton = Button.CreateSimpleButton("noButton", "No");
         noButton.width = "100px";
         noButton.height = "40px";
         noButton.color = "white";
-        noButton.background = "red";
-        noButton.onPointerClickObservable.add(() => {
-            this.guiTexture.removeControl(dialogPanel);
+        noButton.background = "#555555"; // Cancel action color
+        noButton.cornerRadius = 5;
+        noButton.onPointerUpObservable.add(() => {
+            this.guiTexture.removeControl(dialogContainer); // Dispose container
         });
         buttonsPanel.addControl(noButton);
     }
-    
-    /**
-     * Returns the scene that this settings scene belongs to.
-     * 
-     * @returns The scene associated with this settings scene.
-     */
+
     public getScene(): Scene {
         return this.scene;
     }
+
+     /**
+      * Disposes of the scene and its resources.
+      */
+     public dispose(): void {
+         console.log("Disposing SettingsScene");
+         this.guiTexture?.dispose();
+         this.scene.dispose();
+     }
 }

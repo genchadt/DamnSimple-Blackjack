@@ -1,4 +1,4 @@
-// ui/BettingUI.ts
+// src/ui/bettingui-ts (Minor adjustments, uses game state)
 import { Scene } from "@babylonjs/core";
 import { Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
@@ -7,158 +7,181 @@ import { GameState } from "../game/GameState";
 
 export class BettingUI extends BaseUI {
     private game: BlackjackGame;
-    private currentBet: number = 10;
+    private currentBet: number = 10; // Default starting bet
     private currencySign: string = "$";
-    private betPanel!: StackPanel;
-    private currentBetInput!: TextBlock;
+    private betPanel!: Rectangle; // Use Rectangle for background/border
+    private currentBetText!: TextBlock;
+    private confirmBetButton!: Button;
+    private decreaseBetButton!: Button;
+    private increaseBetButton!: Button;
     private onConfirmBet: (bet: number) => void;
 
-    /**
-     * Initializes a new instance of the BettingUI class, setting up the UI elements
-     * for placing and confirming bets in the blackjack game.
-     *
-     * @param {Scene} scene - The Babylon.js scene to which the UI belongs.
-     * @param {BlackjackGame} game - The game logic instance to interact with.
-     * @param {(bet: number) => void} onConfirmBet - Callback function to be called when the bet is confirmed.
-     */
     constructor(scene: Scene, game: BlackjackGame, onConfirmBet: (bet: number) => void) {
-        super(scene);
+        super(scene, "BettingUI"); // Pass name for debugging
         this.game = game;
         this.onConfirmBet = onConfirmBet;
-        
-        // Create betting UI elements
-        this.betPanel = new StackPanel();
-        this.betPanel.width = "400px";
-        this.betPanel.height = "200px";
+
+        // Use last bet from game logic if available and valid, otherwise default
+        this.currentBet = this.game.getGameActions().lastBet > 0 ? this.game.getGameActions().lastBet : 10;
+
+        this.createControls();
+        this.update(); // Initial update
+    }
+
+    private createControls(): void {
+        this.betPanel = new Rectangle("betPanel");
+        this.betPanel.width = "350px";
+        this.betPanel.height = "180px";
         this.betPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         this.betPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        this.betPanel.background = "#333333";
-        this.betPanel.isVisible = false;
+        this.betPanel.background = "rgba(40, 40, 40, 0.85)"; // Dark semi-transparent
+        this.betPanel.cornerRadius = 15;
+        this.betPanel.thickness = 1;
+        this.betPanel.color = "#666"; // Border color
+        this.betPanel.isVisible = false; // Initially hidden
         this.guiTexture.addControl(this.betPanel);
-        
-        const betTitle = new TextBlock();
-        betTitle.text = "Place Your Bet";
+
+        const mainStack = new StackPanel("betMainStack");
+        mainStack.paddingTop = "10px";
+        mainStack.paddingBottom = "10px";
+        this.betPanel.addControl(mainStack);
+
+
+        const betTitle = new TextBlock("betTitle", "Place Your Bet");
         betTitle.color = "white";
         betTitle.fontSize = 24;
         betTitle.height = "40px";
-        this.betPanel.addControl(betTitle);
-        
+        mainStack.addControl(betTitle);
+
         // Bet amount controls
-        const betControlsPanel = new StackPanel();
+        const betControlsPanel = new StackPanel("betControlsStack");
         betControlsPanel.isVertical = false;
         betControlsPanel.height = "60px";
-        this.betPanel.addControl(betControlsPanel);
-        
-        const decreaseBetButton = Button.CreateSimpleButton("decreaseBetButton", "-");
-        decreaseBetButton.width = "40px";
-        decreaseBetButton.height = "40px";
-        decreaseBetButton.color = "white";
-        decreaseBetButton.background = "blue";
-        decreaseBetButton.onPointerClickObservable.add(() => {
-            this.adjustBet(-10);
-        });
-        betControlsPanel.addControl(decreaseBetButton);
-        
-        this.currentBetInput = new TextBlock();
-        this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
-        this.currentBetInput.color = "white";
-        this.currentBetInput.fontSize = 24;
-        this.currentBetInput.width = "100px";
-        this.currentBetInput.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-        betControlsPanel.addControl(this.currentBetInput);
-        
-        const increaseBetButton = Button.CreateSimpleButton("increaseBetButton", "+");
-        increaseBetButton.width = "40px";
-        increaseBetButton.height = "40px";
-        increaseBetButton.color = "white";
-        increaseBetButton.background = "blue";
-        increaseBetButton.onPointerClickObservable.add(() => {
-            this.adjustBet(10);
-        });
-        betControlsPanel.addControl(increaseBetButton);
-        
+        betControlsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        betControlsPanel.spacing = 15;
+        mainStack.addControl(betControlsPanel);
+
+        this.decreaseBetButton = this.createBetAdjustButton("decreaseBetButton", "-", -10);
+        betControlsPanel.addControl(this.decreaseBetButton);
+
+        this.currentBetText = new TextBlock("currentBetText");
+        this.currentBetText.text = `${this.currencySign}${this.currentBet}`;
+        this.currentBetText.color = "white";
+        this.currentBetText.fontSize = 28; // Larger bet display
+        this.currentBetText.fontWeight = "bold";
+        this.currentBetText.width = "120px"; // Wider to accommodate larger bets
+        this.currentBetText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        betControlsPanel.addControl(this.currentBetText);
+
+        this.increaseBetButton = this.createBetAdjustButton("increaseBetButton", "+", 10);
+        betControlsPanel.addControl(this.increaseBetButton);
+
         // Confirm bet button
-        const confirmBetButton = Button.CreateSimpleButton("confirmBetButton", "Confirm Bet");
-        confirmBetButton.width = "150px";
-        confirmBetButton.height = "40px";
-        confirmBetButton.color = "white";
-        confirmBetButton.background = "green";
-        confirmBetButton.onPointerClickObservable.add(() => {
+        this.confirmBetButton = Button.CreateSimpleButton("confirmBetButton", "Confirm Bet");
+        this.confirmBetButton.width = "180px";
+        this.confirmBetButton.height = "50px";
+        this.confirmBetButton.color = "white";
+        this.confirmBetButton.fontSize = 20;
+        this.confirmBetButton.background = "green";
+        this.confirmBetButton.cornerRadius = 8;
+        this.confirmBetButton.paddingTop = "10px";
+        this.confirmBetButton.onPointerUpObservable.add(() => {
             this.confirmBet();
         });
-        this.betPanel.addControl(confirmBetButton);
+        mainStack.addControl(this.confirmBetButton);
     }
 
-    /**
-     * Adjusts the current bet by the specified amount (in dollars). If the new bet
-     * is within the valid range (i.e. between 10 and the player's current funds),
-     * it updates the current bet value and displays the new value in the UI.
-     * 
-     * @param amount The amount to adjust the current bet by (positive or negative).
-     */
+     private createBetAdjustButton(name: string, text: string, amount: number): Button {
+        const button = Button.CreateSimpleButton(name, text);
+        button.width = "50px"; // Slightly larger
+        button.height = "50px";
+        button.color = "white";
+        button.fontSize = 24;
+        button.background = "cornflowerblue";
+        button.cornerRadius = 25; // Circular
+        button.onPointerUpObservable.add(() => {
+            this.adjustBet(amount);
+        });
+        return button;
+    }
+
+
     private adjustBet(amount: number): void {
-        const newBet = this.currentBet + amount;
-        if (newBet >= 10 && newBet <= this.game.getPlayerFunds()) {
+        const playerFunds = this.game.getPlayerFunds();
+        const minBet = 10; // Minimum allowed bet
+        let newBet = this.currentBet + amount;
+
+        // Clamp the bet between minBet and playerFunds
+        newBet = Math.max(minBet, Math.min(newBet, playerFunds));
+
+        if (newBet !== this.currentBet) {
             this.currentBet = newBet;
-            this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
+            this.updateBetDisplay();
+            // Also update the logical current bet in BlackjackGame/GameActions
+            this.game.setCurrentBet(this.currentBet);
         }
     }
 
-    /**
-     * Hides the betting UI and calls the onConfirmBet callback with the current
-     * bet amount. This is called when the player confirms their bet.
-     */
+     private updateBetDisplay(): void {
+        this.currentBetText.text = `${this.currencySign}${this.currentBet}`;
+        // Enable/disable buttons based on limits
+        const playerFunds = this.game.getPlayerFunds();
+        this.decreaseBetButton.isEnabled = this.currentBet > 10;
+        this.increaseBetButton.isEnabled = this.currentBet < playerFunds;
+        this.confirmBetButton.isEnabled = this.currentBet >= 10 && this.currentBet <= playerFunds;
+
+         // Visual feedback for disabled buttons
+         this.decreaseBetButton.alpha = this.decreaseBetButton.isEnabled ? 1.0 : 0.5;
+         this.increaseBetButton.alpha = this.increaseBetButton.isEnabled ? 1.0 : 0.5;
+         this.confirmBetButton.alpha = this.confirmBetButton.isEnabled ? 1.0 : 0.5;
+
+    }
+
+
     private confirmBet(): void {
-        this.betPanel.isVisible = false;
-        this.onConfirmBet(this.currentBet);
+         if (this.confirmBetButton.isEnabled) {
+            console.log("Bet confirmed:", this.currentBet);
+            this.hide(); // Hide betting UI
+            this.onConfirmBet(this.currentBet); // Trigger game start logic
+         }
     }
 
-    /**
-     * Shows the betting UI and updates the current bet to match the game's current
-     * bet amount. If the game's current bet is 0, the current bet is not changed.
-     */
     public show(): void {
-        // Update current bet to match the game's current bet
-        this.currentBet = this.game.getCurrentBet() > 0 ? 
-            this.game.getCurrentBet() : this.currentBet;
-        
-        this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
+        // Ensure bet is valid when showing
+        const playerFunds = this.game.getPlayerFunds();
+        this.currentBet = Math.max(10, Math.min(this.currentBet, playerFunds));
+        this.game.setCurrentBet(this.currentBet); // Sync logical bet
+
+        this.updateBetDisplay();
         this.betPanel.isVisible = true;
+        console.log("Betting UI shown.");
     }
 
-    /**
-     * Hides the betting UI from the scene.
-     */
     public hide(): void {
         this.betPanel.isVisible = false;
+        console.log("Betting UI hidden.");
     }
 
-    /**
-     * Updates the currency sign used in the betting UI to the specified value.
-     * This is called from the game when the currency sign is changed.
-     * 
-     * @param sign The new currency sign to use (e.g. "$", " ", etc.).
-     */
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
-        this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
+        this.updateBetDisplay(); // Update display immediately
     }
 
     /**
-     * Updates the betting UI based on the current game state. If the current bet
-     * exceeds the player's funds, the current bet is adjusted to match the player's
-     * funds. The betting UI is shown when the game is in the Betting state.
+     * Updates the betting UI based on the current game state.
+     * Shows/hides the panel and updates button states.
      */
     public update(): void {
-        // Update bet limits based on player funds
-        if (this.currentBet > this.game.getPlayerFunds()) {
-            this.currentBet = this.game.getPlayerFunds();
-            this.currentBetInput.text = `${this.currencySign}${this.currentBet}`;
-        }
-        
-        // Show betting UI when in Betting state
         if (this.game.getGameState() === GameState.Betting) {
-            this.show();
+            if (!this.betPanel.isVisible) {
+                 this.show(); // Show if in betting state but not visible
+            } else {
+                 this.updateBetDisplay(); // Just update buttons if already visible
+            }
+        } else {
+            if (this.betPanel.isVisible) {
+                 this.hide(); // Hide if not in betting state but visible
+            }
         }
     }
 }

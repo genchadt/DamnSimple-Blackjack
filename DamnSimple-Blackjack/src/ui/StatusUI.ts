@@ -1,6 +1,6 @@
-// ui/StatusUI.ts
+// src/ui/statusui-ts (Adjusted layout, uses game state correctly)
 import { Scene } from "@babylonjs/core";
-import { TextBlock, Control, Rectangle } from "@babylonjs/gui";
+import { TextBlock, Control, Rectangle, StackPanel } from "@babylonjs/gui"; // Import StackPanel
 import { BaseUI } from "./BaseUI";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState, GameResult } from "../game/GameState";
@@ -13,148 +13,171 @@ export class StatusUI extends BaseUI {
     private fundsText!: TextBlock;
     private betText!: TextBlock;
     private currencySign: string = "$";
-    
-    /**
-     * Creates a new StatusUI, which displays the player's current score, the dealer's current score, and
-     * the current game status. Also displays the player's current funds and current bet.
-     * 
-     * @param {Scene} scene The scene to add the UI elements to.
-     * @param {BlackjackGame} game The game object to monitor for updates.
-     */
+
     constructor(scene: Scene, game: BlackjackGame) {
-        super(scene);
+        super(scene, "StatusUI");
         this.game = game;
-        
-        // Create score displays
-        this.playerScoreText = new TextBlock();
-        this.playerScoreText.text = "Player: 0";
-        this.playerScoreText.color = "white";
-        this.playerScoreText.fontSize = 24;
+        this.createControls();
+        this.update(); // Initial update
+    }
+
+    private createControls(): void {
+        // --- Score Displays ---
+        const scoreOptions = {
+            color: "white",
+            fontSize: 22,
+            height: "30px",
+            shadowColor: "#000000",
+            shadowBlur: 2,
+            shadowOffsetX: 1,
+            shadowOffsetY: 1
+        };
+
+        this.playerScoreText = new TextBlock("playerScore", "Player: 0", { ...scoreOptions });
         this.playerScoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        this.playerScoreText.left = "50px";
-        this.playerScoreText.top = "300px";
+        this.playerScoreText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.playerScoreText.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+        this.playerScoreText.left = "20px"; // Position from left
+        this.playerScoreText.top = "-80px"; // Position from bottom
         this.guiTexture.addControl(this.playerScoreText);
-        
-        this.dealerScoreText = new TextBlock();
-        this.dealerScoreText.text = "Dealer: ?";
-        this.dealerScoreText.color = "white";
-        this.dealerScoreText.fontSize = 24;
+
+        this.dealerScoreText = new TextBlock("dealerScore", "Dealer: ?", { ...scoreOptions });
         this.dealerScoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        this.dealerScoreText.left = "50px";
-        this.dealerScoreText.top = "-300px";
+        this.dealerScoreText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        this.dealerScoreText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+        this.dealerScoreText.left = "20px"; // Position from left
+        this.dealerScoreText.top = "20px";  // Position from top
         this.guiTexture.addControl(this.dealerScoreText);
-        
-        this.gameStatusText = new TextBlock();
-        this.gameStatusText.text = "";
+
+        // --- Game Status Display (Center Top) ---
+        this.gameStatusText = new TextBlock("gameStatus", "");
         this.gameStatusText.color = "white";
-        this.gameStatusText.fontSize = 36;
-        this.gameStatusText.top = "-100px";
+        this.gameStatusText.fontSize = 32; // Slightly smaller
+        this.gameStatusText.fontWeight = "bold";
+        this.gameStatusText.height = "40px";
+        this.gameStatusText.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
+        this.gameStatusText.top = "20px";
+        this.gameStatusText.shadowColor = "#000000";
+        this.gameStatusText.shadowBlur = 3;
         this.guiTexture.addControl(this.gameStatusText);
-        
-        // Create funds display with better layout
-        const fundsPanel = new Rectangle();
-        fundsPanel.width = "200px";
-        fundsPanel.height = "80px";
+
+        // --- Funds and Bet Display (Top Right) ---
+        const fundsPanel = new Rectangle("fundsPanel");
+        fundsPanel.width = "220px"; // Wider
+        fundsPanel.height = "70px"; // Taller
         fundsPanel.cornerRadius = 10;
-        fundsPanel.background = "#333333";
+        fundsPanel.background = "rgba(0, 0, 0, 0.6)"; // Semi-transparent black
+        fundsPanel.thickness = 1;
+        fundsPanel.color = "#888"; // Border color
         fundsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
         fundsPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        fundsPanel.top = "80px";
-        fundsPanel.left = "-20px";
+        fundsPanel.top = "15px"; // Adjust position
+        fundsPanel.left = "-15px";
         this.guiTexture.addControl(fundsPanel);
-        
-        this.fundsText = new TextBlock();
-        this.fundsText.text = `Funds: ${this.currencySign}${this.game.getPlayerFunds()}`;
-        this.fundsText.color = "white";
-        this.fundsText.fontSize = 24;
-        this.fundsText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-        fundsPanel.addControl(this.fundsText);
-        
-        this.betText = new TextBlock();
-        this.betText.text = `Bet: ${this.currencySign}${this.game.getCurrentBet()}`;
-        this.betText.color = "white";
-        this.betText.fontSize = 24;
-        this.betText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-        this.betText.top = "30px";
-        fundsPanel.addControl(this.betText);
+
+        const fundsStack = new StackPanel("fundsStack");
+        fundsStack.paddingTop = "5px";
+        fundsStack.paddingBottom = "5px";
+        fundsPanel.addControl(fundsStack);
+
+        const textOptions = {
+            color: "white",
+            fontSize: 18, // Smaller font inside panel
+            height: "28px", // Adjust height
+            textHorizontalAlignment: Control.HORIZONTAL_ALIGNMENT_CENTER
+        };
+
+        this.fundsText = new TextBlock("fundsText", `Funds: ${this.currencySign}0`, { ...textOptions });
+        fundsStack.addControl(this.fundsText);
+
+        this.betText = new TextBlock("betText", `Bet: ${this.currencySign}0`, { ...textOptions });
+        fundsStack.addControl(this.betText);
     }
-    
-    /**
-     * Updates the currency sign displayed on the UI (e.g. "$" or "GBP").
-     * 
-     * @param {string} sign The new currency sign to display.
-     */
+
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
-        this.update();
+        this.update(); // Update display immediately
     }
-    
-    /**
-     * Updates the UI to reflect the current game state. This includes updating
-     * the player's and dealer's scores, the player's available funds, the current bet amount,
-     * and the game status message. The dealer's full score is shown only when it's their turn
-     * or when the game is over. The game status message provides more descriptive feedback 
-     * based on the outcome of the game or the player's current turn.
-     */
+
     public update(): void {
+        const gameState = this.game.getGameState();
+        const playerHand = this.game.getPlayerHand();
+        const dealerHand = this.game.getDealerHand();
+
         // Update scores
-        this.playerScoreText.text = `Player: ${this.game.getPlayerScore()}`;
-        
-        // Only show dealer's full score when appropriate
-        if (this.game.getGameState() === GameState.DealerTurn || 
-            this.game.getGameState() === GameState.GameOver) {
-            this.dealerScoreText.text = `Dealer: ${this.game.getDealerScore()}`;
-        } else {
-            this.dealerScoreText.text = "Dealer: ?";
+        const playerScore = this.game.getPlayerScore(); // Calculates based on face-up always for player
+        this.playerScoreText.text = `Player: ${playerScore > 0 ? playerScore : ""}`; // Show score or empty
+
+        // Dealer score visibility depends on state
+        let dealerScoreDisplay = "?";
+        if (gameState === GameState.DealerTurn || gameState === GameState.GameOver) {
+            // Show full score only when dealer plays or game ends
+            const dealerFullScore = this.game.getDealerFullScore();
+            dealerScoreDisplay = `${dealerFullScore}`;
+        } else if (dealerHand.length > 0) {
+            // Show score of face-up cards only during player turn/betting
+            const visibleScore = ScoreCalculator.calculateHandValue(dealerHand.filter(c => c.isFaceUp()));
+            dealerScoreDisplay = `${visibleScore > 0 ? visibleScore : "?"}`; // Show visible score or ?
         }
-        
+         this.dealerScoreText.text = `Dealer: ${dealerScoreDisplay}`;
+
+
         // Update funds and bet
         this.fundsText.text = `Funds: ${this.currencySign}${this.game.getPlayerFunds()}`;
-        this.betText.text = `Bet: ${this.currencySign}${this.game.getCurrentBet()}`;
-        
-        // Update game status with more descriptive messages
-        if (this.game.getGameState() === GameState.GameOver) {
-            const playerScore = this.game.getPlayerScore();
-            const dealerScore = this.game.getDealerScore();
-            
-            switch (this.game.getGameResult()) {
-                case GameResult.PlayerWins:
-                    if (dealerScore > 21) {
-                        this.gameStatusText.text = "Dealer Bust! You Win!";
-                    } else {
-                        this.gameStatusText.text = "You Win!";
-                    }
-                    this.gameStatusText.color = "green";
-                    break;
-                case GameResult.DealerWins:
-                    if (playerScore > 21) {
-                        this.gameStatusText.text = "Bust! Dealer Wins";
-                    } else {
-                        this.gameStatusText.text = "Dealer Wins";
-                    }
-                    this.gameStatusText.color = "red";
-                    break;
-                case GameResult.Push:
-                    this.gameStatusText.text = "Push - It's a Tie!";
-                    this.gameStatusText.color = "white";
-                    break;
-                case GameResult.PlayerBlackjack:
-                    this.gameStatusText.text = "Blackjack! You Win!";
-                    this.gameStatusText.color = "gold";
-                    break;
-            }
-        } else if (this.game.getGameState() === GameState.PlayerTurn) {
-            this.gameStatusText.text = "Your Turn";
-            this.gameStatusText.color = "white";
-        } else if (this.game.getGameState() === GameState.Initial) {
-            this.gameStatusText.text = "";
-            this.playerScoreText.text = "Player: ";
-            this.dealerScoreText.text = "Dealer: ";
-        } else if (this.game.getGameState() === GameState.DealerTurn) {
-            this.gameStatusText.text = "Dealer's Turn";
-            this.gameStatusText.color = "white";
-        } else {
-            this.gameStatusText.text = "";
+        const currentBet = this.game.getCurrentBet();
+        this.betText.text = `Bet: ${currentBet > 0 ? this.currencySign + currentBet : "--"}`;
+        this.betText.isVisible = (gameState !== GameState.Initial); // Hide bet in initial state
+
+        // Update game status text
+        let status = "";
+        let statusColor = "white";
+
+        switch (gameState) {
+            case GameState.Initial:
+                status = "Sit Down to Play"; // Prompt to start
+                this.playerScoreText.text = "Player: ";
+                this.dealerScoreText.text = "Dealer: ";
+                break;
+            case GameState.Betting:
+                status = "Place Your Bet";
+                break;
+            case GameState.PlayerTurn:
+                status = "Your Turn";
+                if (playerScore > 21) status = "Bust!"; // Show bust immediately
+                break;
+            case GameState.DealerTurn:
+                status = "Dealer's Turn";
+                break;
+            case GameState.GameOver:
+                const gameResult = this.game.getGameResult();
+                const finalPlayerScore = this.game.getPlayerScore(); // Use final calculated score
+                const finalDealerScore = this.game.getDealerFullScore(); // Use final dealer score
+
+                switch (gameResult) {
+                    case GameResult.PlayerWins:
+                        status = finalDealerScore > 21 ? "Dealer Bust! You Win!" : "You Win!";
+                        statusColor = "lime"; // Brighter green
+                        break;
+                    case GameResult.DealerWins:
+                        status = finalPlayerScore > 21 ? "Bust! Dealer Wins" : "Dealer Wins";
+                        statusColor = "tomato"; // Red
+                        break;
+                    case GameResult.Push:
+                        status = "Push!";
+                        statusColor = "yellow";
+                        break;
+                    case GameResult.PlayerBlackjack:
+                        status = "Blackjack!";
+                        statusColor = "gold";
+                        break;
+                     case GameResult.InProgress: // Should ideally not be InProgress in GameOver state
+                         status = "Game Over";
+                         break;
+                }
+                break;
         }
+
+        this.gameStatusText.text = status;
+        this.gameStatusText.color = statusColor;
     }
 }

@@ -1,73 +1,69 @@
-// game/PlayerFunds.ts
+// src/game/playerfunds-ts (Added setter, uses GameStorage)
+import { GameStorage } from "./GameStorage"; // Import GameStorage
+
 export class PlayerFunds {
-    private static readonly STORAGE_KEY = "damnSimpleBlackjack_funds";
     private static readonly DEFAULT_FUNDS = 1000;
     private funds: number;
 
-    /**
-     * Creates a new PlayerFunds object, loading the player's saved funds or using the default if no saved funds exist.
-     */
     constructor() {
-        this.funds = this.loadFunds();
+        // Load funds using GameStorage
+        this.funds = GameStorage.loadFunds(PlayerFunds.DEFAULT_FUNDS);
+        console.log("PlayerFunds Initialized. Funds:", this.funds);
     }
 
-    /**
-     * Retrieves the player's current funds.
-     * 
-     * @returns {number} The player's current funds.
-     */
     public getFunds(): number {
         return this.funds;
     }
 
-    /**
-     * Adds the given amount to the player's funds, and saves the new amount to local storage.
-     * 
-     * @param {number} amount The amount to add to the player's funds.
-     */
+     /**
+      * Directly sets the player's funds. Use with caution (e.g., for debug or loading).
+      * Saves the new amount.
+      */
+     public setFunds(amount: number): void {
+         if (amount >= 0) {
+             this.funds = amount;
+             this.saveFunds();
+         } else {
+             console.error("Cannot set negative funds.");
+         }
+     }
+
+
     public addFunds(amount: number): void {
+        if (amount < 0) {
+            console.warn("Use deductFunds for negative amounts.");
+            return;
+        }
         this.funds += amount;
         this.saveFunds();
+        console.log(`Added ${amount} funds. New total: ${this.funds}`);
     }
 
-    /**
-     * Deducts the specified amount from the player's funds if sufficient funds are available.
-     * Saves the updated funds to local storage.
-     * 
-     * @param {number} amount - The amount to deduct from the player's funds.
-     * @returns {boolean} - Returns true if the deduction was successful, otherwise false.
-     */
     public deductFunds(amount: number): boolean {
-        if (amount > this.funds) return false;
+        if (amount < 0) {
+            console.warn("Use addFunds for positive amounts.");
+            return false; // Indicate failure for negative deduction
+        }
+        if (amount > this.funds) {
+            console.warn(`Cannot deduct ${amount}. Insufficient funds: ${this.funds}`);
+            return false; // Indicate failure
+        }
         this.funds -= amount;
         this.saveFunds();
-        return true;
+        console.log(`Deducted ${amount} funds. New total: ${this.funds}`);
+        return true; // Indicate success
     }
 
-    /**
-     * Resets the player's funds to the default amount, and saves the updated funds to local storage.
-     */
     public resetFunds(): void {
+        console.log(`Resetting funds from ${this.funds} to ${PlayerFunds.DEFAULT_FUNDS}`);
         this.funds = PlayerFunds.DEFAULT_FUNDS;
         this.saveFunds();
     }
 
-    /**
-     * Loads the player's funds from local storage, returning the default funds
-     * value if no stored value is found.
-     * 
-     * @returns {number} The player's current funds.
-     */
-    private loadFunds(): number {
-        const storedFunds = localStorage.getItem(PlayerFunds.STORAGE_KEY);
-        return storedFunds ? parseInt(storedFunds) : PlayerFunds.DEFAULT_FUNDS;
+    // Save funds using GameStorage
+    private saveFunds(): void {
+        GameStorage.saveFunds(this.funds);
     }
 
-    /**
-     * Saves the player's current funds to local storage.
-     * This method updates the locally stored funds value with the current funds.
-     */
-    private saveFunds(): void {
-        localStorage.setItem(PlayerFunds.STORAGE_KEY, this.funds.toString());
-    }
+    // loadFunds is now handled by GameStorage.loadFunds
 }

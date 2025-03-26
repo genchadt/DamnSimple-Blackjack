@@ -1,24 +1,32 @@
-// ui/BaseUI.ts
+// src/ui/baseui-ts (Added optional name and dispose)
 import { Scene } from "@babylonjs/core";
 import { AdvancedDynamicTexture } from "@babylonjs/gui";
 
 export abstract class BaseUI {
     protected scene: Scene;
     protected guiTexture: AdvancedDynamicTexture;
-    
-    /**
-     * Initializes a new instance of the BaseUI class.
-     * 
-     * @param {Scene} scene - The Babylon.js scene to which the UI belongs.
-     * 
-     * This constructor sets up the AdvancedDynamicTexture that will be used
-     * to render all UI elements. The texture is created as a fullscreen UI
-     * layer, and is set to render on top of all other 3D objects.
-     */
-    constructor(scene: Scene) {
+    protected name: string; // Optional name for debugging
+
+    constructor(scene: Scene, name: string = "BaseUI") {
         this.scene = scene;
-        this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI", true, this.scene);
+        this.name = name;
+        // Create a unique name for the texture based on the UI class name
+        this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI(`${name}_UITexture`, true, this.scene);
+        console.log(`Initialized ${this.name}`);
     }
-    
-    public abstract update(): void;
+
+    // Make update potentially accept animation state
+    public abstract update(isAnimating?: boolean): void;
+
+    /**
+     * Disposes the GUI texture associated with this UI component.
+     */
+    public dispose(): void {
+        console.log(`Disposing ${this.name}`);
+        if (this.guiTexture) {
+            this.guiTexture.dispose();
+            // Optional: Nullify reference if needed, though garbage collection should handle it.
+            // this.guiTexture = null;
+        }
+    }
 }

@@ -1,4 +1,4 @@
-// ui/GameActionUI.ts
+// src/ui/gameactionui-ts (Removed split, handles animation disabling)
 import { Scene, KeyboardEventTypes } from "@babylonjs/core";
 import { Button, TextBlock, Control, Rectangle } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
@@ -10,304 +10,237 @@ export class GameActionUI extends BaseUI {
     private hitButton!: Button;
     private standButton!: Button;
     private doubleButton!: Button;
-    private splitButton!: Button;
-    private onUpdate: () => void;
+    // private splitButton!: Button; // Removed split
+    private onUpdate: () => void; // Callback to notify GameUI/Controller to update everything
 
-    /**
-     * Initializes a new instance of the GameActionUI class.
-     * 
-     * @param {Scene} scene - The Babylon.js scene to which the UI belongs.
-     * @param {BlackjackGame} game - The game logic instance to interact with.
-     * @param {() => void} onUpdate - Callback function to call when the UI should be updated.
-     * 
-     * This constructor sets up the UI components necessary for the blackjack game
-     * actions (Hit, Stand, Double, Split) and their corresponding keyboard shortcuts.
-     * It also triggers an initial update to ensure the UI reflects the current game state.
-     */
+    // Store original actions for easy switching
+    private originalHitAction: () => void;
+    private originalStandAction: () => void;
+    private originalDoubleAction: () => void;
+
     constructor(scene: Scene, game: BlackjackGame, onUpdate: () => void) {
-        super(scene);
+        super(scene, "GameActionUI");
         this.game = game;
         this.onUpdate = onUpdate;
-        
-        // Create action buttons in circular layout
+
+        // Define original actions
+        this.originalHitAction = () => {
+            console.log("UI: Hit action triggered");
+            this.game.playerHit();
+            this.onUpdate(); // Notify for general update (will disable buttons during animation)
+        };
+        this.originalStandAction = () => {
+            console.log("UI: Stand action triggered");
+            this.game.playerStand();
+            this.onUpdate();
+        };
+        this.originalDoubleAction = () => {
+            console.log("UI: Double action triggered");
+            this.game.doubleDown();
+            this.onUpdate();
+        };
+
         this.createCircularButtons();
         this.setupKeyboardControls();
+        this.update(); // Initial setup
     }
 
-    /**
-     * Creates a new action button with the given properties and adds it to the UI.
-     * The button is configured with a white background, a key indicator with the given key,
-     * and the given text below the key indicator.
-     * 
-     * @param {string} name - The name of the button.
-     * @param {string} text - The text to display on the button.
-     * @param {string} key - The key to display on the button.
-     * @param {string} color - The background color of the button.
-     * @param {number} x - The x-coordinate of the button.
-     * @param {number} y - The y-coordinate of the button.
-     * @param {() => void} action - The callback function to call when the button is clicked.
-     * @returns The newly created button.
-     */
-    private createActionButton(name: string, text: string, key: string, color: string, x: number, y: number, action: () => void): Button {
-        const button = Button.CreateSimpleButton(name, "");
-        button.width = "120px";
-        button.height = "60px";
-        button.color = "white";
+    private createActionButton(
+        name: string, text: string, key: string, color: string,
+        x: number, y: number, action: () => void
+    ): Button {
+        const button = Button.CreateSimpleButton(name, ""); // Text set later
+        button.width = "110px"; // Slightly smaller
+        button.height = "80px";
+        button.color = "white"; // Text color
         button.background = color;
-        button.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-        button.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        button.left = x + "px";
-        button.top = y + "px";
-        button.isVisible = false;
+        button.cornerRadius = 10;
         button.thickness = 2;
-        
-        // Create the key indicator
-        const keyContainer = new Rectangle();
-        keyContainer.width = "30px";
-        keyContainer.height = "24px";
-        keyContainer.background = "white";
-        keyContainer.color = "black";
+        button.shadowBlur = 5;
+        button.shadowColor = "#333";
+
+        // Positioning
+        button.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        button.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM; // Anchor to bottom center
+        button.left = `${x}px`;
+        button.top = `${y - 20}px`; // Adjust Y position relative to bottom (e.g., -20px from bottom edge)
+
+        button.isVisible = false; // Initially hidden
+
+        // Container for Key + Text
+        const contentStack = new StackPanel(`${name}ContentStack`);
+        contentStack.isVertical = true;
+        button.addControl(contentStack);
+
+        // Key Indicator (smaller)
+        const keyContainer = new Rectangle(`${name}KeyRect`);
+        keyContainer.width = "25px";
+        keyContainer.height = "20px";
+        keyContainer.background = "rgba(255, 255, 255, 0.8)";
+        keyContainer.color = "black"; // Border color for key rect
         keyContainer.cornerRadius = 4;
         keyContainer.thickness = 1;
-        keyContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-        keyContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        keyContainer.top = "5px"; // Position it inside the button
-        button.addControl(keyContainer);
-        
-        const keyText = new TextBlock();
-        keyText.text = key;
+        keyContainer.paddingTop = "3px"; // Space above key
+        contentStack.addControl(keyContainer);
+
+        const keyText = new TextBlock(`${name}KeyText`, key);
         keyText.color = "black";
-        keyText.fontSize = 14;
+        keyText.fontSize = 12;
         keyContainer.addControl(keyText);
-        
-        // Add the button text below the key indicator
-        const buttonText = new TextBlock();
-        buttonText.text = text;
+
+        // Button Action Text
+        const buttonText = new TextBlock(`${name}ActionText`, text);
         buttonText.color = "white";
-        buttonText.fontSize = 18;
-        buttonText.top = "30px"; // Position it below the key indicator
-        button.addControl(buttonText);
-        
-        // Add the action
-        button.onPointerClickObservable.add(action);
+        buttonText.fontSize = 16;
+        buttonText.paddingTop = "5px"; // Space between key and text
+        contentStack.addControl(buttonText);
+
+        // Add action
+        button.onPointerUpObservable.add(action); // Use onPointerUp
+
         this.guiTexture.addControl(button);
-        
-        // Store the button in the appropriate property
-        if (name === "hitButton") this.hitButton = button;
-        else if (name === "standButton") this.standButton = button;
-        else if (name === "doubleButton") this.doubleButton = button;
-        else if (name === "splitButton") this.splitButton = button;
-        
         return button;
     }
 
-    /**
-     * Creates and positions the action buttons ("Hit", "Stand", "Double", "Split") in a circular layout.
-     * The buttons are arranged around a central point with a specified radius.
-     * Each button is associated with a keyboard key ("W", "S", "A", "D") and executes a specific game
-     * action when clicked, updating the UI accordingly.
-     */
     private createCircularButtons(): void {
-        // Create a center point for our circular layout
         const centerX = 0;
-        const centerY = 150;
-        const radius = 120;
-        
-        // Create the buttons with proper structure
-        this.createActionButton("hitButton", "Hit", "W", "green", centerX, centerY - radius, () => {
-            this.game.playerHit();
-            this.onUpdate();
-        });
-        
-        this.createActionButton("standButton", "Stand", "S", "red", centerX, centerY + radius, () => {
-            this.game.playerStand();
-            this.onUpdate();
-        });
-        
-        this.createActionButton("doubleButton", "Double", "A", "blue", centerX - radius, centerY, () => {
-            this.game.doubleDown();
-            this.onUpdate();
-        });
-        
-        this.createActionButton("splitButton", "Split", "D", "purple", centerX + radius, centerY, () => {
-            // Split functionality would go here
-            console.log("Split not implemented yet");
-        });
+        const centerY = -100; // Y offset from bottom center
+        const radius = 100; // Radius of the circle
+
+        // Create buttons using original actions
+        this.hitButton = this.createActionButton(
+            "hitButton", "Hit", "W", "darkgreen",
+            centerX, centerY - radius, this.originalHitAction
+        );
+        this.standButton = this.createActionButton(
+            "standButton", "Stand", "S", "darkred",
+            centerX, centerY + radius, this.originalStandAction
+        );
+        this.doubleButton = this.createActionButton(
+            "doubleButton", "Double", "A", "darkblue",
+            centerX - radius, centerY, this.originalDoubleAction
+        );
+        // Split button removed
     }
 
-    /**
-     * Sets up keyboard event listeners for the WASD controls, binding the proper
-     * game actions to each key. This allows the player to interact with the game
-     * using the keyboard in addition to the on-screen buttons.
-     */
     private setupKeyboardControls(): void {
-        // Add keyboard event listeners for WASD controls
         this.scene.onKeyboardObservable.add((kbInfo) => {
-            switch (kbInfo.type) {
-                case KeyboardEventTypes.KEYDOWN:
-                    switch (kbInfo.event.key.toLowerCase()) {
-                        case 'w':
-                            if (this.hitButton.isVisible && this.hitButton.isEnabled) {
-                                // Just trigger the action directly
-                                this.game.playerHit();
-                                this.onUpdate();
-                            }
-                            break;
-                        case 's':
-                            if (this.standButton.isVisible && this.standButton.isEnabled) {
-                                this.game.playerStand();
-                                this.onUpdate();
-                            }
-                            break;
-                        case 'a':
-                            if (this.doubleButton.isVisible && this.doubleButton.isEnabled) {
-                                this.game.doubleDown();
-                                this.onUpdate();
-                            }
-                            break;
-                        case 'd':
-                            if (this.splitButton.isVisible && this.splitButton.isEnabled) {
-                                console.log("Split not implemented yet");
-                            }
-                            break;
-                    }
-                    break;
+            if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
+                 // Check if buttons are visible and enabled before triggering action
+                switch (kbInfo.event.key.toLowerCase()) {
+                    case 'w':
+                        if (this.hitButton.isVisible && this.hitButton.isEnabled) {
+                            this.hitButton.onPointerUpObservable.notifyObservers(null); // Simulate click
+                        }
+                        break;
+                    case 's':
+                        if (this.standButton.isVisible && this.standButton.isEnabled) {
+                            this.standButton.onPointerUpObservable.notifyObservers(null);
+                        }
+                        break;
+                    case 'a':
+                        if (this.doubleButton.isVisible && this.doubleButton.isEnabled) {
+                            this.doubleButton.onPointerUpObservable.notifyObservers(null);
+                        }
+                        break;
+                    // 'd' for split removed
+                }
             }
         });
     }
 
     /**
-     * Displays the action buttons for the player's turn.
-     * - The "Hit" and "Stand" buttons are always visible.
-     * - The "Double" button is visible only when the player has exactly two cards.
-     * - The "Split" button is visible only if the player can split their hand.
+     * Updates the GameActionUI based on game state and animation status.
+     * @param isAnimating - Whether a card animation is currently in progress.
      */
-    public showForPlayerTurn(): void {
-        this.hitButton.isVisible = true;
-        this.standButton.isVisible = true;
-        this.doubleButton.isVisible = this.game.getPlayerHand().length === 2;
-        this.splitButton.isVisible = this.game.canSplit();
-    }
-    
-    /**
-     * Hides all action buttons, so that they do not appear on the UI.
-     * This is called when the player's turn is over, and the buttons should not
-     * be visible until the next player turn.
-     */
-    public hideAll(): void {
-        this.hitButton.isVisible = false;
-        this.standButton.isVisible = false;
-        this.doubleButton.isVisible = false;
-        this.splitButton.isVisible = false;
-    }
+     public update(isAnimating: boolean = false): void {
+        const gameState = this.game.getGameState();
+        let showHit = false, showStand = false, showDouble = false;
+        let hitText = "Hit", standText = "Stand", doubleText = "Double";
+        let hitAction = this.originalHitAction;
+        let standAction = this.originalStandAction;
+        let doubleAction = this.originalDoubleAction;
 
-    /**
-     * Updates the GameActionUI to reflect the current state of the game.
-     * If the game is in the PlayerTurn state, shows the "Hit", "Stand", "Double", and "Split" buttons
-     * with the appropriate text and behaviors. If the game is in the GameOver state, shows the
-     * "New Game" and "Change Bet" buttons with the appropriate text and behaviors. In all other
-     * states, hides all buttons.
-     */
-    public update(): void {
-        if (this.game.getGameState() === GameState.PlayerTurn) {
-            // Show normal game action buttons during player's turn
-            this.hitButton.isVisible = true;
-            this.standButton.isVisible = true;
-            
-            // Double Down only available on first action (2 cards)
-            this.doubleButton.isVisible = this.game.getPlayerHand().length === 2;
-            
-            // Split only when player has two cards of the same value
-            this.splitButton.isVisible = this.game.canSplit();
-            
-            // Update button text
-            this.updateButtonText("Hit", "Stand", "Double", "Split");
-            
-        } else if (this.game.getGameState() === GameState.GameOver) {
-            // Show "New Game" and "Change Bet" after game over
-            this.hitButton.isVisible = true;
-            this.standButton.isVisible = true;
-            this.doubleButton.isVisible = false;
-            this.splitButton.isVisible = false;
-            
-            // Update button text
-            this.updateButtonText("New Game", "Change Bet", "", "");
-            
-            // Update the functional behavior for these buttons
-            this.updateButtonActions(
-                // Hit button now starts new game
-                () => {
-                    this.game.startNewGame(this.game.getCurrentBet());
-                    this.onUpdate();
-                },
-                // Stand button now shows betting UI
-                () => {
-                    this.game.setGameState(GameState.Betting);
-                    this.onUpdate();
-                }
-            );
-        } else {
-            // Hide all buttons for other game states
-            this.hideAll();
+        if (gameState === GameState.PlayerTurn) {
+            showHit = true;
+            showStand = true;
+            // Double Down only available on first action (2 cards) and enough funds
+            showDouble = this.game.getPlayerHand().length === 2 &&
+                         this.game.getPlayerFunds() >= this.game.getCurrentBet();
+
+            hitText = "Hit";
+            standText = "Stand";
+            doubleText = "Double";
+            hitAction = this.originalHitAction;
+            standAction = this.originalStandAction;
+            doubleAction = this.originalDoubleAction;
+
+        } else if (gameState === GameState.GameOver) {
+            // Repurpose Hit/Stand for New Game / Change Bet
+            showHit = true;
+            showStand = true;
+            showDouble = false; // Never show double in game over
+
+            hitText = "New Game";
+            standText = "Change Bet";
+            hitAction = () => { // New Game action
+                 console.log("UI: New Game action triggered");
+                 // GameController handles clearing table etc. via GameUI callback
+                 this.onUpdate(); // Notify GameUI first
+                 // GameUI's onNewGame callback (passed during construction) will handle it
+            };
+            standAction = () => { // Change Bet action
+                 console.log("UI: Change Bet action triggered");
+                 this.game.getGameActions().setGameState(GameState.Betting); // Go to betting state
+                 this.onUpdate(); // Update UI
+            };
         }
+
+        // Update Visibility
+        this.hitButton.isVisible = showHit;
+        this.standButton.isVisible = showStand;
+        this.doubleButton.isVisible = showDouble;
+        // this.splitButton.isVisible = false; // Always false
+
+        // Update Text and Actions (only if visibility is true)
+        if (showHit) {
+             this.updateButtonLabel(this.hitButton, hitText);
+             this.updateButtonAction(this.hitButton, hitAction);
+        }
+         if (showStand) {
+             this.updateButtonLabel(this.standButton, standText);
+             this.updateButtonAction(this.standButton, standAction);
+         }
+         if (showDouble) {
+             this.updateButtonLabel(this.doubleButton, doubleText);
+             this.updateButtonAction(this.doubleButton, doubleAction);
+         }
+
+         // Enable/Disable based on animation state
+         const enable = !isAnimating;
+         this.hitButton.isEnabled = enable && showHit;
+         this.standButton.isEnabled = enable && showStand;
+         this.doubleButton.isEnabled = enable && showDouble;
+
+         // Visual feedback for disabled state
+         this.hitButton.alpha = this.hitButton.isEnabled ? 1.0 : 0.5;
+         this.standButton.alpha = this.standButton.isEnabled ? 1.0 : 0.5;
+         this.doubleButton.alpha = this.doubleButton.isEnabled ? 1.0 : 0.5;
     }
 
-    /**
-     * Updates the functional behavior of the Hit and Stand buttons.
-     * Clears any existing click actions from the buttons and adds new
-     * actions as specified by the parameters. The Hit button is given the
-     * hitAction and the Stand button is given the standAction.
-     * 
-     * @param hitAction the action to perform when the Hit button is clicked
-     * @param standAction the action to perform when the Stand button is clicked
-     */
-    private updateButtonActions(hitAction: () => void, standAction: () => void): void {
-        // Clear existing actions
-        this.hitButton.onPointerClickObservable.clear();
-        this.standButton.onPointerClickObservable.clear();
-        
-        // Add new actions
-        this.hitButton.onPointerClickObservable.add(hitAction);
-        this.standButton.onPointerClickObservable.add(standAction);
+
+    private updateButtonAction(button: Button, action: () => void): void {
+        button.onPointerUpObservable.clear(); // Clear previous actions
+        button.onPointerUpObservable.add(action); // Add the new action
     }
 
-    /**
-     * Updates the text displayed on the action buttons.
-     * Each button's label is updated with the provided text for the corresponding action.
-     * This is used during different game states to set the appropriate labels for
-     * "Hit", "Stand", "Double", and "Split" buttons.
-     * 
-     * @param hitText - The text to display on the "Hit" button.
-     * @param standText - The text to display on the "Stand" button.
-     * @param doubleText - The text to display on the "Double" button.
-     * @param splitText - The text to display on the "Split" button.
-     */
-    private updateButtonText(hitText: string, standText: string, doubleText: string, splitText: string): void {
-        // Find the text blocks in each button and update them
-        this.updateButtonLabel(this.hitButton, hitText);
-        this.updateButtonLabel(this.standButton, standText);
-        this.updateButtonLabel(this.doubleButton, doubleText);
-        this.updateButtonLabel(this.splitButton, splitText);
-    }
-
-    /**
-     * Updates the text displayed on a button.
-     * Finds the main TextBlock for the button (ignoring any key indicator TextBlock)
-     * and sets its text to the provided value.
-     * 
-     * @param button - The Button to update.
-     * @param text - The text to display on the button.
-     */
     private updateButtonLabel(button: Button, text: string): void {
-        // Find the main text block (not the key indicator)
-        if (button && button.children) {
-            for (let i = 0; i < button.children.length; i++) {
-                const child = button.children[i];
-                if (child instanceof TextBlock && 
-                    !(child.parent instanceof Rectangle)) { // Skip text in key container
-                    child.text = text;
-                    break;
-                }
+        // Find the text block within the button's content stack
+        const contentStack = button.getChildByName(`${button.name}ContentStack`) as StackPanel;
+        if (contentStack) {
+            const textBlock = contentStack.getChildByName(`${button.name}ActionText`) as TextBlock;
+            if (textBlock) {
+                textBlock.text = text;
             }
         }
     }

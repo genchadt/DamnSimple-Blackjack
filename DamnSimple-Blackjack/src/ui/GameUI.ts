@@ -1,4 +1,4 @@
-// ui/GameUI.ts
+// src/ui/gameui-ts (Coordinates sub-UIs, handles callbacks)
 import { Scene } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState } from "../game/GameState";
@@ -14,133 +14,108 @@ export class GameUI {
     private gameActionUI: GameActionUI;
     private statusUI: StatusUI;
     private navigationUI: NavigationUI;
+
+    // Callbacks provided by GameScene/Game
     private onOpenSettings: () => void;
-    private onClearTable: () => void;
+    private onClearTableRequest: () => void; // Renamed for clarity
+
     private currencySign: string = "$";
 
-    /**
-     * Initializes a new instance of the GameUI class.
-     * 
-     * @param {Scene} scene - The Babylon.js scene to which the UI belongs.
-     * @param {BlackjackGame} game - The game logic instance to interact with.
-     * @param {() => void} onOpenSettings - Callback function to open the settings menu.
-     * @param {() => void} onClearTable - Callback function to clear the game table.
-     * 
-     * This constructor sets up the UI components necessary for the blackjack game,
-     * including the status display, betting interface, game action buttons, and navigation controls.
-     * It also triggers an initial update to ensure the UI reflects the current game state.
-     */
     constructor(
-        scene: Scene, 
-        game: BlackjackGame, 
+        scene: Scene,
+        game: BlackjackGame,
         onOpenSettings: () => void,
-        onClearTable: () => void
+        onClearTableRequest: () => void // Renamed parameter
     ) {
         this.scene = scene;
         this.game = game;
         this.onOpenSettings = onOpenSettings;
-        this.onClearTable = onClearTable;
-        
-        // Create UI components
+        this.onClearTableRequest = onClearTableRequest;
+
+        // Create UI components in logical order
         this.statusUI = new StatusUI(scene, game);
-        
-        this.bettingUI = new BettingUI(scene, game, (bet) => {
-            this.confirmBet(bet);
-        });
-        
-        this.gameActionUI = new GameActionUI(scene, game, () => {
-            this.update();
-        });
-        
         this.navigationUI = new NavigationUI(
-            scene, 
-            game, 
-            () => this.onSitDown(),
-            () => this.onLeaveTable(),
-            () => this.onNewGame(),
-            onOpenSettings
+            scene, game,
+            this.onSitDown.bind(this),      // Handle Sit Down
+            this.onLeaveTable.bind(this),   // Handle Leave Table
+            this.onNewGameRequest.bind(this),// Handle New Game (from GameOver state)
+            this.onOpenSettings           // Pass through Open Settings
         );
-        
-        // Initial update
-        this.update();
+        this.bettingUI = new BettingUI(scene, game, this.onConfirmBet.bind(this)); // Handle Confirm Bet
+        this.gameActionUI = new GameActionUI(scene, game, this.update.bind(this)); // Pass general update callback
+
+        console.log("GameUI Initialized");
+        this.update(); // Initial UI sync
     }
 
-    /**
-     * Called when the player sits down at the table. Shows the betting UI and 
-     * sets the game state to Betting. Triggers an update to reflect the new
-     * game state.
-     */
+    /** Called by NavigationUI when "Sit Down" is clicked */
     private onSitDown(): void {
-        // Show betting UI when player sits down
-        this.bettingUI.show();
-        this.game.setGameState(GameState.Betting);
-        this.update();
+        console.log("UI: Sit Down action");
+        // Game state change should happen here or be triggered by this
+        this.game.getGameActions().setGameState(GameState.Betting);
+        this.update(); // Update all UI to reflect Betting state
     }
 
-    /**
-     * Confirms the player's bet and starts a new game with the specified bet amount.
-     * This method updates the game state and refreshes the UI to reflect the changes.
-     *
-     * @param {number} bet - The amount the player has decided to bet for the new game.
-     */
-    private confirmBet(bet: number): void {
-        // Start the game with current bet
-        this.game.startNewGame(bet);
-        this.update();
+    /** Called by BettingUI when "Confirm Bet" is clicked */
+    private onConfirmBet(bet: number): void {
+        console.log("UI: Confirm Bet action with bet:", bet);
+        // GameController's startNewGame handles clearing table, starting logic, etc.
+        // We need access to the GameController or pass the startNewGame function here.
+        // For now, assume GameController's startNewGame is triggered elsewhere or called via BlackjackGame.
+        // Let's trigger it via BlackjackGame for now, assuming GameController setup handles the rest.
+        this.game.startNewGame(bet); // This will trigger animations and state changes
+        this.update(); // Update UI immediately (e.g., hide betting, show scores)
     }
 
-    /**
-     * Handles the action of leaving the table.
-     * The player can only leave the table if the game state is Betting, GameOver, or Initial.
-     * Upon leaving, the game state is reset to Initial, the table is cleared, and the UI is updated.
-     */
+    /** Called by NavigationUI when "Leave Table" is clicked */
     private onLeaveTable(): void {
-        // Only allow leaving at appropriate times
-        if (this.game.getGameState() === GameState.Betting || 
-            this.game.getGameState() === GameState.GameOver ||
-            this.game.getGameState() === GameState.Initial) {
-            
-            // Reset to initial state
-            this.game.setGameState(GameState.Initial);
-            this.onClearTable();
-            this.update();
+        console.log("UI: Leave Table action");
+        const currentState = this.game.getGameState();
+        if (currentState === GameState.Betting || currentState === GameState.GameOver || currentState === GameState.Initial) {
+            this.game.getGameActions().setGameState(GameState.Initial); // Set state to Initial
+            this.game.setCurrentBet(0); // Reset logical bet
+            this.onClearTableRequest(); // Request visual table clearing
+            this.update(); // Update UI to show Initial state (Sit Down button)
+        } else {
+            console.warn("Cannot leave table during active turn.");
         }
     }
 
-    /**
-     * Initiates the process for starting a new game by displaying the betting UI
-     * and setting the game state to Betting. Triggers an update to reflect the
-     * changes in the UI.
-     */
-    private onNewGame(): void {
-        // Show betting UI for a new game
-        this.bettingUI.show();
-        this.game.setGameState(GameState.Betting);
-        this.update();
+    /** Called by GameActionUI (repurposed Hit button) or NavigationUI when "New Game" is requested */
+    private onNewGameRequest(): void {
+        console.log("UI: New Game request action");
+        // Go to betting state to allow bet adjustment
+        this.game.getGameActions().setGameState(GameState.Betting);
+        this.update(); // Update UI to show betting panel
     }
 
-    /**
-     * Updates the currency sign displayed in the UI to the specified value.
-     * 
-     * @param {string} sign The new currency sign to display (e.g. "$", " ", etc.).
-     */
+    /** Updates the currency sign in relevant sub-UIs */
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
         this.statusUI.setCurrencySign(sign);
         this.bettingUI.setCurrencySign(sign);
+        // Update immediately if needed, though update() will catch it too
+        this.statusUI.update();
+        this.bettingUI.update();
     }
 
     /**
-     * Updates all UI components to reflect the current game state.
-     * This is called whenever the game state changes or when the player's
-     * funds or bet amount changes. It ensures that the UI always reflects
-     * the current state of the game.
+     * Updates all UI components based on the current game state and animation status.
+     * @param isAnimating - Passed down from GameController update loop.
      */
-    public update(): void {
-        // Update all UI components
+     public update(isAnimating: boolean = false): void {
+        // console.log("GameUI Update called. Animating:", isAnimating);
         this.statusUI.update();
-        this.bettingUI.update();
-        this.gameActionUI.update();
-        this.navigationUI.update();
+        this.navigationUI.update(); // Update nav buttons first (Sit Down/Leave)
+        this.bettingUI.update();    // Update betting panel (visibility)
+        this.gameActionUI.update(isAnimating); // Update action buttons (visibility, text, enabled state)
     }
+
+     /** Dispose all sub-UI components */
+     public dispose(): void {
+         this.statusUI?.dispose();
+         this.navigationUI?.dispose();
+         this.bettingUI?.dispose();
+         this.gameActionUI?.dispose();
+     }
 }
