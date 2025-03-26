@@ -8,8 +8,11 @@ import { GameActions } from "./GameActions";
 
 export class BlackjackGame {
     private handManager: HandManager;
-    private playerFunds: PlayerFunds;
     private gameActions: GameActions;
+    private playerFunds: PlayerFunds;
+    private playerHands: Card[][] = [];
+    private dealerHands: Card[][] = [];
+    private currentHandIndex: number = 0;
 
     /**
      * Creates a new BlackjackGame object, loading any saved game state if present.
