@@ -7,13 +7,16 @@ import { ScoreCalculator } from "./ScoreCalculator";
 import { GameActions } from "./GameActions";
 
 export class BlackjackGame {
+    //#region Properties
     private handManager: HandManager;
     private gameActions: GameActions;
     private playerFunds: PlayerFunds;
     private playerHands: Card[][] = [];
     private dealerHands: Card[][] = [];
     private currentHandIndex: number = 0;
+    //#endregion
 
+    //#region Constructor
     /**
      * Creates a new BlackjackGame object, loading any saved game state if present.
      */
@@ -25,14 +28,9 @@ export class BlackjackGame {
         // Try to restore game state
         this.gameActions.loadGameState();
     }
+    //#endregion
 
-    /**
-     * Sets the game state to the given value, saving the new state to local storage.
-     */
-    public setGameState(state: GameState): void {
-        this.gameActions.setGameState(state);
-    }
-
+    //#region Core Game Actions
     /**
      * Starts a new game of blackjack with the specified bet amount.
      */
@@ -55,13 +53,6 @@ export class BlackjackGame {
     }
 
     /**
-     * Sets the current bet amount to the specified value.
-     */
-    public setCurrentBet(amount: number): void {
-        this.gameActions.setCurrentBet(amount);
-    }
-    
-    /**
      * Doubles the current bet and deals one more card to the player's hand.
      */
     public doubleDown(): boolean {
@@ -69,35 +60,61 @@ export class BlackjackGame {
     }
 
     /**
-     * Determines if the player can split their hand.
+     * Splits the player's hand into two separate hands.
      */
-    public canSplit(): boolean {
-        return ScoreCalculator.canSplit(
-            this.handManager.getPlayerHand(), 
-            this.playerFunds.getFunds(), 
-            this.gameActions.getCurrentBet()
-        );
+    public splitHand(): boolean {
+        if (!this.canSplit()) {
+            return false;
+        }
+
+        // Deduct the bet for the split hand
+        if (!this.playerFunds.deductFunds(this.gameActions.getCurrentBet())) {
+            return false;
+        }
+
+        // Get current hand
+        const currentHand = this.playerHands[this.currentHandIndex];
+
+        // Create a new hand for the split
+        const newHand: Card[] = [currentHand.pop()!];
+        this.playerHands.push(newHand);
+
+        // Deal a new card to each hand
+        this.handManager.dealCard(currentHand, true);
+        this.handManager.dealCard(newHand, true);
+
+        return true;
+    }
+    //#endregion
+
+    //#region Game State Mgmt
+    /**
+     * Sets the game state to the given value, saving the new state to local storage.
+     */
+    public setGameState(state: GameState): void {
+        this.gameActions.setGameState(state);
     }
 
     /**
-     * Adds a callback function to be called when a card is flipped.
+     * Retrieves the current game state.
      * 
-     * @param {function} callback - The callback function to be called when a card is flipped.
-     * @param {Card} card - The card that was flipped.
+     * @return {GameState} The current state of the game.
      */
-    public addCardFlipCallback(callback: (card: Card) => void): void {
-        this.handManager.addCardFlipCallback(callback);
+    public getGameState(): GameState {
+        return this.gameActions.getGameState();
     }
 
     /**
-     * Calculates the total value of a hand in Blackjack.
+     * Retrieves the result of the game.
      * 
-     * @param {Card[]} hand - The hand of cards to calculate the value for.
+     * @return {GameResult} The result of the game.
      */
-    public calculateHandValue(hand: Card[]): number {
-        return ScoreCalculator.calculateHandValue(hand);
+    public getGameResult(): GameResult {
+        return this.gameActions.getGameResult();
     }
+    //#endregion
 
+    //#region Hand Mgmt
     /**
      * Retrieves the player's hand.
      * 
@@ -117,21 +134,12 @@ export class BlackjackGame {
     }
 
     /**
-     * Retrieves the current game state.
+     * Calculates the total value of a hand in Blackjack.
      * 
-     * @return {GameState} The current state of the game.
+     * @param {Card[]} hand - The hand of cards to calculate the value for.
      */
-    public getGameState(): GameState {
-        return this.gameActions.getGameState();
-    }
-
-    /**
-     * Retrieves the result of the game.
-     * 
-     * @return {GameResult} The result of the game.
-     */
-    public getGameResult(): GameResult {
-        return this.gameActions.getGameResult();
+    public calculateHandValue(hand: Card[]): number {
+        return ScoreCalculator.calculateHandValue(hand);
     }
 
     /**
@@ -153,6 +161,35 @@ export class BlackjackGame {
     }
     
     /**
+     * Determines if the player can split their hand.
+     */
+    public canSplit(): boolean {
+        return ScoreCalculator.canSplit(
+            this.handManager.getPlayerHand(), 
+            this.playerFunds.getFunds(), 
+            this.gameActions.getCurrentBet()
+        );
+    }
+    //#endregion
+
+    //#region Money Mgmt
+    /**
+     * Retrieves the current bet amount for the game.
+     * 
+     * @return {number} The current bet amount.
+     */
+    public getCurrentBet(): number {
+        return this.gameActions.getCurrentBet();
+    }
+
+    /**
+     * Sets the current bet amount to the specified value.
+     */
+    public setCurrentBet(amount: number): void {
+        this.gameActions.setCurrentBet(amount);
+    }
+
+    /**
      * Retrieves the player's current funds.
      * 
      * @return {number} The player's current funds.
@@ -162,18 +199,22 @@ export class BlackjackGame {
     }
     
     /**
-     * Retrieves the current bet amount for the game.
-     * 
-     * @return {number} The current bet amount.
-     */
-    public getCurrentBet(): number {
-        return this.gameActions.getCurrentBet();
-    }
-    
-    /**
      * Resets the player's funds to the default amount.
      */
     public resetFunds(): void {
         this.playerFunds.resetFunds();
     }
+    //#endregion
+
+    //#region Event Handling
+    /**
+     * Adds a callback function to be called when a card is flipped.
+     * 
+     * @param {function} callback - The callback function to be called when a card is flipped.
+     * @param {Card} card - The card that was flipped.
+     */
+    public addCardFlipCallback(callback: (card: Card) => void): void {
+        this.handManager.addCardFlipCallback(callback);
+    }
+    //#endregion
 }
