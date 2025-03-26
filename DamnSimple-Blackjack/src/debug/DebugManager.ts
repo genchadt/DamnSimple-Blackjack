@@ -112,9 +112,10 @@ export class DebugManager {
      * Reset the game to initial state
      */
     public resetGame(): void {
-        // Clear all cards
+        // Clear table and hands
         this.clearCards(true);
         this.clearCards(false);
+        this.cardVisualizer.clearTable();
 
         // Reset funds and bet
         this.setFunds(1000);
