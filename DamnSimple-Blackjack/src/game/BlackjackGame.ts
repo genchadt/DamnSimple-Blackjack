@@ -116,12 +116,23 @@ export class BlackjackGame {
 
     //#region Hand Mgmt
     /**
+     * Switch to the next hand if available.
+     */
+    public nextHand(): boolean {
+        if (this.currentHandIndex < this.playerHands.length - 1) {
+            this.currentHandIndex++;
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Retrieves the player's hand.
      * 
      * @return {Card[]} The player's hand of cards.
      */
     public getPlayerHand(): Card[] {
-        return this.handManager.getPlayerHand();
+        return this.playerHands[this.currentHandIndex];
     }
 
     /**
