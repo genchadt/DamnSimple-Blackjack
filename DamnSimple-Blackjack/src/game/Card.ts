@@ -50,13 +50,13 @@ export class Card {
         return this.suit;
     }
 
-    public getRank(): Rank {
-        return this.rank;
     /**
      * Gets the rank of the card.
      * 
      * @returns {Rank} The rank of the card.
      */
+    public getRank(): Rank {
+        return this.rank;
     }
 
     /**
