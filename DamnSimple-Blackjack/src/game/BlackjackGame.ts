@@ -21,9 +21,14 @@ export class BlackjackGame {
      * Creates a new BlackjackGame object, loading any saved game state if present.
      */
     constructor() {
+        // Initialize game components
         this.handManager = new HandManager();
         this.playerFunds = new PlayerFunds();
         this.gameActions = new GameActions(this.handManager, this.playerFunds);
+
+        // Initialize player and dealer hands
+        this.playerHands = [[]];
+        this.dealerHands = [[]];
         
         // Try to restore game state
         this.gameActions.loadGameState();
@@ -33,6 +38,9 @@ export class BlackjackGame {
     //#region Core Game Actions
     /**
      * Starts a new game of blackjack with the specified bet amount.
+     * 
+     * @param {number} bet - The amount to bet for the new game.
+     * @return {boolean} - true if the game started successfully, false otherwise.
      */
     public startNewGame(bet?: number): boolean {
         return this.gameActions.startNewGame(bet);
@@ -54,6 +62,8 @@ export class BlackjackGame {
 
     /**
      * Doubles the current bet and deals one more card to the player's hand.
+     * 
+     * @return {boolean} - true if the double down was successful, false otherwise.
      */
     public doubleDown(): boolean {
         return this.gameActions.doubleDown();
@@ -61,6 +71,8 @@ export class BlackjackGame {
 
     /**
      * Splits the player's hand into two separate hands.
+     * 
+     * @return {boolean} - true if the split was successful, false otherwise.
      */
     public splitHand(): boolean {
         if (!this.canSplit()) {
@@ -117,6 +129,8 @@ export class BlackjackGame {
     //#region Hand Mgmt
     /**
      * Switch to the next hand if available.
+     * 
+     * @return {boolean} - true if there is a next hand, false otherwise.
      */
     public nextHand(): boolean {
         if (this.currentHandIndex < this.playerHands.length - 1) {
@@ -132,6 +146,9 @@ export class BlackjackGame {
      * @return {Card[]} The player's hand of cards.
      */
     public getPlayerHand(): Card[] {
+        if (!this.playerHands[this.currentHandIndex]) {
+            this.playerHands[this.currentHandIndex] = [];
+        }
         return this.playerHands[this.currentHandIndex];
     }
 
