@@ -25,7 +25,7 @@ export class GameUI {
         scene: Scene,
         game: BlackjackGame,
         onOpenSettings: () => void,
-        onClearTableRequest: () => void // Renamed parameter
+        onClearTableRequest: () => void
     ) {
         this.scene = scene;
         this.game = game;
@@ -59,25 +59,37 @@ export class GameUI {
     /** Called by BettingUI when "Confirm Bet" is clicked */
     private onConfirmBet(bet: number): void {
         console.log("UI: Confirm Bet action with bet:", bet);
-        // GameController's startNewGame handles clearing table, starting logic, etc.
-        // We need access to the GameController or pass the startNewGame function here.
-        // For now, assume GameController's startNewGame is triggered elsewhere or called via BlackjackGame.
-        // Let's trigger it via BlackjackGame for now, assuming GameController setup handles the rest.
-        this.game.startNewGame(bet); // This will trigger animations and state changes
-        this.update(); // Update UI immediately (e.g., hide betting, show scores)
+
+        // *** FIX: Request table clear BEFORE starting new game logic ***
+        this.onClearTableRequest();
+
+        // Start the game logic (which deals new cards)
+        const success = this.game.startNewGame(bet);
+        // The update() might be implicitly called by the animation chain,
+        // but an immediate update can hide the betting UI faster.
+        if (success) {
+            this.update(); // Update UI immediately (e.g., hide betting)
+        } else {
+            // If starting failed (e.g., insufficient funds after a race condition?),
+            // ensure UI reflects the current state (likely back to Betting).
+            this.update();
+        }
     }
 
     /** Called by NavigationUI when "Leave Table" is clicked */
     private onLeaveTable(): void {
         console.log("UI: Leave Table action");
         const currentState = this.game.getGameState();
+        // Allow leaving from Betting, GameOver, or Initial
         if (currentState === GameState.Betting || currentState === GameState.GameOver || currentState === GameState.Initial) {
             this.game.getGameActions().setGameState(GameState.Initial); // Set state to Initial
             this.game.setCurrentBet(0); // Reset logical bet
             this.onClearTableRequest(); // Request visual table clearing
             this.update(); // Update UI to show Initial state (Sit Down button)
         } else {
-            console.warn("Cannot leave table during active turn.");
+            // Optionally provide feedback or just ignore
+            console.warn("Cannot leave table during active player/dealer turn.");
+            // You could add a brief message to the StatusUI here if desired
         }
     }
 

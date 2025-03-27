@@ -1,5 +1,5 @@
-// src/scenes/gamescene-ts (Initializes components correctly)
-import { Scene, Engine } from "@babylonjs/core";
+// src/scenes/gamescene-ts (Updated TableEnvironment instantiation)
+import { Scene, Engine, Vector3 } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameUI } from "../ui/GameUI";
 import { DebugManager } from "../debug/DebugManager";
@@ -11,11 +11,11 @@ export class GameScene {
     private scene: Scene;
     private blackjackGame: BlackjackGame;
     private gameUI: GameUI;
-    private debugManager: DebugManager; // Keep for debugging
+    private debugManager: DebugManager;
     private tableEnvironment: TableEnvironment;
     private cardVisualizer: CardVisualizer;
     private gameController: GameController;
-    private engine: Engine; // Keep engine reference for disposal
+    private engine: Engine;
 
     constructor(engine: Engine, canvas: HTMLCanvasElement, onOpenSettings: () => void) {
         console.log("GameScene constructor called");
@@ -26,23 +26,25 @@ export class GameScene {
         // 1. Core Game Logic (loads state)
         this.blackjackGame = new BlackjackGame();
 
-        // 2. Environment (static elements)
-        this.tableEnvironment = new TableEnvironment(this.scene);
-
-        // 3. Visualizers (depend on scene, game logic, environment)
+        // 2. Visualizers (depend on scene, game logic) - Create CardVisualizer first
+        //    It needs the deck position *conceptually*, but TableEnvironment uses its constants.
+        //    We pass a temporary deck position, TableEnvironment will use constants.
+        const tempDeckPos = new Vector3(3.5, 0, 0); // Temporary, Y will be adjusted
         this.cardVisualizer = new CardVisualizer(
             this.scene,
             this.blackjackGame,
-            this.tableEnvironment.getDeckPosition()
-            // Callback set by GameController later
+            tempDeckPos
         );
+
+        // 3. Environment (depends on scene, needs CardVisualizer for deck material)
+        this.tableEnvironment = new TableEnvironment(this.scene, this.cardVisualizer); // Pass CardVisualizer
 
         // 4. UI (depends on scene, game logic, needs callbacks)
         this.gameUI = new GameUI(
             this.scene,
             this.blackjackGame,
             onOpenSettings,
-            this.clearTable.bind(this) // Pass clearTable callback
+            this.clearTable.bind(this)
         );
 
         // 5. Controller (depends on all above, orchestrates interactions)
@@ -53,56 +55,34 @@ export class GameScene {
             this.cardVisualizer
         );
 
-        // 6. Debug Manager (optional, depends on scene, game, visualizer, UI)
+        // 6. Debug Manager (optional)
         this.debugManager = new DebugManager(this, this.cardVisualizer);
 
 
-        // Initial update is handled within GameController constructor after potential restore
         console.log("GameScene construction complete.");
+        // Initial update/restore logic is handled within GameController constructor
     }
 
-    // clearTable is now primarily called by GameUI/GameController actions
     public clearTable(): void {
-        // Delegate clearing visuals to the controller/visualizer
         this.gameController.clearTable();
     }
 
-    /**
-     * Updates the game state and UI via the controller.
-     */
     public update(): void {
-        // Delegate update logic to the controller
         this.gameController.update();
     }
 
     // --- Getters ---
-    public getGameUI(): GameUI {
-        return this.gameUI;
-    }
+    public getGameUI(): GameUI { return this.gameUI; }
+    public getScene(): Scene { return this.scene; }
+    public getBlackjackGame(): BlackjackGame { return this.blackjackGame; }
 
-    public getScene(): Scene {
-        return this.scene;
-    }
-
-    public getBlackjackGame(): BlackjackGame {
-        return this.blackjackGame;
-    }
-
-     /**
-      * Disposes of the scene and its resources.
-      */
      public dispose(): void {
          console.log("Disposing GameScene");
-         // Dispose UI first
-         this.gameUI?.dispose(); // Add dispose method to GameUI if needed
-
-         // Dispose other components
-         // this.debugManager?.dispose(); // Add dispose if needed
-         // this.cardVisualizer?.dispose(); // Add dispose if needed
-         this.tableEnvironment?.getScene()?.dispose(); // Dispose environment scene elements? Or just scene below?
-
-         // Dispose the main scene
-         this.scene.dispose();
+         this.gameUI?.dispose();
+         // this.debugManager?.dispose(); // Assuming no specific dispose needed for DebugManager
+         this.cardVisualizer?.clearTable(); // Clear visuals before disposing scene elements
+         this.tableEnvironment?.dispose(); // Dispose table, deck visuals etc.
+         this.scene.dispose(); // Dispose the Babylon scene itself
          console.log("GameScene disposed.");
      }
 }

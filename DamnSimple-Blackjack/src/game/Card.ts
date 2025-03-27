@@ -1,4 +1,4 @@
-// ./game/Card.ts
+// src/game/card-ts (Added uniqueId and getter)
 export enum Suit {
     Hearts = "Hearts",
     Diamonds = "Diamonds",
@@ -26,111 +26,80 @@ export class Card {
     private suit: Suit;
     private rank: Rank;
     private faceUp: boolean;
+    // *** ADDED ***
+    private _uniqueId: string; // For reliable map keys
 
-    /**
-     * Creates a new instance of the Card class.
-     * 
-     * @param {Suit} suit - The suit of the card.
-     * @param {Rank} rank - The rank of the card.
-     * 
-     * The card is initially face down.
-     */
+    public onFlip: ((card: Card) => void) | null = null;
+
     constructor(suit: Suit, rank: Rank) {
         this.suit = suit;
         this.rank = rank;
         this.faceUp = false;
+        // *** ADDED *** - Simple unique ID generation
+        this._uniqueId = `${suit}-${rank}-${Date.now()}-${Math.random()}`;
     }
 
+    // *** ADDED ***
     /**
-     * Gets the suit of the card.
-     * 
-     * @returns {Suit} The suit of the card.
+     * Gets a unique identifier for this card instance.
+     * Useful for using cards as keys in Maps.
+     * @returns {string} A unique ID string.
      */
+    public getUniqueId(): string {
+        return this._uniqueId;
+    }
+
     public getSuit(): Suit {
         return this.suit;
     }
 
-    /**
-     * Gets the rank of the card.
-     * 
-     * @returns {Rank} The rank of the card.
-     */
     public getRank(): Rank {
         return this.rank;
     }
 
-    /**
-     * Determines if the card is face up.
-     * 
-     * @returns {boolean} - true if the card is face up, false if it is face down.
-     */
     public isFaceUp(): boolean {
         return this.faceUp;
     }
 
-    /**
-     * Sets the face up state of the card.
-     * 
-     * @param {boolean} value - true if the card should be face up, false if it should be face down.
-     */
     public setFaceUp(value: boolean): void {
+        // Check if state actually changed before potentially triggering flip logic
+        const changed = this.faceUp !== value;
         this.faceUp = value;
+        // If setting directly, we usually don't trigger the main 'flip' notification
+        // But if needed for some reason, it could be added here conditionally
+        // if (changed && this.onFlip) { this.onFlip(this); }
     }
 
-    /**
-     * Flips the card face up or face down.
-     * This function calls any registered callbacks with the card instance as an argument.
-     */
     public flip(): void {
         this.faceUp = !this.faceUp;
-        // Notify any listeners that the card was flipped
+        console.log(`Card ${this.toString()} flipped to ${this.faceUp ? 'up' : 'down'}. Notifying listeners.`);
         if (this.onFlip) {
             this.onFlip(this);
+        } else {
+             console.warn(`Card ${this.toString()} flipped, but no onFlip callback registered.`);
         }
     }
 
-    /**
-     * Callback function to be called when the card is flipped.
-     * This function receives the card instance as an argument.
-     */
-    public onFlip: ((card: Card) => void) | null = null;
-
-    /**
-     * Registers a callback function to be called when the card is flipped.
-     * The callback receives the card instance as an argument.
-     * 
-     * @param {((card: Card) => void)} callback - The function to be called when the card is flipped.
-     */
     public setFlipCallback(callback: (card: Card) => void): void {
         this.onFlip = callback;
     }
 
-    /**
-     * Calculates the value of the card according to Blackjack rules.
-     * Aces are valued at 11, Jacks, Queens, and Kings are valued at 10, and all other cards are valued at their rank.
-     * 
-     * @returns {number} The value of the card.
-     */
     public getValue(): number {
         switch (this.rank) {
             case Rank.Ace:
-                return 11; // Aces are 11 or 1 in Blackjack
+                return 11;
             case Rank.Jack:
             case Rank.Queen:
             case Rank.King:
                 return 10;
             default:
-                return parseInt(this.rank);
+                // Ensure rank is a number string before parsing
+                const numericRank = parseInt(this.rank);
+                return isNaN(numericRank) ? 0 : numericRank; // Should not happen with enum
         }
     }
 
-    /**
-     * Returns a string representation of the card, including its rank and suit.
-     * 
-     * @returns {string} A string in the format "Rank of Suit".
-     */
     public toString(): string {
         return `${this.rank} of ${this.suit}`;
     }
-
 }

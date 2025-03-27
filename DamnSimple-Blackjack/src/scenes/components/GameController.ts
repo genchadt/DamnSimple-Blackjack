@@ -1,10 +1,10 @@
-// src/scenes/components/gamecontroller-ts (Major rewrite for async flow)
+// src/scenes/components/gamecontroller-ts (Added logging)
 import { Scene } from "@babylonjs/core";
 import { BlackjackGame } from "../../game/BlackjackGame";
-import { GameState } from "../../game/GameState";
+import { GameResult, GameState } from "../../game/GameState";
 import { GameUI } from "../../ui/GameUI";
 import { CardVisualizer } from "./CardVisualizer";
-import { Card } from "../../game/Card"; // Import Card
+import { Card } from "../../game/Card";
 
 export class GameController {
     private scene: Scene;
@@ -12,154 +12,131 @@ export class GameController {
     private gameUI: GameUI;
     private cardVisualizer: CardVisualizer;
     private gameStateRestored: boolean = false;
-    private isProcessingAnimationComplete: boolean = false; // Prevent re-entrancy
-
+    private isProcessingAnimationComplete: boolean = false;
 
     constructor(scene: Scene, blackjackGame: BlackjackGame, gameUI: GameUI, cardVisualizer: CardVisualizer) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
         this.gameUI = gameUI;
         this.cardVisualizer = cardVisualizer;
+        this.isProcessingAnimationComplete = false; // Initialize flag
 
-        // Link game logic back to controller for animation completion
-        this.blackjackGame.setAnimationCompleteCallback(this.onGameActionComplete.bind(this));
-        // Link visualizer animation completion to controller
+        // --- Setup Callbacks (Revised Order/Logic) ---
+        // 1. CardVisualizer animation finishes -> Calls GameController.onVisualAnimationComplete
         this.cardVisualizer.setOnAnimationCompleteCallback(this.onVisualAnimationComplete.bind(this));
-         // Link card deal requests from GameActions to CardVisualizer
-         this.blackjackGame.notifyCardDealt = this.requestCardDealAnimation.bind(this);
 
+        // 2. GameActions logic step finishes -> Calls BlackjackGame.notifyAnimationComplete -> GameController.onGameActionComplete -> GameUI.update
+        this.blackjackGame.setAnimationCompleteCallback(this.onGameActionComplete.bind(this));
 
-        // Setup game state monitoring (optional, UI update might be sufficient)
-        // this.setupGameStateMonitoring(); // Can be simplified if UI update handles everything
+        // 3. GameActions needs to trigger visual dealing -> Calls BlackjackGame.notifyCardDealt -> GameController.requestCardDealAnimation -> CardVisualizer.createCardMesh
+        this.blackjackGame.notifyCardDealt = this.requestCardDealAnimation.bind(this);
 
-        // Check if we need to restore a game in progress
+        // --- Game State Restoration ---
         if (this.blackjackGame.getGameState() !== GameState.Initial) {
-            console.log("Game state was restored:", GameState[this.blackjackGame.getGameState()]);
+            console.log("%cGame state was restored: %s", "color: blue; font-weight: bold;", GameState[this.blackjackGame.getGameState()]);
             this.gameStateRestored = true;
-            // Render the cards for the restored game AFTER scene is ready
+            // Defer visual setup until scene is ready
             this.scene.executeWhenReady(() => {
                 console.log("Scene ready, rendering restored cards...");
-                this.cardVisualizer.renderCards(true); // Pass true to indicate restoration
-                this.update(); // Update UI based on restored state
-                 // If restored into DealerTurn, start the dealer logic
+                // Render cards instantly in their restored positions/states
+                this.cardVisualizer.renderCards(true);
+                // Update UI to match restored state
+                this.update();
+
+                 // If restored into DealerTurn, ensure dealer logic continues
                  if (this.blackjackGame.getGameState() === GameState.DealerTurn) {
                      console.log("Restored into DealerTurn, initiating dealer logic.");
-                     // Ensure hole card is visually revealed if needed
                      const dealerHand = this.blackjackGame.getDealerHand();
+                     // Ensure hole card is visually revealed if needed (logic should handle flip)
                      if(dealerHand.length > 0 && !dealerHand[0].isFaceUp()){
-                         // If hole card is down, flip it visually without animation delay logic for restore
+                         console.log("Restored dealer hole card is face down. Flipping visually.");
+                         // Trigger the standard flip which will animate and trigger callbacks
                          dealerHand[0].flip();
+                         // The dealer logic should resume AFTER the flip animation via the callback chain
+                     } else {
+                         // Hole card already up or no cards, proceed directly
+                         console.log("Restored dealer hole card is face up or no cards. Executing dealer turn.");
+                         // Use a small delay to ensure visuals are rendered before logic runs
+                         setTimeout(() => {
+                             this.blackjackGame.getGameActions().executeDealerTurn();
+                         }, 100); // Small delay
                      }
-                     this.blackjackGame.getGameActions().executeDealerTurn();
+                 } else if (this.blackjackGame.getGameState() === GameState.PlayerTurn) {
+                     // Check for bust state on restore
+                     if (this.blackjackGame.getPlayerScore() > 21) {
+                         console.warn("Restored into PlayerTurn but player is bust. Setting to GameOver.");
+                         this.blackjackGame.getGameActions().setGameResult(GameResult.DealerWins);
+                         this.blackjackGame.getGameActions().setGameState(GameState.GameOver, true);
+                         this.update(); // Update UI to reflect game over
+                     }
                  }
             });
         } else {
-             this.update(); // Initial UI update even if not restored
+             // If starting fresh (Initial state), update UI once
+             this.update();
         }
     }
 
-    /**
-     * Called by GameActions when a card needs to be dealt visually.
-     */
+
+    // Called by BlackjackGame when GameActions requests a card visual
     private requestCardDealAnimation(card: Card, index: number, isPlayer: boolean, faceUp: boolean): void {
-         console.log(`Controller: Requesting deal animation for ${card.toString()} to ${isPlayer ? 'Player' : 'Dealer'} index ${index}, faceUp: ${faceUp}`);
-         // CardVisualizer creates the mesh and starts the animation.
-         // It will call onVisualAnimationComplete when done.
+         console.log(`%cCONTROLLER: Requesting deal animation: ${card.toString()} to ${isPlayer ? 'Player' : 'Dealer'} idx ${index}, faceUp: ${faceUp}`, 'color: teal');
          this.cardVisualizer.createCardMesh(card, index, isPlayer, faceUp);
     }
 
-
-    /**
-     * Callback triggered by CardVisualizer when ANY visual animation completes.
-     */
+    // Called by CardVisualizer when its animation finishes
     private onVisualAnimationComplete(): void {
-        console.log("Controller: Visual animation complete.");
-        // Notify the core game logic that an animation finished.
-        // The game logic (GameActions) will decide what to do next based on the game state
-        // and the last action performed.
+        // console.log("%cCONTROLLER: Visual animation complete. Notifying game logic.", 'color: green');
+
+        // *** FIX: ONLY notify game logic to continue ***
+        // This tells GameActions that the visual part it was waiting for (deal, flip) is done.
         this.blackjackGame.getGameActions().onAnimationComplete();
-    }
 
-    /**
-     * Callback triggered by GameActions AFTER it has processed the completion
-     * of a game logic step that followed an animation.
-     * This is primarily used to update the UI.
-     */
-     private onGameActionComplete(): void {
-         if (this.isProcessingAnimationComplete) return; // Avoid loops
-         this.isProcessingAnimationComplete = true;
+        // DO NOT update UI here directly. Let the game logic completion trigger the UI update.
+    }    
 
-         console.log("Controller: Game action complete notification received. Updating UI.");
-         this.update(); // Update UI to reflect any state changes
+     // Called by BlackjackGame when GameActions signals its logical step is done
+     // (often triggered *by* onVisualAnimationComplete)
+    private onGameActionComplete(): void {
+        // *** FIX: Add guard against re-entrancy ***
+        if (this.isProcessingAnimationComplete) {
+            // console.log("CONTROLLER: Already processing animation complete. Skipping update.");
+            return;
+        }
+        this.isProcessingAnimationComplete = true;
+        // console.log("%cCONTROLLER: Game logic step complete. Updating UI.", 'color: purple');
 
-         // If the game is now in DealerTurn (e.g., after player stands or double down),
-         // and no animation is currently running (important check!), trigger the dealer's first move.
-         // Note: Subsequent dealer moves are triggered recursively within GameActions via onAnimationComplete.
-         // This check might be redundant if playerStand/completeDoubleDown correctly call executeDealerTurn.
-         // Let's rely on GameActions triggering the first executeDealerTurn.
-         /*
-         if (this.blackjackGame.getGameState() === GameState.DealerTurn && !this.isAnimating()) {
-             console.log("Controller: State is DealerTurn after action, ensuring dealer turn executes.");
-             // Small delay might be needed if state changes rapidly? Test without first.
-             // setTimeout(() => {
-                  this.blackjackGame.getGameActions().executeDealerTurn();
-             // }, 100); // Short delay
-         }
-         */
-
-         this.isProcessingAnimationComplete = false;
-     }
-
-
-    /**
-     * Starts a new game with the specified bet amount.
-     */
-    public startNewGame(bet: number = 10): void {
-        console.log("Controller: Starting new game request...");
-        // 1. Clear the table visually
-        this.clearTable();
-
-        // 2. Start the game logic (deducts bet, resets hands, queues initial deal)
-        const success = this.blackjackGame.startNewGame(bet);
-
-        // 3. Update UI immediately (shows bet, funds, initial state before cards land)
+        // Update UI based on the new game state resulting from the completed action
         this.update();
 
-        // Card rendering happens automatically as GameActions calls notifyCardDealt -> requestCardDealAnimation
+        this.isProcessingAnimationComplete = false; // Reset flag
     }
 
-    /**
-     * Updates the game UI and potentially triggers game logic based on state.
-     * Primarily responsible for keeping the UI in sync.
-     */
+    // Triggered by UI (e.g., Confirm Bet) via GameUI -> BlackjackGame
+    public startNewGame(bet: number = 10): void {
+        // This method isn't directly called anymore, GameUI calls blackjackGame.startNewGame
+        console.warn("CONTROLLER: startNewGame was called directly. This should be handled via BlackjackGame instance.");
+        // this.clearTable(); // Clearing is handled by GameActions/Visualizer as needed
+        // const success = this.blackjackGame.startNewGame(bet);
+        // this.update();
+    }
+
+    // Central UI update function
     public update(): void {
-        // Always update the UI based on the current game state
-        this.gameUI.update(this.isAnimating());
-
-        // Re-render cards? Usually not needed here as renderCards is called on demand
-        // or during initial deal/restore. Might need repositioning if hand sizes change drastically outside deal flow.
-        // this.cardVisualizer.repositionCards(true);
-        // this.cardVisualizer.repositionCards(false);
-
-        console.log("Controller: Update complete. Current State:", GameState[this.blackjackGame.getGameState()]);
+        const animating = this.isAnimating();
+        // console.log(`CONTROLLER: Updating UI. Animating: ${animating}. State: ${GameState[this.blackjackGame.getGameState()]}`);
+        this.gameUI.update(animating); // Pass animation status to UI
+        // console.log("CONTROLLER: Update complete.");
     }
 
-    /**
-     * Clears the game table visually.
-     */
+    // Clears visual elements via CardVisualizer
     public clearTable(): void {
-        console.log("Controller: Clearing table visuals.");
+        console.log("CONTROLLER: Clearing table visuals.");
         this.cardVisualizer.clearTable();
     }
 
-    /**
-     * Checks if any card animation is currently in progress.
-     * @returns {boolean} True if an animation is running, false otherwise.
-     */
+    // Checks if CardVisualizer has animations in progress
     public isAnimating(): boolean {
         return this.cardVisualizer.isAnimationInProgress();
     }
-
-    // Remove setupGameStateMonitoring polling logic
-    // Remove processDealerTurn logic (handled by GameActions.executeDealerTurn triggered by callbacks)
 }
