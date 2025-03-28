@@ -1,6 +1,5 @@
-// src/ui/gameactionui-ts (Moved Vector2WithInfo import to @babylonjs/gui)
+// src/ui/gameactionui-ts
 import { Scene, KeyboardEventTypes, Vector2 } from "@babylonjs/core"; // Vector2 stays here
-// *** MOVED Vector2WithInfo import here ***
 import { Button, TextBlock, Control, Rectangle, StackPanel, Vector2WithInfo } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
 import { BlackjackGame } from "../game/BlackjackGame";
