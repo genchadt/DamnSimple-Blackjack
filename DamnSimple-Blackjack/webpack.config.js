@@ -1,4 +1,5 @@
 const path = require('path');
+const CopyPlugin = require('copy-webpack-plugin'); // For copying static assets
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
@@ -37,6 +38,11 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './src/index.html',
     }),
+    new CopyPlugin({
+      patterns: [
+        { from : './src/assets', to: 'assets' },
+      ]
+    }), // This plugin copies static assets from the source to the output directory
   ],
   devServer: {
     static: {

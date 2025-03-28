@@ -1,4 +1,4 @@
-// src/game/card-ts (Added uniqueId and getter)
+// src/game/card-ts (Ensure getRankValueForTexture is present)
 export enum Suit {
     Hearts = "Hearts",
     Diamonds = "Diamonds",
@@ -26,8 +26,7 @@ export class Card {
     private suit: Suit;
     private rank: Rank;
     private faceUp: boolean;
-    // *** ADDED ***
-    private _uniqueId: string; // For reliable map keys
+    private _uniqueId: string;
 
     public onFlip: ((card: Card) => void) | null = null;
 
@@ -35,16 +34,9 @@ export class Card {
         this.suit = suit;
         this.rank = rank;
         this.faceUp = false;
-        // *** ADDED *** - Simple unique ID generation
         this._uniqueId = `${suit}-${rank}-${Date.now()}-${Math.random()}`;
     }
 
-    // *** ADDED ***
-    /**
-     * Gets a unique identifier for this card instance.
-     * Useful for using cards as keys in Maps.
-     * @returns {string} A unique ID string.
-     */
     public getUniqueId(): string {
         return this._uniqueId;
     }
@@ -57,17 +49,29 @@ export class Card {
         return this.rank;
     }
 
+    // *** ENSURE THIS METHOD IS PRESENT ***
+    /**
+     * Gets the numeric rank value used for texture filenames.
+     * Ace=1, 2-10, Jack=11, Queen=12, King=13.
+     * @returns {number} The numeric rank value.
+     */
+    public getRankValueForTexture(): number {
+        switch (this.rank) {
+            case Rank.Ace: return 1;
+            case Rank.Jack: return 11;
+            case Rank.Queen: return 12;
+            case Rank.King: return 13;
+            default: return parseInt(this.rank); // Handles "2" through "10"
+        }
+    }
+
     public isFaceUp(): boolean {
         return this.faceUp;
     }
 
     public setFaceUp(value: boolean): void {
-        // Check if state actually changed before potentially triggering flip logic
         const changed = this.faceUp !== value;
         this.faceUp = value;
-        // If setting directly, we usually don't trigger the main 'flip' notification
-        // But if needed for some reason, it could be added here conditionally
-        // if (changed && this.onFlip) { this.onFlip(this); }
     }
 
     public flip(): void {
@@ -86,16 +90,13 @@ export class Card {
 
     public getValue(): number {
         switch (this.rank) {
-            case Rank.Ace:
-                return 11;
+            case Rank.Ace: return 11;
             case Rank.Jack:
             case Rank.Queen:
-            case Rank.King:
-                return 10;
+            case Rank.King: return 10;
             default:
-                // Ensure rank is a number string before parsing
                 const numericRank = parseInt(this.rank);
-                return isNaN(numericRank) ? 0 : numericRank; // Should not happen with enum
+                return isNaN(numericRank) ? 0 : numericRank;
         }
     }
 

@@ -1,5 +1,5 @@
-// src/ui/gameactionui-ts
-import { Scene, KeyboardEventTypes, Vector2 } from "@babylonjs/core"; // Vector2 stays here
+// src/ui/gameactionui-ts (Use specific callback for New Game request)
+import { Scene, KeyboardEventTypes, Vector2 } from "@babylonjs/core";
 import { Button, TextBlock, Control, Rectangle, StackPanel, Vector2WithInfo } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
 import { BlackjackGame } from "../game/BlackjackGame";
@@ -10,18 +10,26 @@ export class GameActionUI extends BaseUI {
     private hitButton!: Button;
     private standButton!: Button;
     private doubleButton!: Button;
-    private onUpdate: () => void;
+    // *** RENAME callback for clarity ***
+    private onNewGameRequest: () => void;
     private originalHitAction: () => void;
     private originalStandAction: () => void;
     private originalDoubleAction: () => void;
 
-    constructor(scene: Scene, game: BlackjackGame, onUpdate: () => void) {
+    // *** UPDATE constructor parameter name ***
+    constructor(scene: Scene, game: BlackjackGame, onNewGameRequest: () => void) {
         super(scene, "GameActionUI");
         this.game = game;
-        this.onUpdate = onUpdate;
-        this.originalHitAction = () => { console.log("UI: Hit action triggered"); this.game.playerHit(); this.onUpdate(); };
-        this.originalStandAction = () => { console.log("UI: Stand action triggered"); this.game.playerStand(); this.onUpdate(); };
-        this.originalDoubleAction = () => { console.log("UI: Double action triggered"); this.game.doubleDown(); this.onUpdate(); };
+        // *** STORE the specific callback ***
+        this.onNewGameRequest = onNewGameRequest;
+
+        // Original actions for PlayerTurn
+        // Pass the more general onUpdate (which points to GameUI.update) for these actions
+        const generalUpdate = () => this.update(); // Or potentially pass GameUI.update directly if needed elsewhere
+        this.originalHitAction = () => { console.log("UI: Hit action triggered"); this.game.playerHit(); generalUpdate(); };
+        this.originalStandAction = () => { console.log("UI: Stand action triggered"); this.game.playerStand(); generalUpdate(); };
+        this.originalDoubleAction = () => { console.log("UI: Double action triggered"); this.game.doubleDown(); generalUpdate(); };
+
         this.createCircularButtons();
         this.setupKeyboardControls();
         this.update();
@@ -83,30 +91,30 @@ export class GameActionUI extends BaseUI {
         this.scene.onKeyboardObservable.add((kbInfo) => {
             if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
                 const gameState = this.game.getGameState();
-
-                // Create a dummy Vector2WithInfo for simulated clicks
-                const dummyPointerInfo = new Vector2WithInfo(new Vector2(0, 0), 0); // Vector2 still comes from @babylonjs/core
+                const dummyPointerInfo = new Vector2WithInfo(new Vector2(0, 0), 0);
 
                 switch (kbInfo.event.key.toLowerCase()) {
-                    case 'w': // Hit or New Game (Action mapping)
+                    case 'w': // Hit or Same Bet
                         if (this.hitButton.isVisible && this.hitButton.isEnabled) {
                             if (gameState === GameState.PlayerTurn || gameState === GameState.GameOver) {
-                                console.log(`UI: Keyboard 'W' triggered action for Hit button`);
+                                console.log(`UI: Keyboard 'W' triggered action for Hit/SameBet button`);
+                                // This correctly triggers the currently assigned action (originalHit or SameBet request)
                                 this.hitButton.onPointerUpObservable.notifyObservers(dummyPointerInfo);
                             }
                         }
                         break;
-                    case 's': // Stand or Change Bet (Action mapping)
+                    case 's': // Stand or Change Bet
                         if (this.standButton.isVisible && this.standButton.isEnabled) {
                            if (gameState === GameState.PlayerTurn || gameState === GameState.GameOver) {
-                                console.log(`UI: Keyboard 'S' triggered action for Stand button`);
+                                console.log(`UI: Keyboard 'S' triggered action for Stand/ChangeBet button`);
+                                // This correctly triggers the currently assigned action (originalStand or ChangeBet)
                                 this.standButton.onPointerUpObservable.notifyObservers(dummyPointerInfo);
                             }
                         }
                         break;
-                    case 'a': // Double (Action mapping)
+                    case 'a': // Double
                         if (this.doubleButton.isVisible && this.doubleButton.isEnabled) {
-                             if (gameState === GameState.PlayerTurn) { // Double only valid in player turn
+                             if (gameState === GameState.PlayerTurn) {
                                 console.log(`UI: Keyboard 'A' triggered action for Double button`);
                                 this.doubleButton.onPointerUpObservable.notifyObservers(dummyPointerInfo);
                             }
@@ -134,14 +142,18 @@ export class GameActionUI extends BaseUI {
             showHit = true; showStand = true; showDouble = false;
             hitText = "Same Bet";
             standText = "Change Bet";
-            hitAction = () => { console.log("UI: 'Same Bet' action triggered (requests New Game)"); this.onUpdate(); };
-            standAction = () => { console.log("UI: 'Change Bet' action triggered"); this.game.getGameActions().setGameState(GameState.Betting); this.onUpdate(); };
+            // *** Use the specific onNewGameRequest callback for "Same Bet" ***
+            hitAction = () => { console.log("UI: 'Same Bet' action triggered (requests New Game)"); this.onNewGameRequest(); };
+            // Change Bet action remains the same (goes to Betting state)
+            standAction = () => { console.log("UI: 'Change Bet' action triggered"); this.game.getGameActions().setGameState(GameState.Betting); this.update(); /* Update UI to show betting */ };
         }
 
+        // Update visibility first
         this.hitButton.isVisible = showHit;
         this.standButton.isVisible = showStand;
         this.doubleButton.isVisible = showDouble;
 
+        // Then update labels and actions only for visible buttons
         if (showHit) {
             this.updateButtonLabel(this.hitButton, hitText);
             this.updateButtonAction(this.hitButton, hitAction);
@@ -155,11 +167,13 @@ export class GameActionUI extends BaseUI {
             this.updateButtonAction(this.doubleButton, doubleAction);
         }
 
+        // Update enabled state based on animation
         const enable = !isAnimating;
         this.hitButton.isEnabled = enable && showHit;
         this.standButton.isEnabled = enable && showStand;
         this.doubleButton.isEnabled = enable && showDouble;
 
+        // Update visual alpha for enabled/disabled state
         this.hitButton.alpha = this.hitButton.isEnabled ? 1.0 : 0.5;
         this.standButton.alpha = this.standButton.isEnabled ? 1.0 : 0.5;
         this.doubleButton.alpha = this.doubleButton.isEnabled ? 1.0 : 0.5;
