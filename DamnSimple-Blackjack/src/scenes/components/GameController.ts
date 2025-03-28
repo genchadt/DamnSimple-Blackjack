@@ -43,45 +43,45 @@ export class GameController {
                 // Update UI to match restored state
                 this.update();
 
-                 // If restored into DealerTurn, ensure dealer logic continues
-                 if (this.blackjackGame.getGameState() === GameState.DealerTurn) {
-                     console.log("Restored into DealerTurn, initiating dealer logic.");
-                     const dealerHand = this.blackjackGame.getDealerHand();
-                     // Ensure hole card is visually revealed if needed (logic should handle flip)
-                     if(dealerHand.length > 0 && !dealerHand[0].isFaceUp()){
-                         console.log("Restored dealer hole card is face down. Flipping visually.");
-                         // Trigger the standard flip which will animate and trigger callbacks
-                         dealerHand[0].flip();
-                         // The dealer logic should resume AFTER the flip animation via the callback chain
-                     } else {
-                         // Hole card already up or no cards, proceed directly
-                         console.log("Restored dealer hole card is face up or no cards. Executing dealer turn.");
-                         // Use a small delay to ensure visuals are rendered before logic runs
-                         setTimeout(() => {
-                             this.blackjackGame.getGameActions().executeDealerTurn();
-                         }, 100); // Small delay
-                     }
-                 } else if (this.blackjackGame.getGameState() === GameState.PlayerTurn) {
+                // If restored into DealerTurn, ensure dealer logic continues
+                if (this.blackjackGame.getGameState() === GameState.DealerTurn) {
+                    console.log("Restored into DealerTurn, initiating dealer logic.");
+                    const dealerHand = this.blackjackGame.getDealerHand();
+                    // Ensure hole card is visually revealed if needed (logic should handle flip)
+                    if(dealerHand.length > 0 && !dealerHand[0].isFaceUp()){
+                        console.log("Restored dealer hole card is face down. Flipping visually.");
+                        // Trigger the standard flip which will animate and trigger callbacks
+                        dealerHand[0].flip();
+                        // The dealer logic should resume AFTER the flip animation via the callback chain
+                    } else {
+                        // Hole card already up or no cards, proceed directly
+                        console.log("Restored dealer hole card is face up or no cards. Executing dealer turn.");
+                        // Use a small delay to ensure visuals are rendered before logic runs
+                        setTimeout(() => {
+                            this.blackjackGame.getGameActions().executeDealerTurn();
+                        }, 100); // Small delay
+                    }
+                } else if (this.blackjackGame.getGameState() === GameState.PlayerTurn) {
                      // Check for bust state on restore
-                     if (this.blackjackGame.getPlayerScore() > 21) {
-                         console.warn("Restored into PlayerTurn but player is bust. Setting to GameOver.");
-                         this.blackjackGame.getGameActions().setGameResult(GameResult.DealerWins);
-                         this.blackjackGame.getGameActions().setGameState(GameState.GameOver, true);
-                         this.update(); // Update UI to reflect game over
-                     }
-                 }
+                    if (this.blackjackGame.getPlayerScore() > 21) {
+                        console.warn("Restored into PlayerTurn but player is bust. Setting to GameOver.");
+                        this.blackjackGame.getGameActions().setGameResult(GameResult.DealerWins);
+                        this.blackjackGame.getGameActions().setGameState(GameState.GameOver, true);
+                        this.update(); // Update UI to reflect game over
+                    }
+                }
             });
         } else {
-             // If starting fresh (Initial state), update UI once
-             this.update();
+            // If starting fresh (Initial state), update UI once
+            this.update();
         }
     }
 
 
     // Called by BlackjackGame when GameActions requests a card visual
     private requestCardDealAnimation(card: Card, index: number, isPlayer: boolean, faceUp: boolean): void {
-         console.log(`%cCONTROLLER: Requesting deal animation: ${card.toString()} to ${isPlayer ? 'Player' : 'Dealer'} idx ${index}, faceUp: ${faceUp}`, 'color: teal');
-         this.cardVisualizer.createCardMesh(card, index, isPlayer, faceUp);
+        console.log(`%cCONTROLLER: Requesting deal animation: ${card.toString()} to ${isPlayer ? 'Player' : 'Dealer'} idx ${index}, faceUp: ${faceUp}`, 'color: teal');
+        this.cardVisualizer.createCardMesh(card, index, isPlayer, faceUp);
     }
 
     // Called by CardVisualizer when its animation finishes
