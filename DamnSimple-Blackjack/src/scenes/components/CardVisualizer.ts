@@ -22,7 +22,7 @@ export class CardVisualizer {
     private static readonly CARD_STACK_OFFSET = CardVisualizer.CARD_DEPTH + 0.002;
     private static readonly DECK_Y_POS = CardVisualizer.CARD_HEIGHT / 2 + 0.01;
     private static readonly PLAYER_Z_POS = 2.5;
-    private static readonly DEALER_Z_POS = -3.0;
+    private static readonly DEALER_Z_POS = -2.0;
 
     // Animation Timings & Parameters
     private static readonly DEAL_SLIDE_DURATION_MS = 450;
