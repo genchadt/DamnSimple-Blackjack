@@ -1,4 +1,4 @@
-// src/scenes/settingsscene-ts (Wrapped panel in Rectangle for cornerRadius)
+// src/scenes/settingsscene-ts (Apply cornerRadius fix)
 import { Scene, Engine, Vector3, HemisphericLight, Color3, Color4, ArcRotateCamera } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
 
@@ -14,6 +14,7 @@ export class SettingsScene {
         this.scene = new Scene(engine);
         this.scene.clearColor = new Color4(0.05, 0.1, 0.15, 1.0);
         const camera = new ArcRotateCamera("settingsCamera", -Math.PI / 2, Math.PI / 2, 5, Vector3.Zero(), this.scene);
+        // camera.attachControl(canvas, true); // Usually not needed for static menu
         const light = new HemisphericLight("settingsLight", new Vector3(0, 1, 0), this.scene);
         light.intensity = 0.8;
         this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange);
@@ -28,10 +29,10 @@ export class SettingsScene {
         // *** WRAPPER RECTANGLE for background/cornerRadius ***
         const panelContainer = new Rectangle("settingsPanelContainer");
         panelContainer.width = "450px";
-        panelContainer.adaptHeightToChildren = true; // Auto height
+        panelContainer.adaptHeightToChildren = true; // Auto height based on content
         panelContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panelContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        panelContainer.background = "rgba(0, 0, 0, 0.6)"; // Darker background
+        panelContainer.background = "rgba(0, 0, 0, 0.6)"; // Darker semi-transparent background
         panelContainer.cornerRadius = 15; // Apply cornerRadius here
         panelContainer.thickness = 0; // No border for container itself
         this.guiTexture.addControl(panelContainer);
@@ -40,7 +41,7 @@ export class SettingsScene {
         const panel = new StackPanel("settingsPanel");
         // Remove background/cornerRadius from StackPanel itself
         panel.paddingTop = "20px"; panel.paddingBottom = "20px";
-        panel.paddingLeft = "10px"; panel.paddingRight = "10px"; // Padding inside container
+        panel.paddingLeft = "15px"; panel.paddingRight = "15px"; // Padding inside container
         panelContainer.addControl(panel); // Add StackPanel to Rectangle
 
         // Title
@@ -52,8 +53,9 @@ export class SettingsScene {
         this.createSectionTitle(panel, "Language");
         const languagePanel = new StackPanel("languagePanel");
         languagePanel.isVertical = false; languagePanel.height = "50px"; languagePanel.spacing = 15;
+        languagePanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center buttons
         panel.addControl(languagePanel);
-        const languages = ["English", "Spanish", "French"];
+        const languages = ["English", "Spanish", "French"]; // Example languages
         languages.forEach(lang => {
             const langButton = this.createOptionButton(`${lang}Button`, lang, () => onLanguageChange(lang.toLowerCase()));
             languagePanel.addControl(langButton);
@@ -63,11 +65,12 @@ export class SettingsScene {
         this.createSectionTitle(panel, "Currency");
         const currencyPanel = new StackPanel("currencyPanel");
         currencyPanel.isVertical = false; currencyPanel.height = "50px"; currencyPanel.spacing = 15;
+        currencyPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center buttons
         panel.addControl(currencyPanel);
-        const currencies = ["$", "€", "£", "¥"];
+        const currencies = ["$", "€", "£", "¥"]; // Example currencies
         currencies.forEach(currency => {
             const currencyButton = this.createOptionButton(`${currency}Button`, currency, () => onCurrencyChange(currency));
-            currencyButton.width = "60px";
+            currencyButton.width = "60px"; // Adjust width for single characters
             currencyPanel.addControl(currencyButton);
         });
 
@@ -77,8 +80,9 @@ export class SettingsScene {
         const resetFundsButton = Button.CreateSimpleButton("resetFundsButton", "Reset Funds");
         resetFundsButton.width = "200px"; resetFundsButton.height = "50px"; resetFundsButton.color = "white";
         resetFundsButton.background = "orange"; resetFundsButton.cornerRadius = 8;
+        resetFundsButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center button
         resetFundsButton.onPointerUpObservable.add(() => {
-            this.showConfirmDialog("Are you sure you want to reset your funds?", onResetFunds);
+            this.showConfirmDialog("Are you sure you want to reset your funds to the default amount?", onResetFunds);
         });
         panel.addControl(resetFundsButton);
 
@@ -88,11 +92,12 @@ export class SettingsScene {
         const backButton = Button.CreateSimpleButton("backButton", "Back to Game");
         backButton.width = "200px"; backButton.height = "50px"; backButton.color = "white";
         backButton.background = "cornflowerblue"; backButton.cornerRadius = 8;
+        backButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center button
         backButton.onPointerUpObservable.add(onBack);
         panel.addControl(backButton);
     }
 
-    private createSectionTitle(parent: StackPanel, text: string): void { /* ... as before ... */
+    private createSectionTitle(parent: StackPanel, text: string): void {
         const title = new TextBlock();
         title.text = text;
         title.color = "#CCCCCC"; // Lighter gray
@@ -102,7 +107,7 @@ export class SettingsScene {
         title.paddingLeft = "10px";
         parent.addControl(title);
     }
-     private createOptionButton(name: string, text: string, onClick: () => void): Button { /* ... as before ... */
+     private createOptionButton(name: string, text: string, onClick: () => void): Button {
         const button = Button.CreateSimpleButton(name, text);
         button.width = "100px";
         button.height = "40px";
@@ -112,7 +117,7 @@ export class SettingsScene {
         button.onPointerUpObservable.add(onClick);
         return button;
     }
-    private createSpacer(parent: StackPanel, height: string): void { /* ... as before ... */
+    private createSpacer(parent: StackPanel, height: string): void {
         const spacer = new Control(); // Use Control for pure spacing
         spacer.height = height;
         parent.addControl(spacer);

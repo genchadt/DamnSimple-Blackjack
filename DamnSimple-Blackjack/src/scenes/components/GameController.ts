@@ -1,4 +1,4 @@
-// src/scenes/components/gamecontroller-ts (Added logging)
+// src/scenes/components/gamecontroller-ts (Add re-entrancy guards)
 import { Scene } from "@babylonjs/core";
 import { BlackjackGame } from "../../game/BlackjackGame";
 import { GameResult, GameState } from "../../game/GameState";
@@ -12,14 +12,17 @@ export class GameController {
     private gameUI: GameUI;
     private cardVisualizer: CardVisualizer;
     private gameStateRestored: boolean = false;
-    private isProcessingAnimationComplete: boolean = false;
+    // *** FIX: Add flags to prevent re-entrant calls during processing ***
+    private isProcessingVisualComplete: boolean = false;
+    private isProcessingGameActionComplete: boolean = false;
 
     constructor(scene: Scene, blackjackGame: BlackjackGame, gameUI: GameUI, cardVisualizer: CardVisualizer) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
         this.gameUI = gameUI;
         this.cardVisualizer = cardVisualizer;
-        this.isProcessingAnimationComplete = false; // Initialize flag
+        this.isProcessingVisualComplete = false; // Initialize flag
+        this.isProcessingGameActionComplete = false; // Initialize flag
 
         // --- Setup Callbacks (Revised Order/Logic) ---
         // 1. CardVisualizer animation finishes -> Calls GameController.onVisualAnimationComplete
@@ -51,8 +54,11 @@ export class GameController {
                     if(dealerHand.length > 0 && !dealerHand[0].isFaceUp()){
                         console.log("Restored dealer hole card is face down. Flipping visually.");
                         // Trigger the standard flip which will animate and trigger callbacks
-                        dealerHand[0].flip();
-                        // The dealer logic should resume AFTER the flip animation via the callback chain
+                        // Use a timeout to ensure the scene has rendered the card before flipping
+                        setTimeout(() => {
+                            dealerHand[0].flip();
+                            // The dealer logic should resume AFTER the flip animation via the callback chain
+                        }, 100); // Small delay for rendering
                     } else {
                         // Hole card already up or no cards, proceed directly
                         console.log("Restored dealer hole card is face up or no cards. Executing dealer turn.");
@@ -68,7 +74,13 @@ export class GameController {
                         this.blackjackGame.getGameActions().setGameResult(GameResult.DealerWins);
                         this.blackjackGame.getGameActions().setGameState(GameState.GameOver, true);
                         this.update(); // Update UI to reflect game over
+                    } else {
+                        // Ensure UI is updated for player's turn actions
+                        this.update();
                     }
+                } else {
+                    // Ensure UI is updated for other states like GameOver or Betting
+                    this.update();
                 }
             });
         } else {
@@ -80,36 +92,42 @@ export class GameController {
 
     // Called by BlackjackGame when GameActions requests a card visual
     private requestCardDealAnimation(card: Card, index: number, isPlayer: boolean, faceUp: boolean): void {
-        console.log(`%cCONTROLLER: Requesting deal animation: ${card.toString()} to ${isPlayer ? 'Player' : 'Dealer'} idx ${index}, faceUp: ${faceUp}`, 'color: teal');
+        // console.log(`%cCONTROLLER: Requesting deal animation: ${card.toString()} to ${isPlayer ? 'Player' : 'Dealer'} idx ${index}, faceUp: ${faceUp}`, 'color: teal');
         this.cardVisualizer.createCardMesh(card, index, isPlayer, faceUp);
     }
 
     // Called by CardVisualizer when its animation finishes
     private onVisualAnimationComplete(): void {
+        // *** FIX: Add guard against re-entrancy ***
+        if (this.isProcessingVisualComplete) {
+             // console.log("CONTROLLER: Already processing visual complete. Skipping."); // Reduce log noise
+            return;
+        }
+        this.isProcessingVisualComplete = true;
         // console.log("%cCONTROLLER: Visual animation complete. Notifying game logic.", 'color: green');
 
-        // *** FIX: ONLY notify game logic to continue ***
         // This tells GameActions that the visual part it was waiting for (deal, flip) is done.
         this.blackjackGame.getGameActions().onAnimationComplete();
 
         // DO NOT update UI here directly. Let the game logic completion trigger the UI update.
-    }    
+        this.isProcessingVisualComplete = false; // Reset flag
+    }
 
      // Called by BlackjackGame when GameActions signals its logical step is done
      // (often triggered *by* onVisualAnimationComplete)
     private onGameActionComplete(): void {
         // *** FIX: Add guard against re-entrancy ***
-        if (this.isProcessingAnimationComplete) {
-            // console.log("CONTROLLER: Already processing animation complete. Skipping update.");
+        if (this.isProcessingGameActionComplete) {
+            // console.log("CONTROLLER: Already processing game action complete. Skipping update."); // Reduce log noise
             return;
         }
-        this.isProcessingAnimationComplete = true;
+        this.isProcessingGameActionComplete = true;
         // console.log("%cCONTROLLER: Game logic step complete. Updating UI.", 'color: purple');
 
         // Update UI based on the new game state resulting from the completed action
         this.update();
 
-        this.isProcessingAnimationComplete = false; // Reset flag
+        this.isProcessingGameActionComplete = false; // Reset flag
     }
 
     // Triggered by UI (e.g., Confirm Bet) via GameUI -> BlackjackGame
@@ -131,7 +149,7 @@ export class GameController {
 
     // Clears visual elements via CardVisualizer
     public clearTable(): void {
-        console.log("CONTROLLER: Clearing table visuals.");
+        // console.log("CONTROLLER: Clearing table visuals."); // Reduce log noise
         this.cardVisualizer.clearTable();
     }
 

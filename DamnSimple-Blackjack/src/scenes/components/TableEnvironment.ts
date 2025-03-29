@@ -1,114 +1,86 @@
-// scenes/components/TableEnvironment.ts
+// src/scenes/components/tableenvironment-ts
 import { Scene, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, Color4,
     UniversalCamera, Mesh, PointLight } from "@babylonjs/core";
-// *** ADD CardVisualizer import ***
-import { CardVisualizer } from "./CardVisualizer"; // Adjust path if needed
+import { CardVisualizer } from "./CardVisualizer"; // CardVisualizer needs to be imported
 
 export class TableEnvironment {
     private scene: Scene;
     private table: Mesh;
-    // *** REMOVED old deckMesh ***
-    // private deckMesh: Mesh;
-    private deckTopCardMesh: Mesh | null = null; // Mesh for the top card visual
-    private deckBaseMesh: Mesh | null = null; // Optional base for thickness
-    private deckPosition: Vector3 = new Vector3(3.5, 0, 0); // Keep X/Z, Y will be set by CardVisualizer constants
+    private deckTopCardMesh: Mesh | null = null;
+    private deckBaseMesh: Mesh | null = null;
+    // Position for the deck visual on the table
+    private deckPosition: Vector3 = new Vector3(3.5, 0, 0); // X=3.5, Z=0 (Y set later)
 
-    // *** ADD CardVisualizer parameter ***
     constructor(scene: Scene, cardVisualizer: CardVisualizer) {
         this.scene = scene;
-
-        // Set background color
+        // Set background color (dark green)
         this.scene.clearColor = new Color4(0.05, 0.2, 0.05, 1);
-
-        // Setup camera and lighting
         this.setupCamera();
         this.setupLighting();
-
-        // Create table and deck
         this.table = this.createTable();
-        // *** Pass cardVisualizer to createDeckVisual ***
+        // Create the static deck visual using the card back material from CardVisualizer
         this.createDeckVisual(cardVisualizer);
     }
 
-    /**
-     * Sets up the camera for the scene.
-     * Creates a top-down UniversalCamera with a narrow FOV to give a more orthographic-like appearance.
-     */
+    /** Configures the main camera for the scene. */
     private setupCamera(): void {
-        // Top-down camera - This setup is correct for top-down view
-        const camera = new UniversalCamera("camera", new Vector3(0, 15, 0), this.scene);
-        camera.setTarget(new Vector3(0, 0, 0));
-        camera.fov = 0.4; // Narrow FOV for more orthographic-like appearance
-        // Disable rotation controls if needed
-        // camera.inputs.remove(camera.inputs.attached.mouse);
+        // Use UniversalCamera for potential WASD/Arrow key movement if needed later
+        const camera = new UniversalCamera("camera", new Vector3(0, 15, 0), this.scene); // Positioned above the center
+        camera.setTarget(new Vector3(0, 0, 0)); // Looking down at the center
+        camera.fov = 0.4; // Field of view, adjust for desired zoom level
+        // camera.attachControl(canvas, true); // Attach controls if needed
     }
 
-    /**
-     * Sets up the lighting for the scene.
-     * The scene is given a single ambient light with a soft ground reflection, and a subtle fill light
-     * to reduce the appearance of harsh shadows.
-     */
+    /** Sets up the lighting for the scene using Hemispheric and Point lights. */
     private setupLighting(): void {
-        // Main ambient light
-        const ambientLight = new HemisphericLight("ambientLight", new Vector3(0, 1, 0), this.scene);
-        ambientLight.intensity = 0.7;
-        ambientLight.diffuse = new Color3(1, 1, 1);
-        ambientLight.specular = new Color3(0.1, 0.1, 0.1);
-        ambientLight.groundColor = new Color3(0.5, 0.5, 0.5);
+        // Main ambient light (provides base illumination)
+        const ambientLight = new HemisphericLight("ambientLight", new Vector3(0, 1, 0), this.scene); // Light from above
+        ambientLight.intensity = 0.9; // Fairly bright ambient light
+        ambientLight.diffuse = new Color3(1, 1, 1); // White light
+        ambientLight.specular = new Color3(0.1, 0.1, 0.1); // Low specular highlights
+        ambientLight.groundColor = new Color3(0.4, 0.4, 0.4); // Ambient light color from below
 
-        // Subtle fill light
-        const fillLight = new PointLight("fillLight", new Vector3(0, 8, 0), this.scene);
-        fillLight.intensity = 0.3;
-        fillLight.diffuse = new Color3(0.9, 0.9, 1.0);
-        fillLight.specular = new Color3(0.1, 0.1, 0.1);
-        fillLight.range = 20;
+        // Subtle point light (adds some definition, can cast shadows if needed later)
+        const fillLight = new PointLight("fillLight", new Vector3(0, 10, 0), this.scene); // Positioned high
+        fillLight.intensity = 0.15; // Low intensity, just for fill
+        fillLight.diffuse = new Color3(0.9, 0.9, 1.0); // Slightly cool light
+        fillLight.specular = new Color3(0.05, 0.05, 0.05); // Very low specular
+        fillLight.range = 25; // How far the light reaches
     }
 
-    /**
-     * Creates a table mesh for the scene with a green color material and positions it below the y-axis.
-     * Also creates transparent indicators for dealer and player areas using disc meshes.
-     * The dealer area is positioned in front of the table, while the player area is positioned behind.
-     *
-     * @returns {Mesh} The mesh representing the table.
-     */
+    /** Creates the main table mesh and betting area indicators. */
     private createTable(): Mesh {
-        // Green table
+        // Create the table surface (a flat box)
         const table = MeshBuilder.CreateBox("table", { width: 10, height: 0.5, depth: 8 }, this.scene);
         const tableMaterial = new StandardMaterial("tableMaterial", this.scene);
-        tableMaterial.diffuseColor = new Color3(0.1, 0.3, 0.1); // Dark green felt
+        tableMaterial.diffuseColor = new Color3(0.15, 0.35, 0.15); // Green felt color
         table.material = tableMaterial;
-        table.position.y = -0.25; // Position table surface below y=0
+        table.position.y = -0.25; // Position it slightly below origin
 
-        // Dealer area indicator
+        // Visual indicator for the dealer area
         const dealerArea = MeshBuilder.CreateDisc("dealerArea", { radius: 2.5, sideOrientation: Mesh.DOUBLESIDE }, this.scene);
         const dealerAreaMat = new StandardMaterial("dealerAreaMat", this.scene);
-        dealerAreaMat.diffuseColor = new Color3(0.05, 0.25, 0.05); // Slightly darker green
+        dealerAreaMat.diffuseColor = new Color3(0.05, 0.25, 0.05); // Darker green
         dealerAreaMat.alpha = 0.5; // Semi-transparent
         dealerArea.material = dealerAreaMat;
-        // Position slightly above the table surface to avoid z-fighting
+        // Position in front of dealer, slightly above table surface
         dealerArea.position = new Vector3(0, table.position.y + 0.25 + 0.01, -2.5);
-        dealerArea.rotation.x = Math.PI / 2; // Rotate to lie flat
+        dealerArea.rotation.x = Math.PI / 2; // Rotate to lay flat
 
-        // Player area indicator
+        // Visual indicator for the player area
         const playerArea = MeshBuilder.CreateDisc("playerArea", { radius: 2.5, sideOrientation: Mesh.DOUBLESIDE }, this.scene);
         const playerAreaMat = new StandardMaterial("playerAreaMat", this.scene);
-        playerAreaMat.diffuseColor = new Color3(0.05, 0.25, 0.05);
-        playerAreaMat.alpha = 0.5;
+        playerAreaMat.diffuseColor = new Color3(0.05, 0.25, 0.05); // Darker green
+        playerAreaMat.alpha = 0.5; // Semi-transparent
         playerArea.material = playerAreaMat;
-        // Position slightly above the table surface
+        // Position in front of player, slightly above table surface
         playerArea.position = new Vector3(0, table.position.y + 0.25 + 0.01, 2.5);
-        playerArea.rotation.x = Math.PI / 2; // Rotate to lie flat
+        playerArea.rotation.x = Math.PI / 2; // Rotate to lay flat
 
         return table;
     }
 
-    /**
-     * Creates a visual representation of the card deck using a flat plane
-     * with the card back material and an optional base for thickness.
-     *
-     * @param cardVisualizer The CardVisualizer instance to get the back material from.
-     */
-    // *** MODIFIED to use CardVisualizer and create a Plane ***
+    /** Creates the static visual representation of the deck (top card + base). */
     private createDeckVisual(cardVisualizer: CardVisualizer): void {
         const backMaterial = cardVisualizer.getCardBackMaterial();
         if (!backMaterial) {
@@ -116,69 +88,61 @@ export class TableEnvironment {
             return;
         }
 
-        // Use constants from CardVisualizer for consistency
-        const deckY = (CardVisualizer as any).DECK_Y_POS; // Access private static
-        const cardWidth = (CardVisualizer as any).CARD_WIDTH;
-        const cardHeight = (CardVisualizer as any).CARD_HEIGHT;
+        // Use constants from CardVisualizer for dimensions and Y position
+        // Accessing static members directly (assuming they are public or using a getter)
+        // If they are private, pass them in or use getters. Using direct access for brevity.
+        const deckY = (CardVisualizer as any).DECK_Y_POS ?? 0.01;
+        const cardWidth = (CardVisualizer as any).CARD_WIDTH ?? 1.0;
+        const cardHeight = (CardVisualizer as any).CARD_HEIGHT ?? 1.4;
 
-        // Create the top card visual (Plane)
+        // Create the top card visual (a plane with back material)
         this.deckTopCardMesh = MeshBuilder.CreatePlane("deckTopCard", {
             width: cardWidth,
             height: cardHeight,
-            sideOrientation: Mesh.DOUBLESIDE
+            sideOrientation: Mesh.DOUBLESIDE // Render both sides
         }, this.scene);
 
-        // Position and rotate the top card plane
-        this.deckTopCardMesh.position = this.deckPosition.clone(); // Uses the adjusted Y from constructor
-        this.deckTopCardMesh.position.y = deckY + 0.001; // Place slightly above base if base exists
-        this.deckTopCardMesh.rotation = new Vector3(Math.PI / 2, 0, Math.PI); // Flat, face down
-
-        // Apply the card back material
+        // Position the top card at the deck location
+        this.deckTopCardMesh.position = this.deckPosition.clone();
+        this.deckTopCardMesh.position.y = deckY + 0.001; // Slightly above base Y
+        // Rotate to lay flat, matching the initial orientation of dealt cards
+        this.deckTopCardMesh.rotation = new Vector3(Math.PI / 2, 0, 0);
         this.deckTopCardMesh.material = backMaterial;
 
-        // Optional: Create a base box for visual thickness
+        // Create a simple box base for the deck
         const baseHeight = 0.2;
         this.deckBaseMesh = MeshBuilder.CreateBox("deckBase", {
             width: cardWidth,
-            height: baseHeight, // Visual thickness
-            depth: cardHeight
+            height: baseHeight,
+            depth: cardHeight // Depth matches card height when flat
         }, this.scene);
-        // Position base below the top card
+        // Position the base slightly below the top card
         this.deckBaseMesh.position = this.deckPosition.clone();
-        this.deckBaseMesh.position.y = deckY - (baseHeight / 2) + 0.0005; // Center base below deckY
+        this.deckBaseMesh.position.y = deckY - (baseHeight / 2) + 0.0005;
 
         const baseMaterial = new StandardMaterial("deckBaseMaterial", this.scene);
-        baseMaterial.diffuseColor = new Color3(0.2, 0.2, 0.2); // Dark color for base
+        baseMaterial.diffuseColor = new Color3(0.2, 0.2, 0.2); // Dark gray base
         this.deckBaseMesh.material = baseMaterial;
     }
 
+    public getScene(): Scene { return this.scene; }
+    /** Returns the position used for the static deck visual and deal animations. */
+    public getDeckPosition(): Vector3 { return this.deckPosition; }
 
-    /**
-     * Retrieves the Babylon.js scene instance associated with this table environment.
-     *
-     * @returns {Scene} The scene used in this TableEnvironment.
-     */
-    public getScene(): Scene {
-        return this.scene;
-    }
-
-    /**
-     * Retrieves the starting position for dealing cards (deck position).
-     *
-     * @returns {Vector3} The position of the deck.
-     */
-    public getDeckPosition(): Vector3 {
-        // Return the base deck position (X/Z), Y will be handled by CardVisualizer
-        return this.deckPosition;
-    }
-
-    // *** ADDED dispose method ***
+    /** Disposes of the meshes and materials created by this class. */
     public dispose(): void {
         console.log("Disposing TableEnvironment elements");
         this.table?.dispose();
         this.deckTopCardMesh?.dispose();
         this.deckBaseMesh?.dispose();
-        // Dispose area indicators if needed (assuming they are children or handled by scene dispose)
-        // Dispose materials if they are unique to this environment
+        // Dispose area indicators explicitly if they weren't parented or handled elsewhere
+        this.scene.getMeshByName("dealerArea")?.dispose();
+        this.scene.getMeshByName("playerArea")?.dispose();
+        // Dispose materials to free up resources
+        this.scene.getMaterialByName("tableMaterial")?.dispose();
+        this.scene.getMaterialByName("dealerAreaMat")?.dispose();
+        this.scene.getMaterialByName("playerAreaMat")?.dispose();
+        this.scene.getMaterialByName("deckBaseMaterial")?.dispose();
+        // Note: Card materials are managed/cached by CardVisualizer
     }
 }
