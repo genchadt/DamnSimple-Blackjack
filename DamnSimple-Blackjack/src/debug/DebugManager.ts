@@ -1,4 +1,5 @@
-// src/debug/debugmanager-ts (Updated hand access)
+// src/debug/debugmanager-ts
+// No changes needed here for the core issue, but included for completeness.
 import { Scene, Vector3 } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState, GameResult } from "../game/GameState";
@@ -233,9 +234,9 @@ export class DebugManager {
         const dealerHand = this.blackjackGame.getDealerHand();
         if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
             dealerHand[0].flip();
-             console.log(`Revealed dealer hole card: ${dealerHand[0].toString()}`);
+             console.log(`DEBUG: Revealed dealer hole card: ${dealerHand[0].toString()}`);
         } else {
-             console.log("Dealer hole card already revealed or no cards dealt.");
+             console.log("DEBUG: Dealer hole card already revealed or no cards dealt.");
         }
     }
 

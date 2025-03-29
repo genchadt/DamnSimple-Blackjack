@@ -1,4 +1,5 @@
-// src/game/deck-ts (Added needsShuffle method)
+// src/game/deck-ts
+// No changes needed here for the core issue, but included for completeness.
 import { Card, Suit, Rank } from "./Card";
 
 export class Deck {
@@ -10,7 +11,7 @@ export class Deck {
         this.cards = [];
         this.initializeDeck(numDecks);
         this.shuffle();
-        console.log(`Deck initialized with ${numDecks} deck(s), ${this.cards.length} cards total.`);
+        console.log(`[Deck] Initialized with ${numDecks} deck(s), ${this.cards.length} cards total.`);
     }
 
     private initializeDeck(numDecks: number): void {
@@ -25,7 +26,7 @@ export class Deck {
     }
 
     public shuffle(): void {
-        console.log("Shuffling deck...");
+        console.log("[Deck] Shuffling deck...");
         for (let i = this.cards.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
@@ -35,11 +36,11 @@ export class Deck {
     public drawCard(): Card | undefined {
         // *** MODIFIED *** - Check shuffle *before* drawing if low
         if (this.needsShuffle()) {
-             console.log(`Low cards (${this.cards.length}), reshuffling...`);
+             console.log(`[Deck] Low cards (${this.cards.length}), reshuffling...`);
              this.reset(); // Resets and shuffles
         }
         if (this.cards.length === 0) {
-            console.warn("Deck is empty!");
+            console.warn("[Deck] is empty!");
             return undefined;
         }
         return this.cards.pop();
@@ -55,7 +56,7 @@ export class Deck {
     }
 
     public reset(numDecks: number = 1): void { // Use same number of decks
-        console.log("Resetting deck...");
+        console.log("[Deck] Resetting deck...");
         this.initializeDeck(numDecks);
         this.shuffle();
     }

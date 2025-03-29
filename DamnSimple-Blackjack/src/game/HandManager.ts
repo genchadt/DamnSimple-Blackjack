@@ -1,4 +1,5 @@
-// src/game/handmanager-ts (Simplified: Deck + Flip Callbacks)
+// src/game/handmanager-ts
+// Added debug log to registerFlipCallback
 import { Card } from "./Card";
 import { Deck } from "./Deck";
 
@@ -35,7 +36,7 @@ export class HandManager {
      */
     public addCardFlipCallback(id: string, callback: (card: Card) => void): void {
         this.cardFlipCallbacks.set(id, callback);
-        console.log(`Registered flip callback with ID: ${id}`);
+        // console.log(`[HandManager] Registered flip callback with ID: ${id}`); // Reduce log noise
     }
 
     /**
@@ -52,14 +53,16 @@ export class HandManager {
      * @param card The card instance to register listeners on.
      */
     public registerFlipCallback(card: Card): void {
+        // *** DEBUG LOG ADDED ***
+        console.log(`%c[HandManager] Registering flip callback for ${card.toString()}`, 'color: #B8860B'); // DarkGoldenRod
         card.setFlipCallback((flippedCard) => {
-            console.log(`Flip detected for ${flippedCard.toString()}, notifying ${this.cardFlipCallbacks.size} listeners.`);
+            console.log(`%c[HandManager] Flip detected for ${flippedCard.toString()} (now ${flippedCard.isFaceUp() ? 'UP' : 'DOWN'}), notifying ${this.cardFlipCallbacks.size} listeners.`, 'color: #B8860B');
             this.cardFlipCallbacks.forEach((callback, id) => {
                  // console.log(`Notifying listener: ${id}`);
                 try {
                     callback(flippedCard);
                 } catch (e) {
-                    console.error(`Error in flip callback '${id}':`, e);
+                    console.error(`[HandManager] Error in flip callback '${id}':`, e);
                 }
             });
         });

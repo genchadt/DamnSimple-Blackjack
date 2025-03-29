@@ -1,4 +1,5 @@
-// src/ui/StatusUI.ts (Refine dealer score logic)
+// src/ui/statusui-ts
+// Added debug log for dealer score calculation
 import { Scene } from "@babylonjs/core";
 import { TextBlock, Control, Rectangle, StackPanel } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
@@ -90,7 +91,7 @@ export class StatusUI extends BaseUI {
         const dealerHand = this.game.getDealerHand();
         const playerScore = this.game.getPlayerScore(); // Calculate once
 
-        // console.log(`StatusUI Update - State: ${GameState[gameState]}`); // Add logging
+        // console.log(`[StatusUI] Update - State: ${GameState[gameState]}`); // Reduce log noise
 
         // Update Player Score
         this.playerScoreText.text = `Player: ${playerScore > 0 ? playerScore : ""}`;
@@ -101,31 +102,34 @@ export class StatusUI extends BaseUI {
         // --- Refined Dealer Score Logic ---
         let dealerScoreDisplay = "?";
         // Use the dedicated getDealerScore method which handles state logic
-        const dealerVisibleScore = this.game.getDealerScore();
+        const dealerVisibleScore = this.game.getDealerScore(); // Score based on visible cards (respects state)
+        const dealerFullScore = this.game.getDealerFullScore(); // Score based on all cards
+
+        // *** DEBUG LOG ADDED ***
+        // console.log(`[StatusUI] Dealer Score Calc - State: ${GameState[gameState]}, Visible Score: ${dealerVisibleScore}, Full Score: ${dealerFullScore}`);
 
         if (gameState === GameState.Initial || dealerHand.length === 0) {
             dealerScoreDisplay = "?";
-             // console.log(`StatusUI Update (Initial/No Cards) - Dealer Score: ?`); // Add logging
+            // console.log(`[StatusUI]   -> Display: ? (Initial/No Cards)`);
         } else if (gameState === GameState.PlayerTurn || gameState === GameState.Betting) {
             // getDealerScore() already returns the score of visible cards or 0 if none are visible
             if (dealerVisibleScore > 0) {
                 dealerScoreDisplay = `${dealerVisibleScore}`;
-                // console.log(`StatusUI Update (PlayerTurn/Betting) - Dealer Visible Score: ${dealerVisibleScore}`); // Add logging
+                 // console.log(`[StatusUI]   -> Display: ${dealerScoreDisplay} (PlayerTurn/Betting - Visible)`);
             } else {
-                // This case means only the hole card is dealt (and face down)
+                // This case means only the hole card is dealt (and face down), or dealer has no face up cards yet
                 dealerScoreDisplay = "?";
-                // console.log(`StatusUI Update (PlayerTurn/Betting) - Dealer Visible Score: ? (Only hole card?)`); // Add logging
+                 // console.log(`[StatusUI]   -> Display: ? (PlayerTurn/Betting - No Visible Score)`);
             }
         } else if (gameState === GameState.DealerTurn || gameState === GameState.GameOver) {
             // Show the full score in these states
-            const dealerFullScore = this.game.getDealerFullScore();
             dealerScoreDisplay = `${dealerFullScore}`;
-            // console.log(`StatusUI Update (DealerTurn/GameOver) - Dealer Full Score: ${dealerFullScore}`); // Add logging
+             // console.log(`[StatusUI]   -> Display: ${dealerScoreDisplay} (DealerTurn/GameOver - Full)`);
         }
         // Fallback just in case
         else {
              dealerScoreDisplay = "?";
-             console.warn(`StatusUI: Unexpected state (${GameState[gameState]}) for dealer score display.`);
+             console.warn(`[StatusUI] Unexpected state (${GameState[gameState]}) for dealer score display.`);
         }
 
         this.dealerScoreText.text = `Dealer: ${dealerScoreDisplay}`;

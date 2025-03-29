@@ -1,4 +1,5 @@
-// src/game/blackjackgame-ts
+// src/game/blackjackgame.ts
+// Added debug log to notifyCardDealt
 import { Card } from "./Card";
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
@@ -17,7 +18,10 @@ export class BlackjackGame {
     private animationCompleteCallback: (() => void) | null = null;
 
     /** Callback function set by GameController to trigger card deal animations. */
-    public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = () => {};
+    public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = (card, index, isPlayer, faceUp) => {
+        // *** DEBUG LOG ADDED ***
+        console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, Index=${index}, IsPlayer=${isPlayer}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
+    };
 
 
     constructor() {
@@ -31,9 +35,9 @@ export class BlackjackGame {
             this.dealerHand = [];
             this.gameActions.setGameState(GameState.Initial, true);
         }
-        console.log("BlackjackGame Initialized. State:", GameState[this.getGameState()]);
-        console.log("Initial Player Hand:", this.playerHand.map(c => c.toString()));
-        console.log("Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
+        console.log("[BlackjackGame] Initialized. State:", GameState[this.getGameState()]);
+        console.log("[BlackjackGame] Initial Player Hand:", this.playerHand.map(c => c.toString()));
+        console.log("[BlackjackGame] Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
     }
 
     /**
@@ -50,11 +54,11 @@ export class BlackjackGame {
      * This, in turn, invokes the callback set by the GameController.
      */
     public notifyAnimationComplete(): void {
-        // console.log("BlackjackGame: Animation complete notification received"); // Reduce log noise
+        // console.log("[BlackjackGame] Animation complete notification received"); // Reduce log noise
         if (this.animationCompleteCallback) {
             this.animationCompleteCallback();
         } else {
-            console.log("No animation complete callback registered");
+            console.log("[BlackjackGame] No animation complete callback registered");
         }
     }
 
@@ -130,8 +134,10 @@ export class BlackjackGame {
      */
     public getDealerScore(): number {
         if (this.getGameState() === GameState.PlayerTurn || this.getGameState() === GameState.Betting || this.getGameState() === GameState.Initial) {
+             // Calculate score only from cards that are face up
              return ScoreCalculator.calculateHandValue(this.dealerHand.filter(card => card.isFaceUp()));
         } else {
+             // Calculate score from all cards in dealer's hand
              return ScoreCalculator.calculateHandValue(this.dealerHand);
         }
     }

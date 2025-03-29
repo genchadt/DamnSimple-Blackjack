@@ -1,4 +1,5 @@
-// src/game/gamestorage-ts (Added clearSavedHands, adjusted load return type)
+// src/game/gamestorage-ts
+// No changes needed here for the core issue, but included for completeness.
 import { Card, Suit, Rank } from "./Card"; // Import enums too
 import { GameState, GameResult } from "./GameState";
 

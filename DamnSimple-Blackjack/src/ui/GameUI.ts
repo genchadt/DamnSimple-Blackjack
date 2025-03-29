@@ -1,4 +1,5 @@
 // src/ui/gameui-ts
+// Added debug logs to handlers
 import { Scene } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState } from "../game/GameState";
@@ -31,6 +32,7 @@ export class GameUI {
         this.game = game;
         this.onOpenSettings = onOpenSettings;
         this.onClearTableRequest = onClearTableRequest; // Store the callback
+        console.log("[GameUI] Initializing...");
 
         // Initialize UI components
         // Status and Navigation are generally always present
@@ -47,7 +49,7 @@ export class GameUI {
         // Pass the "Same Bet" handler to GameActionUI for the repurposed button in GameOver state
         this.gameActionUI = new GameActionUI(scene, game, this.onNewGameRequest.bind(this));
 
-        console.log("GameUI Initialized");
+        console.log("[GameUI] Initialized");
         this.update(); // Perform initial UI setup based on loaded game state
     }
 
@@ -55,7 +57,7 @@ export class GameUI {
 
     /** Handles the "Sit Down" action from NavigationUI. */
     private onSitDown(): void {
-        console.log("UI: Sit Down action");
+        console.log("[GameUI] === Sit Down action triggered ===");
         // Sitting down transitions the game logic to the Betting state
         this.game.getGameActions().setGameState(GameState.Betting);
         this.update(); // Update UI immediately to show betting panel etc.
@@ -63,14 +65,17 @@ export class GameUI {
 
     /** Handles the "Confirm Bet" action from BettingUI. */
     private onConfirmBet(bet: number): void {
-        console.log("UI: Confirm Bet action with bet:", bet);
+        console.log(`[GameUI] === Confirm Bet action triggered. Bet: ${bet} ===`);
         // 1. Request visual table clear via the callback to GameController/Scene
+        console.log("[GameUI]   -> Requesting table clear...");
         this.onClearTableRequest();
         // 2. Attempt to start the game logic with the confirmed bet
         //    This will handle fund deduction and initial card dealing logic.
+        console.log("[GameUI]   -> Calling game.startNewGame...");
         const success = this.game.startNewGame(bet);
         // 3. Update UI based on whether the game start was initiated
         if (success) {
+            console.log("[GameUI]   -> game.startNewGame returned true. Performing immediate UI update.");
             // If successful, game logic proceeds, and subsequent UI updates
             // will happen via the animation complete callback chain.
             // An immediate update here can hide the betting UI faster.
@@ -78,23 +83,25 @@ export class GameUI {
         } else {
             // If starting failed (e.g., insufficient funds after final check),
             // update the UI to reflect the current state (likely still Betting).
-            console.error("UI: Failed to start new game after confirming bet.");
+            console.error("[GameUI]   -> game.startNewGame returned false. Performing UI update.");
             this.update(); // Refresh UI (might show error or just betting panel again)
         }
     }
 
     /** Handles the "Leave Table" action from NavigationUI. */
     private onLeaveTable(): void {
-        console.log("UI: Leave Table action");
+        console.log("[GameUI] === Leave Table action triggered ===");
         const currentState = this.game.getGameState();
         // Allow leaving only if not in the middle of an active turn (Player or Dealer)
         if (currentState === GameState.Betting || currentState === GameState.GameOver || currentState === GameState.Initial) {
+             console.log("[GameUI]   -> Setting game state to Initial.");
             this.game.getGameActions().setGameState(GameState.Initial); // Revert logic to initial state
             this.game.setCurrentBet(0); // Reset logical bet
+            console.log("[GameUI]   -> Requesting table clear.");
             this.onClearTableRequest(); // Clear visual cards
             this.update(); // Update UI to show "Sit Down" button, hide others
         } else {
-            console.warn("Cannot leave table during active player/dealer turn.");
+            console.warn(`[GameUI] Cannot leave table during active player/dealer turn (State: ${GameState[currentState]}).`);
             // Optionally provide user feedback here (e.g., temporary message)
         }
     }
@@ -104,30 +111,33 @@ export class GameUI {
      * Triggered by the repurposed "Hit" button ("Same Bet") in the GameOver state via GameActionUI.
      */
     private onNewGameRequest(): void {
-        console.log("UI: New Game request action (Same Bet)");
+        console.log("[GameUI] === New Game request action (Same Bet) triggered ===");
 
         // Ensure this action is only valid from GameOver state
         if (this.game.getGameState() !== GameState.GameOver) {
-            console.warn("New Game request ignored: Not in GameOver state.");
+            console.warn(`[GameUI] New Game request ignored: Not in GameOver state (State: ${GameState[this.game.getGameState()]}).`);
             return;
         }
 
         // Get the last bet amount stored in GameActions
         const lastBet = this.game.getGameActions().getLastBet();
-        console.log(`   Attempting to use last bet amount: ${lastBet}`);
+        console.log(`[GameUI]   -> Attempting to use last bet amount: ${lastBet}`);
 
         // Perform similar actions as confirming a bet, but use the lastBet value
+        console.log("[GameUI]   -> Requesting table clear...");
         this.onClearTableRequest(); // Clear visuals first
+        console.log("[GameUI]   -> Calling game.startNewGame with last bet...");
         const success = this.game.startNewGame(lastBet); // Start logic with lastBet
 
         if (success) {
+            console.log("[GameUI]   -> game.startNewGame returned true. Performing immediate UI update.");
             // Game logic will proceed, UI updates follow via animation chain.
             // Immediate update hides GameOver buttons faster.
             this.update();
         } else {
             // If starting failed (e.g., funds became insufficient somehow?),
             // switch to Betting state so user can place a valid bet.
-            console.error("Failed to start new game with last bet. Switching to Betting state.");
+            console.error("[GameUI]   -> game.startNewGame returned false. Switching to Betting state.");
             this.game.getGameActions().setGameState(GameState.Betting);
             this.update(); // Update UI to show betting panel
         }
@@ -151,7 +161,7 @@ export class GameUI {
      * @param isAnimating Flag indicating if a visual animation (deal, flip) is in progress.
      */
     public update(isAnimating: boolean = false): void {
-        // console.log("GameUI Update called. Animating:", isAnimating); // Reduce log noise
+        // console.log(`[GameUI] Update called. Animating: ${isAnimating}`); // Reduce log noise
         // Update all UI components. Order can matter for visibility/layering if complex.
         this.statusUI.update(); // Always update status (scores, funds, messages)
         this.navigationUI.update(); // Update nav buttons (Sit/Leave/Settings visibility/state)
@@ -162,7 +172,7 @@ export class GameUI {
 
      /** Disposes all UI elements managed by GameUI. */
      public dispose(): void {
-         console.log("Disposing GameUI elements");
+         console.log("[GameUI] Disposing GameUI elements");
          // Call dispose on each sub-UI component
          this.statusUI?.dispose();
          this.navigationUI?.dispose();

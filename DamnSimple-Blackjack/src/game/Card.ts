@@ -1,4 +1,5 @@
 // src/game/card-ts
+// Added debug logs to flip() and setFaceUp()
 /** Defines the suits of a standard playing card. */
 export enum Suit {
     Hearts = "Hearts",
@@ -84,6 +85,10 @@ export class Card {
      * @param value The desired face-up state (true for face up, false for face down).
      */
     public setFaceUp(value: boolean): void {
+        // *** DEBUG LOG ADDED ***
+        if (this.faceUp !== value) {
+            console.log(`%c[Card] ${this.toString()} setFaceUp(${value}) called. Previous state: ${this.faceUp}`, 'color: #FF8C00'); // DarkOrange
+        }
         // No flip notification here, this is for setting initial state
         this.faceUp = value;
     }
@@ -95,7 +100,8 @@ export class Card {
     public flip(): void {
         const previousState = this.faceUp;
         this.faceUp = !this.faceUp;
-        // console.log(`Card ${this.toString()} flipped to ${this.faceUp ? 'up' : 'down'}. Notifying listeners.`); // Reduce log noise
+        // *** DEBUG LOG ADDED ***
+        console.log(`%c[Card] ${this.toString()} flip() called. New state: ${this.faceUp}. Notifying listeners...`, 'color: #FF8C00'); // DarkOrange
         if (this.onFlip) {
             this.onFlip(this); // Notify listeners about the flip
         } else {
