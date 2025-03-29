@@ -14,8 +14,9 @@ export class CardVisualizer {
     private onAnimationCompleteCallback: (() => void) | null = null;
 
     // --- Constants ---
-    private static readonly CARD_WIDTH = 1.0;
-    private static readonly CARD_HEIGHT = 1.4;
+    private static readonly CARD_SCALE = 1.0;
+    private static readonly CARD_WIDTH = 1.0 * CardVisualizer.CARD_SCALE;
+    private static readonly CARD_HEIGHT = 1.4 * CardVisualizer.CARD_SCALE; // Height of the card (1.4 times width for standard playing cards)
     private static readonly CARD_DEPTH = 0.02;
     private static readonly CARD_SPACING = CardVisualizer.CARD_WIDTH + 1.1; // Increased spacing
     private static readonly CARD_Y_POS = 0.05;
@@ -109,6 +110,24 @@ export class CardVisualizer {
         return this.cardFaceMaterials.get(cacheKey)!;
     }
     // --- End Material Getters ---
+
+    // --- Dimension Getters ---
+    public getDeckYPos(): number {
+        return CardVisualizer.DECK_Y_POS;
+    }
+
+    public getCardWidth(): number {
+        return CardVisualizer.CARD_WIDTH;
+    }
+
+    public getCardHeight(): number {
+        return CardVisualizer.CARD_HEIGHT;
+    }
+
+    public getCardDepth(): number {
+        return CardVisualizer.CARD_DEPTH;
+    }
+    // --- End Dimension Getters ---
 
 
     public createCardMesh(card: Card, index: number, isPlayer: boolean, faceUp: boolean): void {
