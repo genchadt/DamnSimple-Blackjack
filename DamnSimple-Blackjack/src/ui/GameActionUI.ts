@@ -1,4 +1,5 @@
 // src/ui/gameactionui-ts
+// Added onRequiresGlobalUpdate callback
 import { Scene, KeyboardEventTypes, Vector2 } from "@babylonjs/core";
 import { Button, TextBlock, Control, Rectangle, StackPanel, Vector2WithInfo } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
@@ -15,11 +16,18 @@ export class GameActionUI extends BaseUI {
     private originalStandAction: () => void;
     private originalDoubleAction: () => void;
     private onChangeBetRequest: () => void; // Callback for "Change Bet" action
+    private onRequiresGlobalUpdate: () => void; // *** ADDED: Callback to trigger GameUI.update() ***
 
-    constructor(scene: Scene, game: BlackjackGame, onNewGameRequest: () => void) {
+    constructor(
+        scene: Scene,
+        game: BlackjackGame,
+        onNewGameRequest: () => void,
+        onRequiresGlobalUpdate: () => void // *** ADDED: Parameter for the callback ***
+    ) {
         super(scene, "GameActionUI");
         this.game = game;
         this.onNewGameRequest = onNewGameRequest; // Store the "Same Bet" callback
+        this.onRequiresGlobalUpdate = onRequiresGlobalUpdate; // *** ADDED: Store the global update callback ***
 
         // Define original game actions
         this.originalHitAction = () => {
@@ -33,11 +41,11 @@ export class GameActionUI extends BaseUI {
         };
         // Define action for the "Change Bet" button (repurposed Stand button in GameOver)
         this.onChangeBetRequest = () => {
-            if (!this.isGameBusy()) { // Check if busy before changing state
-                console.log("UI: 'Change Bet' action triggered");
-                this.game.getGameActions().setGameState(GameState.Betting);
-                this.update(); // Immediately update UI to show betting state
-            }
+            // No need to check isGameBusy here, this button is only active in GameOver state
+            console.log("UI: 'Change Bet' action triggered");
+            this.game.getGameActions().setGameState(GameState.Betting);
+            // *** CHANGED: Call the global update callback asynchronously ***
+            setTimeout(() => this.onRequiresGlobalUpdate(), 0);
         };
 
         this.createCircularButtons();
@@ -52,14 +60,20 @@ export class GameActionUI extends BaseUI {
         const controller = (window as any).gameController; // Access global controller if available
         const isAnimating = controller?.isAnimating() ?? false;
         const gameState = this.game.getGameState();
+        // Allow actions in PlayerTurn or GameOver (for Same/Change Bet)
         const canAct = gameState === GameState.PlayerTurn || gameState === GameState.GameOver;
 
-        if (isAnimating) {
+        // Allow clicks in GameOver even if minor animation residue exists from previous hand ending
+        if (isAnimating && gameState !== GameState.GameOver) {
             console.log("UI Action blocked: Animation in progress.");
             return true;
         }
+        // Block if NOT in an actionable state (PlayerTurn or GameOver)
         if (!canAct) {
-             console.log(`UI Action blocked: Invalid state (${GameState[gameState]})`);
+             // Don't log blockage if the state is Betting, as that's expected after Change Bet
+             if (gameState !== GameState.Betting) {
+                console.log(`UI Action blocked: Invalid state (${GameState[gameState]})`);
+             }
              return true;
         }
         return false;
@@ -136,7 +150,7 @@ export class GameActionUI extends BaseUI {
         this.scene.onKeyboardObservable.add((kbInfo) => {
             if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
                 // Use the same busy check as button clicks
-                if (this.isGameBusy() && this.game.getGameState() !== GameState.GameOver) return; // Allow keys in GameOver even if animating slightly
+                if (this.isGameBusy()) return;
 
                 // Create a dummy pointer info object as notifyObservers expects one
                 const dummyPointerInfo = new Vector2WithInfo(Vector2.Zero(), 0);
@@ -220,8 +234,8 @@ export class GameActionUI extends BaseUI {
         }
 
         // Update enabled state based on animation status and specific conditions
-        // Generally, buttons are disabled if animating.
-        const enable = !isAnimating;
+        // Generally, buttons are disabled if animating, except maybe in GameOver
+        const enable = !isAnimating || gameState === GameState.GameOver; // Allow clicks in GameOver even if animating
 
         this.hitButton.isEnabled = enable && showHit;
         this.standButton.isEnabled = enable && showStand;

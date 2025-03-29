@@ -1,5 +1,5 @@
 // src/scenes/components/cardvisualizer.ts
-// FINAL FINAL FINAL ATTEMPT: Use Quaternions for rotation. (Corrected TS errors)
+// Added texture.hasAlpha = true and imageSmoothingEnabled
 import { Scene, Vector3, MeshBuilder, StandardMaterial, Color3, Texture, DynamicTexture,
     Mesh, Animation, EasingFunction, CubicEase, QuadraticEase, Material, BackEase, MultiMaterial, Vector4, SubMesh, Quaternion } from "@babylonjs/core";
 import { Card } from "../../game/Card";
@@ -17,7 +17,7 @@ export class CardVisualizer {
     private static readonly CARD_WIDTH = 1.0;
     private static readonly CARD_HEIGHT = 1.4;
     private static readonly CARD_DEPTH = 0.02;
-    private static readonly CARD_SPACING = CardVisualizer.CARD_WIDTH + 1.1;
+    private static readonly CARD_SPACING = CardVisualizer.CARD_WIDTH + 1.1; // Increased spacing
     private static readonly CARD_Y_POS = 0.05;
     private static readonly CARD_STACK_OFFSET = CardVisualizer.CARD_DEPTH + 0.002;
     private static readonly DECK_Y_POS = CardVisualizer.CARD_HEIGHT / 2 + 0.01;
@@ -124,9 +124,11 @@ export class CardVisualizer {
 
         const finalHandSize = this.getHandSize(isPlayer) + 1;
 
-        const backUV = new Vector4(0, 0, 1, 1); const faceUV = new Vector4(0, 0, 1, 1);
-        const sideUV = new Vector4(0, 0, 0.01, 0.01);
-        const boxFaceUVs = [backUV, faceUV, sideUV, sideUV, sideUV, sideUV];
+        // UV mapping: Back on +Z (index 0), Face on -Z (index 1), Sides (indices 2-5)
+        const backUV = new Vector4(0, 0, 1, 1);
+        const faceUV = new Vector4(0, 0, 1, 1);
+        const sideUV = new Vector4(0, 0, 0.01, 0.01); // Tiny UV for sides
+        const boxFaceUVs = [backUV, faceUV, sideUV, sideUV, sideUV, sideUV]; // Order: +Z, -Z, +X, -X, +Y, -Y
 
         console.log(`%c[CardViz]   -> Creating BOX mesh.`, 'color: green;');
         const cardMesh = MeshBuilder.CreateBox(
@@ -141,23 +143,25 @@ export class CardVisualizer {
         cardMesh.rotationQuaternion = Quaternion.Identity();
         console.log(`%c[CardViz]   -> Mesh created at deck position. Initial rotationQuaternion: ${cardMesh.rotationQuaternion.toString()}`, 'color: #FF4500; font-weight: bold;');
 
-        // --- Apply MultiMaterial (same as before) ---
+        // --- Apply MultiMaterial ---
         const multiMat = new MultiMaterial(`multiMat_${cardId}`, this.scene);
         multiMat.subMaterials.push(this.getCardFaceMaterial(card)); // 0: Face
         multiMat.subMaterials.push(this.getCardBackMaterial());     // 1: Back
         multiMat.subMaterials.push(this.getCardSideMaterial());     // 2: Side
         cardMesh.material = multiMat;
 
-        // --- Assign Initial SubMeshes (Original: Face on -Z, Back on +Z) ---
-        console.log(`%c[CardViz]   -> Applying ORIGINAL SubMesh assignments (Back[${CardVisualizer.MATIDX_BACK}] on +Z, Face[${CardVisualizer.MATIDX_FACE}] on -Z).`, 'color: green; font-weight: bold;');
+        // --- Assign SubMeshes (Face on -Z, Back on +Z) ---
+        // Box Face Indices: 0:+Z, 1:-Z, 2:+X, 3:-X, 4:+Y, 5:-Y
+        // Material Indices: 0:Face, 1:Back, 2:Side
+        console.log(`%c[CardViz]   -> Applying SubMesh assignments (Face[${CardVisualizer.MATIDX_FACE}] on -Z, Back[${CardVisualizer.MATIDX_BACK}] on +Z).`, 'color: green; font-weight: bold;');
         cardMesh.subMeshes = [];
         const verticesCount = cardMesh.getTotalVertices();
-        new SubMesh(CardVisualizer.MATIDX_BACK, 0, verticesCount, 0, 6, cardMesh);  // +Z -> Back
-        new SubMesh(CardVisualizer.MATIDX_FACE, 0, verticesCount, 6, 6, cardMesh);  // -Z -> Face
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 12, 6, cardMesh); // +X -> Side
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 18, 6, cardMesh); // -X -> Side
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh); // +Y -> Side
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh); // -Y -> Side
+        new SubMesh(CardVisualizer.MATIDX_BACK, 0, verticesCount, 0, 6, cardMesh);  // Face 0 (+Z) uses Material 1 (Back)
+        new SubMesh(CardVisualizer.MATIDX_FACE, 0, verticesCount, 6, 6, cardMesh);  // Face 1 (-Z) uses Material 0 (Face)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 12, 6, cardMesh); // Face 2 (+X) uses Material 2 (Side)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 18, 6, cardMesh); // Face 3 (-X) uses Material 2 (Side)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh); // Face 4 (+Y) uses Material 2 (Side)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh); // Face 5 (-Y) uses Material 2 (Side)
 
         this.cardMeshes.set(cardId, cardMesh);
         console.log(`%c[CardViz]   -> Mesh added to cardMeshes map.`, 'color: #20B2AA');
@@ -177,9 +181,11 @@ export class CardVisualizer {
         const cardId = card.getUniqueId();
         console.log(`%c[CardViz] createCardMeshInstant for ${card.toString()}. IsPlayer: ${isPlayer}, Index: ${index}, FaceUp: ${card.isFaceUp()}`, 'color: #4682B4');
 
-        const backUV = new Vector4(0, 0, 1, 1); const faceUV = new Vector4(0, 0, 1, 1);
-        const sideUV = new Vector4(0, 0, 0.01, 0.01);
-        const boxFaceUVs = [backUV, faceUV, sideUV, sideUV, sideUV, sideUV];
+        // UV mapping: Back on +Z (index 0), Face on -Z (index 1), Sides (indices 2-5)
+        const backUV = new Vector4(0, 0, 1, 1);
+        const faceUV = new Vector4(0, 0, 1, 1);
+        const sideUV = new Vector4(0, 0, 0.01, 0.01); // Tiny UV for sides
+        const boxFaceUVs = [backUV, faceUV, sideUV, sideUV, sideUV, sideUV]; // Order: +Z, -Z, +X, -X, +Y, -Y
 
         const cardMesh = MeshBuilder.CreateBox(
             `card_${cardId}`, {
@@ -198,29 +204,30 @@ export class CardVisualizer {
         console.log(`%c[CardViz]   -> Instant Position: ${position.toString()}`, 'color: #4682B4');
         console.log(`%c[CardViz]   -> Instant rotationQuaternion: ${cardMesh.rotationQuaternion.toString()}`, 'color: #4682B4');
 
-        // --- Apply MultiMaterial (same as before) ---
+        // --- Apply MultiMaterial ---
         const multiMat = new MultiMaterial(`multiMat_${cardId}_instant`, this.scene);
         multiMat.subMaterials.push(this.getCardFaceMaterial(card)); // 0: Face
         multiMat.subMaterials.push(this.getCardBackMaterial());     // 1: Back
         multiMat.subMaterials.push(this.getCardSideMaterial());     // 2: Side
         cardMesh.material = multiMat;
 
-        // --- Assign Initial SubMeshes (Original: Face on -Z, Back on +Z) ---
-        console.log(`%c[CardViz]   -> Applying ORIGINAL SubMesh assignments (Instant).`, 'color: green; font-weight: bold;');
+        // --- Assign SubMeshes (Face on -Z, Back on +Z) ---
+        // Box Face Indices: 0:+Z, 1:-Z, 2:+X, 3:-X, 4:+Y, 5:-Y
+        // Material Indices: 0:Face, 1:Back, 2:Side
+        console.log(`%c[CardViz]   -> Applying SubMesh assignments (Instant).`, 'color: green; font-weight: bold;');
         cardMesh.subMeshes = [];
         const verticesCount = cardMesh.getTotalVertices();
-        new SubMesh(CardVisualizer.MATIDX_BACK, 0, verticesCount, 0, 6, cardMesh);  // +Z -> Back
-        new SubMesh(CardVisualizer.MATIDX_FACE, 0, verticesCount, 6, 6, cardMesh);  // -Z -> Face
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 12, 6, cardMesh); // +X -> Side
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 18, 6, cardMesh); // -X -> Side
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh); // +Y -> Side
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh); // -Y -> Side
+        new SubMesh(CardVisualizer.MATIDX_BACK, 0, verticesCount, 0, 6, cardMesh);  // Face 0 (+Z) uses Material 1 (Back)
+        new SubMesh(CardVisualizer.MATIDX_FACE, 0, verticesCount, 6, 6, cardMesh);  // Face 1 (-Z) uses Material 0 (Face)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 12, 6, cardMesh); // Face 2 (+X) uses Material 2 (Side)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 18, 6, cardMesh); // Face 3 (-X) uses Material 2 (Side)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh); // Face 4 (+Y) uses Material 2 (Side)
+        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh); // Face 5 (-Y) uses Material 2 (Side)
 
         this.cardMeshes.set(cardId, cardMesh);
         // No need to call updateCardVisual here, rotationQuaternion is set directly
     }
 
-    // --- FIX: Added return type ---
     private getHandSize(isPlayer: boolean): number {
         return isPlayer ? this.blackjackGame.getPlayerHand().length : this.blackjackGame.getDealerHand().length;
     }
@@ -292,7 +299,6 @@ export class CardVisualizer {
         });
     }
 
-    // --- FIX: Added return type ---
     private calculateCardPosition(index: number, isPlayer: boolean, handSize: number): Vector3 {
         const zPos = isPlayer ? CardVisualizer.PLAYER_Z_POS : CardVisualizer.DEALER_Z_POS;
         const yPos = CardVisualizer.CARD_Y_POS; // Cards are flat on the table Y
@@ -362,7 +368,6 @@ export class CardVisualizer {
         this.cardMeshes.clear();
     }
 
-    // --- FIX: Added return type ---
     public isAnimationInProgress(): boolean {
         // Check internal flag first (set during animations)
         if (this.animationInProgress) return true;
@@ -493,12 +498,11 @@ export class CardVisualizer {
         });
     }
 
-    // --- FIX: Added return type ---
      private animateVector3(mesh: Mesh, property: "position", targetValue: Vector3, durationMs: number, easing?: EasingFunction, triggerCompletionCallback: boolean = true): void {
         // Only allow 'position'
         if (property !== 'position') {
             console.error(`[CardViz] animateVector3 called with unsupported property: ${property}. Only 'position' is allowed.`);
-            return; // --- FIX: Added return for void function ---
+            return;
         }
 
         this.animationInProgress = true; // Set flag when starting animation
@@ -523,7 +527,7 @@ export class CardVisualizer {
              if (triggerCompletionCallback && this.onAnimationCompleteCallback) {
                  setTimeout(() => { if (this.onAnimationCompleteCallback) this.onAnimationCompleteCallback(); }, 0);
              }
-             return; // --- FIX: Added return for void function ---
+             return;
         }
 
         anim.setKeys([{ frame: 0, value: startValue }, { frame: durationFrames, value: targetValue }]);
@@ -542,14 +546,12 @@ export class CardVisualizer {
 
 
     // --- Material Creation ---
-    // --- FIX: Added return type ---
     private getFaceTextureUrl(card: Card): string {
         const suitStr = card.getSuit().toUpperCase();
         const rankVal = card.getRankValueForTexture();
         return `${CardVisualizer.TEXTURE_BASE_PATH}${suitStr} ${rankVal}.png`;
     }
 
-    // --- FIX: Added return type ---
     private createCardMaterialInternal(card: Card | null): StandardMaterial {
         const isFace = card !== null;
         const cacheKey = isFace ? this.getFaceTextureUrl(card!) : "cardBackMaterial";
@@ -576,40 +578,63 @@ export class CardVisualizer {
                 const texture = new Texture(textureUrl, this.scene, false, true, Texture.TRILINEAR_SAMPLINGMODE,
                     () => { // onLoad
                         material.diffuseTexture = texture;
-                        material.useAlphaFromDiffuseTexture = true;
+                        material.useAlphaFromDiffuseTexture = true; // Use alpha from PNG
+                        texture.hasAlpha = true; // Ensure texture knows it has alpha
                         material.diffuseColor = Color3.White(); // Reset tint
                     },
                     (message, exception) => { // onError
                         console.error(`%c[CardViz] ERROR loading FACE texture ${textureUrl}: ${message}`, 'color: red', exception);
                     }
                 );
-                texture.hasAlpha = true;
+                texture.hasAlpha = true; // Set early
                 this.cardFaceMaterials.set(cacheKey, material); // Cache face material
             } else { // Back material
+                console.log("[CardViz] Creating DYNAMIC card back material...");
                 material.diffuseColor = Color3.White(); // No tint for back
-                const textureSize = { width: 256, height: 358 };
-                const cornerRadius = 30;
-                const texture = new DynamicTexture("dynamicCardBackTexture", textureSize, this.scene, true);
+                const textureSize = { width: 256, height: 358 }; // Match aspect ratio of cards
+                const cornerRadius = 30; // Adjust for desired roundness
+                const texture = new DynamicTexture("dynamicCardBackTexture", textureSize, this.scene, true); // generateMipMaps = true
+
+                // *** Explicitly set hasAlpha for the dynamic texture ***
+                texture.hasAlpha = true;
+
                 const ctx = texture.getContext();
-                ctx.clearRect(0, 0, textureSize.width, textureSize.height);
+                ctx.clearRect(0, 0, textureSize.width, textureSize.height); // Clear with transparency
+
+                // Draw Rounded Rectangle Path
                 ctx.beginPath();
-                ctx.moveTo(cornerRadius, 0); ctx.lineTo(textureSize.width - cornerRadius, 0);
+                ctx.moveTo(cornerRadius, 0);
+                ctx.lineTo(textureSize.width - cornerRadius, 0);
                 ctx.arc(textureSize.width - cornerRadius, cornerRadius, cornerRadius, -Math.PI/2, 0);
                 ctx.lineTo(textureSize.width, textureSize.height - cornerRadius);
                 ctx.arc(textureSize.width - cornerRadius, textureSize.height - cornerRadius, cornerRadius, 0, Math.PI/2);
                 ctx.lineTo(cornerRadius, textureSize.height);
                 ctx.arc(cornerRadius, textureSize.height - cornerRadius, cornerRadius, Math.PI/2, Math.PI);
                 ctx.lineTo(0, cornerRadius);
-                ctx.arc(cornerRadius, cornerRadius, cornerRadius, Math.PI, -Math.PI/2);
+                ctx.arc(cornerRadius, cornerRadius, cornerRadius, Math.PI, 3*Math.PI/2);
                 ctx.closePath();
-                ctx.fillStyle = "#B22222"; ctx.fill();
-                ctx.strokeStyle = "#000000"; ctx.lineWidth = 4; ctx.stroke();
-                (ctx as any).imageSmoothingEnabled = true;
-                texture.update(false);
+
+                // Fill and Stroke
+                ctx.fillStyle = "#B22222"; // Firebrick red fill
+                ctx.fill();
+                ctx.strokeStyle = "#000000"; // Black border
+                ctx.lineWidth = 4; // Border thickness
+                ctx.stroke();
+
+                // *** Added: Enable image smoothing ***
+                (ctx as any).imageSmoothingEnabled = true; // Might help with jagged edges
+
+                texture.update(false); // Update texture (no invert Y)
+
                 material.diffuseTexture = texture;
+                // *** Ensure material uses alpha from the dynamic texture ***
+                material.useAlphaFromDiffuseTexture = true;
+                material.transparencyMode = Material.MATERIAL_ALPHABLEND; // Use alpha blend transparency
+
+                console.log("[CardViz] Dynamic back texture created and assigned.");
                 this.cardBackMaterial = material; // Cache back material
             }
-            return material; // --- FIX: Added return ---
+            return material;
         } catch (error) {
             console.error(`[CardViz] CRITICAL error during material creation for ${cacheKey}:`, error);
             material?.dispose();
@@ -623,7 +648,7 @@ export class CardVisualizer {
              // Cache the error material to avoid repeated creation attempts
              if (isFace) this.cardFaceMaterials.set(cacheKey, errorMat);
              else this.cardBackMaterial = errorMat;
-            return errorMat; // --- FIX: Added return ---
+            return errorMat;
         }
     }
     // --- End Material Creation ---

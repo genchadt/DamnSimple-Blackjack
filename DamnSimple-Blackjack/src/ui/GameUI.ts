@@ -1,5 +1,5 @@
 // src/ui/gameui-ts
-// Added debug logs to handlers
+// Pass the new callback to GameActionUI constructor
 import { Scene } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState } from "../game/GameState";
@@ -46,8 +46,14 @@ export class GameUI {
         );
         // Betting and Game Actions are context-dependent
         this.bettingUI = new BettingUI(scene, game, this.onConfirmBet.bind(this)); // Handler for "Confirm Bet"
-        // Pass the "Same Bet" handler to GameActionUI for the repurposed button in GameOver state
-        this.gameActionUI = new GameActionUI(scene, game, this.onNewGameRequest.bind(this));
+
+        // *** CHANGED: Pass the global update callback to GameActionUI ***
+        this.gameActionUI = new GameActionUI(
+            scene,
+            game,
+            this.onNewGameRequest.bind(this), // "Same Bet" handler
+            () => this.update() // Pass a function that calls this GameUI's update method
+        );
 
         console.log("[GameUI] Initialized");
         this.update(); // Perform initial UI setup based on loaded game state
@@ -161,7 +167,8 @@ export class GameUI {
      * @param isAnimating Flag indicating if a visual animation (deal, flip) is in progress.
      */
     public update(isAnimating: boolean = false): void {
-        // console.log(`[GameUI] Update called. Animating: ${isAnimating}`); // Reduce log noise
+        // *** ADDED Debug Log ***
+        console.log(`%c[GameUI] Update called. State: ${GameState[this.game.getGameState()]}, Animating: ${isAnimating}`, 'color: dodgerblue');
         // Update all UI components. Order can matter for visibility/layering if complex.
         this.statusUI.update(); // Always update status (scores, funds, messages)
         this.navigationUI.update(); // Update nav buttons (Sit/Leave/Settings visibility/state)
