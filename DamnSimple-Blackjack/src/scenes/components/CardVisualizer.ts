@@ -1,7 +1,6 @@
 // src/scenes/components/cardvisualizer.ts
-// Added texture.hasAlpha = true and imageSmoothingEnabled
 import { Scene, Vector3, MeshBuilder, StandardMaterial, Color3, Texture, DynamicTexture,
-    Mesh, Animation, EasingFunction, CubicEase, QuadraticEase, Material, BackEase, MultiMaterial, Vector4, SubMesh, Quaternion } from "@babylonjs/core";
+    Mesh, Animation, EasingFunction, CubicEase, QuadraticEase, SineEase, Material, BackEase, MultiMaterial, Vector4, SubMesh, Quaternion } from "@babylonjs/core"; // Added SineEase just in case
 import { Card } from "../../game/Card";
 import { BlackjackGame } from "../../game/BlackjackGame";
 
@@ -18,20 +17,21 @@ export class CardVisualizer {
     private static readonly CARD_WIDTH = 1.0 * CardVisualizer.CARD_SCALE;
     private static readonly CARD_HEIGHT = 1.4 * CardVisualizer.CARD_SCALE; // Height of the card (1.4 times width for standard playing cards)
     private static readonly CARD_DEPTH = 0.02;
-    private static readonly CARD_SPACING = CardVisualizer.CARD_WIDTH + 1.1; // Increased spacing
+    private static readonly CARD_SPACING = CardVisualizer.CARD_WIDTH + 0.15;
     private static readonly CARD_Y_POS = 0.05;
     private static readonly CARD_STACK_OFFSET = CardVisualizer.CARD_DEPTH + 0.002;
     private static readonly DECK_Y_POS = CardVisualizer.CARD_HEIGHT / 2 + 0.01;
-    private static readonly PLAYER_Z_POS = 2.5;
-    private static readonly DEALER_Z_POS = -2.0;
+    private static readonly PLAYER_Z_POS = 1.85;
+    private static readonly DEALER_Z_POS = -1.85;
 
     // Animation Timings & Parameters
     private static readonly DEAL_SLIDE_DURATION_MS = 450;
     private static readonly DEAL_ROTATION_DURATION_MS = 400; // Duration for quaternion rotation
-    private static readonly REPOSITION_DURATION_MS = 300;
+    private static readonly REPOSITION_DURATION_MS = CardVisualizer.DEAL_SLIDE_DURATION_MS;
     private static readonly FLIP_DURATION_MS = 350; // Duration for flip quaternion animation
     private static readonly FPS = 60;
 
+    // Texture Paths
     private static readonly TEXTURE_BASE_PATH = "assets/textures/playingcards/";
 
     // Material Cache / Singletons
@@ -141,7 +141,8 @@ export class CardVisualizer {
             this.cardMeshes.delete(cardId);
         }
 
-        const finalHandSize = this.getHandSize(isPlayer) + 1;
+        // *** NOTE: finalHandSize is calculated inside animateCardDealing now ***
+        // const finalHandSize = this.getHandSize(isPlayer) + 1; // OLD
 
         // UV mapping: Back on +Z (index 0), Face on -Z (index 1), Sides (indices 2-5)
         const backUV = new Vector4(0, 0, 1, 1);
@@ -186,14 +187,8 @@ export class CardVisualizer {
         console.log(`%c[CardViz]   -> Mesh added to cardMeshes map.`, 'color: #20B2AA');
 
         // --- Start Deal Animation (Position and Quaternion Rotation) ---
-        const finalPosition = this.calculateCardPosition(index, isPlayer, finalHandSize);
-        // Determine target Quaternion based on faceUp state
-        const targetQuaternion = faceUp ? CardVisualizer.FACE_UP_FLAT_QUAT : CardVisualizer.FACE_DOWN_FLAT_QUAT;
-        console.log(`%c[CardViz]   -> Calculated final position: ${finalPosition.toString()}`, 'color: #20B2AA');
-        console.log(`%c[CardViz]   -> Target Quaternion (FaceUp=${faceUp}): ${targetQuaternion.toString()}`, 'color: #20B2AA; font-weight: bold;');
-        console.log(`%c[CardViz]   -> Calling animateCardDealing (using Quaternions)...`, 'color: #20B2AA');
-
-        this.animateCardDealing(cardMesh, finalPosition, targetQuaternion, card);
+        // *** Pass index and isPlayer to animateCardDealing ***
+        this.animateCardDealing(cardMesh, index, isPlayer, faceUp, card);
     }
 
     private createCardMeshInstant(card: Card, index: number, isPlayer: boolean): void {
@@ -301,19 +296,42 @@ export class CardVisualizer {
         });
     }
 
+    /**
+     * Animates existing cards in a hand to their new positions based on the updated hand size.
+     * @param isPlayer True if repositioning player's hand, false for dealer's.
+     * @param newHandSize The total number of cards the hand will have *after* the new card is fully dealt.
+     */
     private repositionHandCards(isPlayer: boolean, newHandSize: number): void {
         const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
+        const target = isPlayer ? 'Player' : 'Dealer';
+        console.log(`%c[CardViz] repositionHandCards for ${target}. New Size: ${newHandSize}`, 'color: #FFA500'); // Orange
+
+        // Iterate through the hand *as it currently exists in the game logic*
+        // Note: The new card might already be logically added by GameActions before the animation starts.
+        // We only want to animate the cards that *already have meshes*.
         hand.forEach((card, index) => {
             const cardMesh = this.cardMeshes.get(card.getUniqueId());
-            if (cardMesh) {
+            if (cardMesh && index < newHandSize - 1) { // Only reposition cards that are *not* the one currently being dealt
                 const newPosition = this.calculateCardPosition(index, isPlayer, newHandSize);
+                console.log(`%c[CardViz]   -> Repositioning ${card.toString()} (Index ${index}) to ${newPosition.toString()}`, 'color: #FFA500');
                 if (!cardMesh.position.equalsWithEpsilon(newPosition, 0.01)) {
-                    const ease = new BackEase(0.3); ease.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
+                    // Use QuadraticEaseInOut for smoother repositioning
+                    const ease = new QuadraticEase();
+                    ease.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT); // Gentle start and end
+                    console.log(`%c[CardViz]     -> Using QuadraticEaseInOut for repositioning.`, 'color: #FFA500');
+
                     // Animate position only, don't trigger full completion callback
-                    this.animateVector3(cardMesh, "position", newPosition, CardVisualizer.REPOSITION_DURATION_MS, ease, false);
+                    this.animateVector3(
+                        cardMesh,
+                        "position",
+                        newPosition,
+                        CardVisualizer.REPOSITION_DURATION_MS, // Use same duration as deal slide
+                        ease, // Use the new easing function
+                        false // *** IMPORTANT: Do not trigger the main completion callback ***
+                    );
                 }
-            } else {
-                 console.warn(`[CardViz] Cannot reposition card ${card.toString()}, mesh not found in map during repositioning.`);
+            } else if (!cardMesh && index < newHandSize - 1) {
+                 console.warn(`[CardViz] Cannot reposition existing card ${card.toString()}, mesh not found in map during repositioning.`);
             }
         });
     }
@@ -393,6 +411,7 @@ export class CardVisualizer {
         // As a fallback, check if any card meshes still have active animatables
         for (const mesh of this.cardMeshes.values()) {
             if (this.scene.getAllAnimatablesByTarget(mesh).length > 0) {
+                // console.log(`[CardViz] Animation check: Mesh ${mesh.name} still has animatables.`); // DEBUG
                 return true;
             }
         }
@@ -401,12 +420,30 @@ export class CardVisualizer {
 
     // --- Animation Implementations ---
 
-    /** Animates card dealing (Position and Quaternion Rotation). */
-    private animateCardDealing(mesh: Mesh, targetPos: Vector3, targetQuat: Quaternion, card: Card): void {
+    /**
+     * Animates card dealing (Position and Quaternion Rotation) for the new card,
+     * and triggers repositioning animation for existing cards in the hand.
+     * @param mesh The mesh of the new card being dealt.
+     * @param index The final index this card will have in the hand.
+     * @param isPlayer True if dealing to player, false for dealer.
+     * @param faceUp The target face-up state for the new card.
+     * @param card The logical Card object being dealt.
+     */
+    private animateCardDealing(mesh: Mesh, index: number, isPlayer: boolean, faceUp: boolean, card: Card): void {
         const cardId = card.getUniqueId();
-        console.log(`%c[CardViz] >>> animateCardDealing START for ${card.toString()} (Mesh: ${mesh.name})`, 'color: #1E90FF');
-        console.log(`%c[CardViz]     Target Pos: ${targetPos.toString()}`, 'color: #1E90FF');
-        console.log(`%c[CardViz]     Target Quat: ${targetQuat.toString()}`, 'color: #1E90FF; font-weight: bold;');
+        const targetOwner = isPlayer ? 'Player' : 'Dealer';
+        const finalHandSize = this.getHandSize(isPlayer); // Get current logical size (new card is already added by GameActions)
+
+        console.log(`%c[CardViz] >>> animateCardDealing START for ${card.toString()} (Mesh: ${mesh.name}) to ${targetOwner}`, 'color: #1E90FF');
+        console.log(`%c[CardViz]     Target Index: ${index}, Final Hand Size: ${finalHandSize}, Target FaceUp: ${faceUp}`, 'color: #1E90FF');
+
+        // Calculate final position for the *new* card
+        const targetPos = this.calculateCardPosition(index, isPlayer, finalHandSize);
+        // Determine target Quaternion based on faceUp state
+        const targetQuat = faceUp ? CardVisualizer.FACE_UP_FLAT_QUAT : CardVisualizer.FACE_DOWN_FLAT_QUAT;
+
+        console.log(`%c[CardViz]     Target Pos (New Card): ${targetPos.toString()}`, 'color: #1E90FF');
+        console.log(`%c[CardViz]     Target Quat (New Card): ${targetQuat.toString()}`, 'color: #1E90FF; font-weight: bold;');
 
         this.animationInProgress = true;
         const slideFrames = CardVisualizer.DEAL_SLIDE_DURATION_MS / 1000 * CardVisualizer.FPS;
@@ -418,29 +455,36 @@ export class CardVisualizer {
         // Ensure quaternion exists, start from Identity (standing up)
         const startQuat = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : Quaternion.Identity();
         if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone();
-        console.log(`%c[CardViz]     Start Quat: ${startQuat.toString()}`, 'color: #FF4500; font-weight: bold;');
+        console.log(`%c[CardViz]     Start Quat (New Card): ${startQuat.toString()}`, 'color: #FF4500; font-weight: bold;');
 
-        // Position animation
+        // --- ADDED: Trigger repositioning of existing cards ---
+        console.log(`%c[CardViz]     Calling repositionHandCards for ${targetOwner} BEFORE starting new card animation.`, 'color: #FFA500; font-weight: bold;');
+        this.repositionHandCards(isPlayer, finalHandSize);
+        // --- END ADDED ---
+
+        // Position animation for the new card
         const posAnim = new Animation("dealPosAnim", "position", CardVisualizer.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
         posAnim.setKeys([{ frame: 0, value: mesh.position.clone() }, { frame: slideFrames, value: targetPos }]);
         posAnim.setEasingFunction(slideEase);
 
-        // --- Animate rotationQuaternion ---
+        // --- Animate rotationQuaternion for the new card ---
         const rotQuatAnim = new Animation("dealRotQuatAnim", "rotationQuaternion", CardVisualizer.FPS, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CONSTANT);
         rotQuatAnim.setKeys([{ frame: 0, value: startQuat }, { frame: rotationFrames, value: targetQuat }]);
         rotQuatAnim.setEasingFunction(rotationEase);
 
-        // Determine the longest duration needed
+        // Determine the longest duration needed for the *new* card's animation
         const overallFrames = Math.max(slideFrames, rotationFrames);
-        console.log(`%c[CardViz]     Starting Babylon direct animation (Pos, Quat) for ${overallFrames.toFixed(0)} frames.`, 'color: #1E90FF');
+        console.log(`%c[CardViz]     Starting Babylon direct animation (Pos, Quat) for NEW CARD (${mesh.name}) for ${overallFrames.toFixed(0)} frames.`, 'color: #1E90FF');
 
-        // Animate Position and Quaternion Rotation
+        // Animate Position and Quaternion Rotation for the NEW CARD
+        // The completion callback here signifies the end of the *new card's* animation.
+        // The repositioning animations run concurrently but don't trigger this specific callback.
         this.scene.beginDirectAnimation(mesh, [posAnim, rotQuatAnim], 0, overallFrames, false, 1,
-            () => { // Animation Complete Callback
+            () => { // Animation Complete Callback (for the new card)
                 console.log(`%c[CardViz] <<< Deal Animation CALLBACK START for ${card.toString()} (Mesh: ${mesh.name})`, 'color: #1E90FF; font-weight: bold;');
                 console.log(`%c[CardViz]       Mesh rotationQuaternion BEFORE final set: ${mesh.rotationQuaternion?.toString()}`, 'color: #1E90FF');
 
-                // --- Set Final State ---
+                // --- Set Final State for the new card ---
                 mesh.position = targetPos;
                 // Ensure final rotationQuaternion is exactly the target
                 mesh.rotationQuaternion = targetQuat.clone();
@@ -461,13 +505,26 @@ export class CardVisualizer {
                 }
                 // --- End Verification ---
 
-                this.animationInProgress = false; // Reset animation flag
-                 console.log(`%c[CardViz]       Set animationInProgress = false`, 'color: #1E90FF');
+                // Reset animation flag ONLY if no other animations are running (check might be needed)
+                // For simplicity, we reset it here, assuming repositioning finishes around the same time.
+                // A more robust check would involve tracking active animations.
+                this.animationInProgress = false;
+                console.log(`%c[CardViz]       Set animationInProgress = false`, 'color: #1E90FF');
 
                 // Trigger the callback to notify GameController -> GameActions
                 if (this.onAnimationCompleteCallback) {
                     console.log(`%c[CardViz]       Executing onAnimationCompleteCallback (async).`, 'color: #1E90FF');
-                    setTimeout(() => { if (this.onAnimationCompleteCallback) this.onAnimationCompleteCallback(); }, 0);
+                    // Use setTimeout to ensure this runs after the current execution context clears,
+                    // allowing any final rendering updates or state changes to settle.
+                    setTimeout(() => {
+                        // Double-check if another animation started *immediately* after this one finished
+                        if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                             console.log(`%c[CardViz]         Callback execution confirmed.`, 'color: #1E90FF');
+                             this.onAnimationCompleteCallback();
+                        } else {
+                            console.warn(`[CardViz]         Callback skipped: Another animation started or callback became null.`);
+                        }
+                    }, 0);
                 } else {
                     console.warn("[CardViz] Deal animation finished, but no onAnimationCompleteCallback set.");
                 }
@@ -503,13 +560,21 @@ export class CardVisualizer {
             mesh.rotationQuaternion = targetQuat.clone();
             console.log(`%c[CardViz]       Mesh rotationQuaternion AFTER final set: ${mesh.rotationQuaternion?.toString()}`, 'color: orange');
 
-            this.animationInProgress = false; // Reset animation flag
+            // Reset animation flag (similar logic as deal animation)
+            this.animationInProgress = false;
             console.log(`%c[CardViz]       Set animationInProgress = false`, 'color: orange');
 
             // Trigger the callback to notify GameController -> GameActions
             if (this.onAnimationCompleteCallback) {
                  console.log(`%c[CardViz]       Executing onAnimationCompleteCallback (async).`, 'color: orange');
-                 setTimeout(() => { if (this.onAnimationCompleteCallback) this.onAnimationCompleteCallback(); }, 0);
+                 setTimeout(() => {
+                     if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                          console.log(`%c[CardViz]         Callback execution confirmed.`, 'color: orange');
+                          this.onAnimationCompleteCallback();
+                     } else {
+                         console.warn(`[CardViz]         Callback skipped: Another animation started or callback became null.`);
+                     }
+                 }, 0);
             } else {
                  console.warn("[CardViz] Flip animation finished, but no onAnimationCompleteCallback set.");
             }
@@ -517,6 +582,7 @@ export class CardVisualizer {
         });
     }
 
+     /** Generic Vector3 animation helper, now using beginDirectAnimation */
      private animateVector3(mesh: Mesh, property: "position", targetValue: Vector3, durationMs: number, easing?: EasingFunction, triggerCompletionCallback: boolean = true): void {
         // Only allow 'position'
         if (property !== 'position') {
@@ -524,10 +590,11 @@ export class CardVisualizer {
             return;
         }
 
-        this.animationInProgress = true; // Set flag when starting animation
+        // *** Set flag when starting ANY position animation ***
+        this.animationInProgress = true;
         const durationFrames = durationMs / 1000 * CardVisualizer.FPS;
-        const effectiveEasing = easing ?? new CubicEase();
-        if (!easing) effectiveEasing.setEasingMode(EasingFunction.EASINGMODE_EASEOUT); // Default easing if none provided
+        const effectiveEasing = easing ?? new CubicEase(); // Default to CubicEaseOut if nothing provided
+        if (!easing) effectiveEasing.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
 
         const anim = new Animation(
             `${property}Anim_${mesh.name}_${Date.now()}`, // Unique animation name
@@ -541,24 +608,29 @@ export class CardVisualizer {
 
         // Avoid starting animation if already at target
         if (startValue.equalsWithEpsilon(targetValue, 0.001)) {
-             this.animationInProgress = false; // Reset flag
-             // Still trigger callback if requested, as the "action" is complete
-             if (triggerCompletionCallback && this.onAnimationCompleteCallback) {
-                 setTimeout(() => { if (this.onAnimationCompleteCallback) this.onAnimationCompleteCallback(); }, 0);
-             }
+             console.log(`%c[CardViz] animateVector3 skipped for ${mesh.name} - already at target.`, 'color: gray');
+             // If we skip, we might need to manually decrement an animation counter if we were tracking them.
+             // For now, the primary animation's callback handles the final completion signal.
+             // We also don't set animationInProgress = false here, let the main animation handle it.
              return;
         }
 
         anim.setKeys([{ frame: 0, value: startValue }, { frame: durationFrames, value: targetValue }]);
-        anim.setEasingFunction(effectiveEasing);
+        anim.setEasingFunction(effectiveEasing); // Apply the provided or default easing
 
-        this.scene.beginDirectAnimation(mesh, [anim], 0, durationFrames, false, 1, () => { // Animation Complete Callback
+        // *** CHANGED: Use beginDirectAnimation ***
+        console.log(`%c[CardViz]     Starting Babylon direct animation (${property}) for ${mesh.name} for ${durationFrames.toFixed(0)} frames.`, 'color: gray');
+        this.scene.beginDirectAnimation(mesh, [anim], 0, durationFrames, false, 1.0, () => {
+            // Animation Complete Callback for this specific position animation
             // --- CRITICAL: Ensure final state is EXACTLY correct ---
             mesh.position = targetValue;
+            // console.log(`%c[CardViz] animateVector3 direct animation completed for ${mesh.name}.`, 'color: gray'); // Optional log
 
-            this.animationInProgress = false; // Reset flag when animation truly finishes
-            if (triggerCompletionCallback && this.onAnimationCompleteCallback) {
-                 setTimeout(() => { if (this.onAnimationCompleteCallback) this.onAnimationCompleteCallback(); }, 0);
+            // *** IMPORTANT: Do NOT reset animationInProgress or call main callback here ***
+            // The main deal/flip animation's callback is responsible for the final signal.
+            if (triggerCompletionCallback) {
+                 console.warn(`[CardViz] animateVector3 completed for ${mesh.name} with triggerCompletionCallback=true. This should likely be false for repositioning.`);
+                 // If this *was* meant to be a primary animation, the main callback logic would go here.
             }
         });
     }
