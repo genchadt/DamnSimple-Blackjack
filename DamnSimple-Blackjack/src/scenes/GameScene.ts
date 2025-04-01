@@ -1,4 +1,5 @@
-// src/scenes/gamescene-ts (Updated TableEnvironment instantiation)
+// src/scenes/gamescene-ts
+// Use constants and pass correct XZ vector
 import { Scene, Engine, Vector3 } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameUI } from "../ui/GameUI";
@@ -6,6 +7,7 @@ import { DebugManager } from "../debug/DebugManager";
 import { TableEnvironment } from "./components/TableEnvironment";
 import { CardVisualizer } from "./components/CardVisualizer";
 import { GameController } from "./components/GameController";
+import { Constants, DefaultDeckPositionXZ } from "../Constants"; // *** IMPORT Constants and DefaultDeckPositionXZ ***
 
 export class GameScene {
     private scene: Scene;
@@ -23,40 +25,54 @@ export class GameScene {
         this.scene = new Scene(engine);
 
         // --- Order of Initialization ---
-        // 1. Core Game Logic (loads state)
+        // 1. Core Game Logic
+        console.log("[GS] Creating BlackjackGame...");
         this.blackjackGame = new BlackjackGame();
+        console.log("[GS] BlackjackGame created.");
 
-        // 2. Visualizers (depend on scene, game logic) - Create CardVisualizer first
-        //    It needs the deck position *conceptually*, but TableEnvironment uses its constants.
-        //    We pass a temporary deck position, TableEnvironment will use constants.
-        const tempDeckPos = new Vector3(3.5, 0, 0); // Temporary, Y will be adjusted
+        // 2. Visualizers (needs scene, game logic, conceptual deck position XZ)
+        //    Pass the default XZ position from constants.
+        console.log("[GS] Creating CardVisualizer...");
         this.cardVisualizer = new CardVisualizer(
             this.scene,
             this.blackjackGame,
-            tempDeckPos
+            DefaultDeckPositionXZ // Pass the XZ vector from constants
         );
+        console.log("[GS] CardVisualizer created.");
 
-        // 3. Environment (depends on scene, needs CardVisualizer for deck material)
-        this.tableEnvironment = new TableEnvironment(this.scene, this.cardVisualizer); // Pass CardVisualizer
+
+        // 3. Environment (needs scene, needs CardVisualizer for deck box creation)
+        console.log("[GS] Creating TableEnvironment...");
+        // TableEnvironment constructor will use its internal deckPosition (from Constants)
+        // and create the visual box there using CardVisualizer.
+        this.tableEnvironment = new TableEnvironment(this.scene, this.cardVisualizer);
+        console.log("[GS] TableEnvironment created.");
+
 
         // 4. UI (depends on scene, game logic, needs callbacks)
+        console.log("[GS] Creating GameUI...");
         this.gameUI = new GameUI(
             this.scene,
             this.blackjackGame,
             onOpenSettings,
             this.clearTable.bind(this)
         );
+        console.log("[GS] GameUI created.");
 
         // 5. Controller (depends on all above, orchestrates interactions)
+        console.log("[GS] Creating GameController...");
         this.gameController = new GameController(
             this.scene,
             this.blackjackGame,
             this.gameUI,
             this.cardVisualizer
         );
+        console.log("[GS] GameController created.");
 
         // 6. Debug Manager (optional)
+        console.log("[GS] Creating DebugManager...");
         this.debugManager = new DebugManager(this, this.cardVisualizer);
+        console.log("[GS] DebugManager created.");
 
 
         console.log("GameScene construction complete.");

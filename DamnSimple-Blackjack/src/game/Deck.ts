@@ -1,11 +1,11 @@
-// src/game/deck-ts
-// No changes needed here for the core issue, but included for completeness.
+// src/game/deck.ts
+// Use centralized constants
 import { Card, Suit, Rank } from "./Card";
+import { Constants } from "../Constants"; // *** IMPORT Constants ***
 
 export class Deck {
     private cards: Card[];
-    // *** ADDED ***
-    private static readonly MIN_CARDS_BEFORE_SHUFFLE = 15; // Example threshold
+    // *** REMOVED static MIN_CARDS_BEFORE_SHUFFLE ***
 
     constructor(numDecks: number = 1) { // Allow multiple decks
         this.cards = [];
@@ -34,10 +34,9 @@ export class Deck {
     }
 
     public drawCard(): Card | undefined {
-        // *** MODIFIED *** - Check shuffle *before* drawing if low
         if (this.needsShuffle()) {
              console.log(`[Deck] Low cards (${this.cards.length}), reshuffling...`);
-             this.reset(); // Resets and shuffles
+             this.reset();
         }
         if (this.cards.length === 0) {
             console.warn("[Deck] is empty!");
@@ -50,9 +49,9 @@ export class Deck {
         return this.cards.length;
     }
 
-    // *** ADDED ***
     public needsShuffle(): boolean {
-        return this.cards.length < Deck.MIN_CARDS_BEFORE_SHUFFLE;
+        // *** USE Constant ***
+        return this.cards.length < Constants.MIN_CARDS_BEFORE_SHUFFLE;
     }
 
     public reset(numDecks: number = 1): void { // Use same number of decks

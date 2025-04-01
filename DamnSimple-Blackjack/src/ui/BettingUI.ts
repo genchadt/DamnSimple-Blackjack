@@ -1,13 +1,15 @@
-// src/ui/bettingui-ts (Access lastBet via getter)
+// src/ui/bettingui-ts
+// Use centralized constants
 import { Scene } from "@babylonjs/core";
 import { Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState } from "../game/GameState";
+import { Constants } from "../Constants"; // *** IMPORT Constants ***
 
 export class BettingUI extends BaseUI {
     private game: BlackjackGame;
-    private currentBet: number = 10;
+    private currentBet: number = Constants.DEFAULT_BET; // *** USE Constant ***
     private currencySign: string = "$";
     private betPanel!: Rectangle;
     private currentBetText!: TextBlock;
@@ -21,15 +23,14 @@ export class BettingUI extends BaseUI {
         this.game = game;
         this.onConfirmBet = onConfirmBet;
 
-        // *** FIXED: Use getter for lastBet ***
         const lastBet = this.game.getGameActions().getLastBet();
-        this.currentBet = lastBet > 0 ? lastBet : 10;
+        // *** USE Constant for default/min bet comparison ***
+        this.currentBet = lastBet >= Constants.MIN_BET ? lastBet : Constants.DEFAULT_BET;
 
         this.createControls();
         this.update();
     }
 
-    // ... rest of BettingUI remains the same ...
     private createControls(): void {
         this.betPanel = new Rectangle("betPanel");
         this.betPanel.width = "350px"; this.betPanel.height = "180px";
@@ -49,7 +50,8 @@ export class BettingUI extends BaseUI {
         betControlsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         betControlsPanel.spacing = 15;
         mainStack.addControl(betControlsPanel);
-        this.decreaseBetButton = this.createBetAdjustButton("decreaseBetButton", "-", -10);
+        // *** USE Constant for bet increment ***
+        this.decreaseBetButton = this.createBetAdjustButton("decreaseBetButton", "-", -Constants.BET_INCREMENT);
         betControlsPanel.addControl(this.decreaseBetButton);
         this.currentBetText = new TextBlock("currentBetText");
         this.currentBetText.text = `${this.currencySign}${this.currentBet}`;
@@ -57,7 +59,8 @@ export class BettingUI extends BaseUI {
         this.currentBetText.fontWeight = "bold"; this.currentBetText.width = "120px";
         this.currentBetText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         betControlsPanel.addControl(this.currentBetText);
-        this.increaseBetButton = this.createBetAdjustButton("increaseBetButton", "+", 10);
+         // *** USE Constant for bet increment ***
+        this.increaseBetButton = this.createBetAdjustButton("increaseBetButton", "+", Constants.BET_INCREMENT);
         betControlsPanel.addControl(this.increaseBetButton);
         this.confirmBetButton = Button.CreateSimpleButton("confirmBetButton", "Confirm Bet");
         this.confirmBetButton.width = "180px"; this.confirmBetButton.height = "50px";
@@ -67,6 +70,7 @@ export class BettingUI extends BaseUI {
         this.confirmBetButton.onPointerUpObservable.add(() => { this.confirmBet(); });
         mainStack.addControl(this.confirmBetButton);
     }
+
      private createBetAdjustButton(name: string, text: string, amount: number): Button {
         const button = Button.CreateSimpleButton(name, text);
         button.width = "50px"; button.height = "50px"; button.color = "white";
@@ -74,8 +78,11 @@ export class BettingUI extends BaseUI {
         button.onPointerUpObservable.add(() => { this.adjustBet(amount); });
         return button;
     }
+
     private adjustBet(amount: number): void {
-        const playerFunds = this.game.getPlayerFunds(); const minBet = 10;
+        const playerFunds = this.game.getPlayerFunds();
+        // *** USE Constant for min bet ***
+        const minBet = Constants.MIN_BET;
         let newBet = this.currentBet + amount;
         newBet = Math.max(minBet, Math.min(newBet, playerFunds));
         if (newBet !== this.currentBet) {
@@ -83,19 +90,45 @@ export class BettingUI extends BaseUI {
             this.game.setCurrentBet(this.currentBet);
         }
     }
+
      private updateBetDisplay(): void {
         this.currentBetText.text = `${this.currencySign}${this.currentBet}`;
         const playerFunds = this.game.getPlayerFunds();
-        this.decreaseBetButton.isEnabled = this.currentBet > 10;
+        // *** USE Constant for min bet comparison ***
+        const minBet = Constants.MIN_BET;
+        this.decreaseBetButton.isEnabled = this.currentBet > minBet;
         this.increaseBetButton.isEnabled = this.currentBet < playerFunds;
-        this.confirmBetButton.isEnabled = this.currentBet >= 10 && this.currentBet <= playerFunds;
+        this.confirmBetButton.isEnabled = this.currentBet >= minBet && this.currentBet <= playerFunds;
         this.decreaseBetButton.alpha = this.decreaseBetButton.isEnabled ? 1.0 : 0.5;
         this.increaseBetButton.alpha = this.increaseBetButton.isEnabled ? 1.0 : 0.5;
         this.confirmBetButton.alpha = this.confirmBetButton.isEnabled ? 1.0 : 0.5;
     }
+
     private confirmBet(): void { if (this.confirmBetButton.isEnabled) { console.log("Bet confirmed:", this.currentBet); this.hide(); this.onConfirmBet(this.currentBet); } }
-    public show(): void { const playerFunds = this.game.getPlayerFunds(); this.currentBet = Math.max(10, Math.min(this.currentBet, playerFunds)); this.game.setCurrentBet(this.currentBet); this.updateBetDisplay(); this.betPanel.isVisible = true; console.log("Betting UI shown."); }
+
+    public show(): void {
+        const playerFunds = this.game.getPlayerFunds();
+        // *** USE Constant for min bet ***
+        this.currentBet = Math.max(Constants.MIN_BET, Math.min(this.currentBet, playerFunds));
+        this.game.setCurrentBet(this.currentBet);
+        this.updateBetDisplay();
+        this.betPanel.isVisible = true;
+        console.log("Betting UI shown.");
+    }
+
     public hide(): void { this.betPanel.isVisible = false; console.log("Betting UI hidden."); }
     public setCurrencySign(sign: string): void { this.currencySign = sign; this.updateBetDisplay(); }
-    public update(): void { if (this.game.getGameState() === GameState.Betting) { if (!this.betPanel.isVisible) { this.show(); } else { this.updateBetDisplay(); } } else { if (this.betPanel.isVisible) { this.hide(); } } }
+    public update(): void {
+        if (this.game.getGameState() === GameState.Betting) {
+            if (!this.betPanel.isVisible) {
+                 this.show();
+            } else {
+                 this.updateBetDisplay();
+            }
+        } else {
+            if (this.betPanel.isVisible) {
+                 this.hide();
+            }
+        }
+    }
 }

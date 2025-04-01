@@ -1,13 +1,15 @@
-// src/game/playerfunds-ts (Added setter, uses GameStorage)
-import { GameStorage } from "./GameStorage"; // Import GameStorage
+// src/game/playerfunds-ts
+// Use centralized constants
+import { GameStorage } from "./GameStorage";
+import { Constants } from "../Constants"; // *** IMPORT Constants ***
 
 export class PlayerFunds {
-    private static readonly DEFAULT_FUNDS = 1000;
+    // *** REMOVED static DEFAULT_FUNDS ***
     private funds: number;
 
     constructor() {
-        // Load funds using GameStorage
-        this.funds = GameStorage.loadFunds(PlayerFunds.DEFAULT_FUNDS);
+        // *** USE Constant for default funds ***
+        this.funds = GameStorage.loadFunds(Constants.DEFAULT_FUNDS);
         console.log("PlayerFunds Initialized. Funds:", this.funds);
     }
 
@@ -55,8 +57,9 @@ export class PlayerFunds {
     }
 
     public resetFunds(): void {
-        console.log(`Resetting funds from ${this.funds} to ${PlayerFunds.DEFAULT_FUNDS}`);
-        this.funds = PlayerFunds.DEFAULT_FUNDS;
+        // *** USE Constant for default funds ***
+        console.log(`Resetting funds from ${this.funds} to ${Constants.DEFAULT_FUNDS}`);
+        this.funds = Constants.DEFAULT_FUNDS;
         this.saveFunds();
     }
 
@@ -64,6 +67,4 @@ export class PlayerFunds {
     private saveFunds(): void {
         GameStorage.saveFunds(this.funds);
     }
-
-    // loadFunds is now handled by GameStorage.loadFunds
 }
