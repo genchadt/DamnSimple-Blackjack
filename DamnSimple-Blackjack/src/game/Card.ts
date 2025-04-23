@@ -1,5 +1,4 @@
-// src/game/card-ts
-// Added debug logs to flip() and setFaceUp()
+// src/game/card.ts
 /** Defines the suits of a standard playing card. */
 export enum Suit {
     Hearts = "Hearts",
@@ -60,9 +59,21 @@ export class Card {
     }
 
     /**
+     * Gets the CardMeister Card ID (cid) format (e.g., "Qh", "Td", "As").
+     * @returns The cid string.
+     */
+    public getCid(): string {
+        const rankChar = this.rank === Rank.Ten ? 'T' : this.rank[0].toUpperCase(); // T for Ten, first letter otherwise
+        const suitChar = this.suit[0].toLowerCase(); // h, d, c, s
+        return `${rankChar}${suitChar}`;
+    }
+
+
+    /**
      * Gets the numeric rank value used specifically for texture filenames.
      * Ace=1, 2-10, Jack=11, Queen=12, King=13.
      * @returns The numeric rank value for texture mapping.
+     * @deprecated This might not be needed if fully switching to SVG. Keep for reference or potential fallback.
      */
     public getRankValueForTexture(): number {
         switch (this.rank) {
@@ -87,7 +98,7 @@ export class Card {
     public setFaceUp(value: boolean): void {
         // *** DEBUG LOG ADDED ***
         if (this.faceUp !== value) {
-            console.log(`%c[Card] ${this.toString()} setFaceUp(${value}) called. Previous state: ${this.faceUp}`, 'color: #FF8C00'); // DarkOrange
+            // console.log(`%c[Card] ${this.toString()} setFaceUp(${value}) called. Previous state: ${this.faceUp}`, 'color: #FF8C00'); // DarkOrange
         }
         // No flip notification here, this is for setting initial state
         this.faceUp = value;
@@ -101,7 +112,7 @@ export class Card {
         const previousState = this.faceUp;
         this.faceUp = !this.faceUp;
         // *** DEBUG LOG ADDED ***
-        console.log(`%c[Card] ${this.toString()} flip() called. New state: ${this.faceUp}. Notifying listeners...`, 'color: #FF8C00'); // DarkOrange
+        // console.log(`%c[Card] ${this.toString()} flip() called. New state: ${this.faceUp}. Notifying listeners...`, 'color: #FF8C00'); // DarkOrange
         if (this.onFlip) {
             this.onFlip(this); // Notify listeners about the flip
         } else {
