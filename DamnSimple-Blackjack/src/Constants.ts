@@ -36,9 +36,6 @@ const DEAL_ROTATION_DURATION_MS = 400;
 const REPOSITION_DURATION_MS = DEAL_SLIDE_DURATION_MS; // Match deal slide speed
 const FLIP_DURATION_MS = 350;
 
-// --- Assets ---
-const TEXTURE_BASE_PATH = "assets/textures/playingcards/";
-
 /**
  * Defines common constants used throughout the application.
  */
@@ -75,9 +72,6 @@ export const Constants = {
     DEAL_ROTATION_DURATION_MS,
     REPOSITION_DURATION_MS,
     FLIP_DURATION_MS,
-
-    // Assets
-    TEXTURE_BASE_PATH,
 };
 
 // Pre-calculated Vector3 for the Deck's XZ position
