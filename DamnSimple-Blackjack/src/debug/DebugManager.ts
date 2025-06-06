@@ -13,6 +13,8 @@ export class DebugManager {
     private blackjackGame: BlackjackGame;
     private cardVisualizer: CardVisualizer;
     private gameUI: GameUI;
+    private debugCardContainerElement: HTMLElement | null = null;
+    private isCardDebugContainerVisible: boolean = false;
 
     /**
      * Initializes a new instance of the DebugManager class.
@@ -62,6 +64,7 @@ export class DebugManager {
         console.log("%cUI Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.updateUI() - Force UI update");
         console.log("  debug.toggleInspector() - Toggle Babylon.js inspector");
+        console.log("  debug.toggleCardDebugContainer(visible?) - Toggle visibility of the card SVG debug container.");
 
         console.log("%cExamples:", "font-weight: bold; color: #FF9800;");
         console.log("  debug.setGameState(2) - Set game to PlayerTurn");
@@ -308,6 +311,53 @@ export class DebugManager {
         } else {
             scene.debugLayer.show();
             console.log("Inspector shown");
+        }
+    }
+
+    /**
+     * Toggles the visibility of the temporary HTML container used for rendering card SVGs.
+     * When visible, CardVisualizer will use this container.
+     * @param visible Optional. Force visibility state. If undefined, it toggles.
+     */
+    public toggleCardDebugContainer(visible?: boolean): void {
+        if (typeof visible === 'undefined') {
+            this.isCardDebugContainerVisible = !this.isCardDebugContainerVisible;
+        } else {
+            this.isCardDebugContainerVisible = visible;
+        }
+
+        if (this.isCardDebugContainerVisible) {
+            if (!this.debugCardContainerElement) {
+                this.debugCardContainerElement = document.createElement("div");
+                this.debugCardContainerElement.id = "cardmeister-debug-temp-container";
+                Object.assign(this.debugCardContainerElement.style, {
+                    position: 'absolute',
+                    left: '10px',
+                    top: '10px',
+                    width: '300px',
+                    height: '400px',
+                    overflow: 'scroll',
+                    border: '2px solid red',
+                    zIndex: '1001', // Ensure it's on top of other debug elements if any
+                    backgroundColor: 'rgba(200, 200, 200, 0.7)',
+                    padding: '5px'
+                });
+                document.body.appendChild(this.debugCardContainerElement);
+                console.log("Card SVG debug container created and shown.");
+            } else {
+                this.debugCardContainerElement.style.display = 'block';
+                 console.log("Card SVG debug container shown.");
+            }
+            this.cardVisualizer.setTempCardContainer(this.debugCardContainerElement);
+        } else {
+            this.cardVisualizer.setTempCardContainer(null); // Tell CardVisualizer to use its internal container
+            if (this.debugCardContainerElement) {
+                this.debugCardContainerElement.style.display = 'none'; // Hide it instead of removing, to keep content if toggled back
+                // Or to fully remove:
+                // this.debugCardContainerElement.remove();
+                // this.debugCardContainerElement = null;
+                console.log("Card SVG debug container hidden.");
+            }
         }
     }
 }

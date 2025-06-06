@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- CardMeister Script -->
+    <script src="/assets/lib/elements.cardmeister.full.js"></script>
+
     <title>Damn Simple Blackjack</title>
     <style>
         html, body {
@@ -17,27 +20,10 @@
             height: 100%;
             touch-action: none;
         }
-        /* Optional: Hide the temporary card elements */
-        #cardmeister-temp-container {
-            position: absolute;
-            left: -9999px;
-            top: -9999px;
-            width: 1px;
-            height: 1px;
-            overflow: hidden;
-            opacity: 0;
-            pointer-events: none;
-        }
     </style>
-    <!-- Add CardMeister Script -->
-    <script src="https://cdn.jsdelivr.net/gh/cardmeister/cardmeister.github.io/elements.cardmeister.full.js"></script>
-    <!-- Or download elements.cardmeister.full.js and link locally -->
-    <!-- <script src="path/to/elements.cardmeister.full.js"></script> -->
 </head>
 <body>
     <canvas id="renderCanvas"></canvas>
-    <!-- Add a hidden container for temporary elements -->
-    <div id="cardmeister-temp-container"></div>
     <!-- Your game bundle -->
     <!-- <script src="dist/bundle.js"></script> -->
 </body>
