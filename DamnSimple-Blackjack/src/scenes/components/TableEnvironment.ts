@@ -1,7 +1,7 @@
 // src/scenes/components/tableenvironment.ts
 // Restore setupCamera/setupLighting and fix Constants import path
 import { Scene, Vector3, HemisphericLight, MeshBuilder, StandardMaterial, Color3, Color4,
-    UniversalCamera, Mesh, PointLight, Material,
+    UniversalCamera, Mesh, PointLight, Material, MultiMaterial, SubMesh,
 } from "@babylonjs/core";
 import { CardVisualizer } from "./CardVisualizer";
 import { Constants } from "../../Constants"; // *** CORRECTED Import Path ***
@@ -97,16 +97,16 @@ export class TableEnvironment {
             // --- Get Card Dimensions ---
             console.log("[TableEnv]   Getting dimensions from CardVisualizer...");
             const cardWidth = cardVisualizer.getCardWidth();
-            const cardHeight = cardVisualizer.getCardHeight();
-            const dispenserHeight = 0.25; // Fixed height for the dispenser box
-            console.log(`[TableEnv]     -> CardWidth: ${cardWidth}, CardHeight: ${cardHeight}, DispenserHeight: ${dispenserHeight}`);
+            const cardHeight = cardVisualizer.getCardHeight(); // This is card's visual height, used as depth for dispenser
+            const dispenserHeight = 0.25; // Fixed visual height for the dispenser box itself
+            console.log(`[TableEnv]     -> CardWidth: ${cardWidth}, CardDepth(fromCardHeight): ${cardHeight}, DispenserHeight: ${dispenserHeight}`);
 
             // --- Create the Box Mesh ---
             console.log("[TableEnv]   Calling MeshBuilder.CreateBox...");
             this.deckVisualMesh = MeshBuilder.CreateBox("deckDispenserBox", {
-                width: cardWidth,
-                height: dispenserHeight,
-                depth: cardHeight
+                width: cardWidth,       // X-axis
+                height: dispenserHeight,  // Y-axis (actual height of the box)
+                depth: cardHeight        // Z-axis (depth of the box, using card's visual height)
             }, this.scene);
 
             if (!this.deckVisualMesh) {
@@ -115,13 +115,44 @@ export class TableEnvironment {
             }
             console.log(`%c[TableEnv]   Deck dispenser box mesh CREATED successfully. Name: ${this.deckVisualMesh.name}`, "color: green;");
 
-            // --- Create and Assign Material ---
-            console.log("[TableEnv]   Creating dispenser material...");
-            const dispenserMat = new StandardMaterial("deckDispenserMat", this.scene);
-            dispenserMat.diffuseColor = new Color3(0.05, 0.05, 0.05);
-            dispenserMat.specularColor = new Color3(0.1, 0.1, 0.1);
-            this.deckVisualMesh.material = dispenserMat;
-            console.log("[TableEnv]   Assigned black material.");
+            // --- Create and Assign MultiMaterial ---
+            console.log("[TableEnv]   Creating dispenser multi-material...");
+            const dispenserMultiMat = new MultiMaterial("deckDispenserMultiMat", this.scene);
+
+            const cardBackMat = cardVisualizer.getCardBackMaterial();
+            const cardSideMat = cardVisualizer.getCardSideMaterial();
+            const bottomMat = new StandardMaterial("deckDispenserBottomMat", this.scene);
+            bottomMat.diffuseColor = new Color3(0.05, 0.05, 0.05); // Black for bottom
+
+            // Material order for MultiMaterial:
+            const MATIDX_DISP_TOP_BACK = 0; // Card Back for Top Face (+Y)
+            const MATIDX_DISP_SIDE = 1;     // Card Side for Side Faces
+            const MATIDX_DISP_BOTTOM = 2;   // Black for Bottom Face (-Y)
+
+            dispenserMultiMat.subMaterials.push(cardBackMat);    // [0]
+            dispenserMultiMat.subMaterials.push(cardSideMat);    // [1]
+            dispenserMultiMat.subMaterials.push(bottomMat);      // [2]
+
+            this.deckVisualMesh.material = dispenserMultiMat;
+
+            // Assign SubMeshes. Box faces order: +Z, -Z, +X, -X, +Y, -Y
+            this.deckVisualMesh.subMeshes = [];
+            const verticesCount = this.deckVisualMesh.getTotalVertices();
+            // Face 0 (+Z side of dispenser)
+            new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 0, 6, this.deckVisualMesh);
+            // Face 1 (-Z side of dispenser)
+            new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 6, 6, this.deckVisualMesh);
+            // Face 2 (+X side of dispenser)
+            new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 12, 6, this.deckVisualMesh);
+            // Face 3 (-X side of dispenser)
+            new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 18, 6, this.deckVisualMesh);
+            // Face 4 (+Y top of dispenser)
+            new SubMesh(MATIDX_DISP_TOP_BACK, 0, verticesCount, 24, 6, this.deckVisualMesh);
+            // Face 5 (-Y bottom of dispenser)
+            new SubMesh(MATIDX_DISP_BOTTOM, 0, verticesCount, 30, 6, this.deckVisualMesh);
+
+            console.log("[TableEnv]   Assigned MultiMaterial with card back/side textures.");
+
 
             // --- Position the Box ---
             // Calculate the Y position for the CENTER of the dispenser box.
@@ -141,15 +172,18 @@ export class TableEnvironment {
             // --- Final Settings ---
             this.deckVisualMesh.isPickable = false;
             console.log("[TableEnv]   Attempting to freeze world matrix...");
-            this.deckVisualMesh.freezeWorldMatrix();
-            console.log("[TableEnv]   Froze world matrix for deck dispenser mesh.");
+            // Do not freeze world matrix if individual sub-materials might need updates (e.g. dynamic textures)
+            // this.deckVisualMesh.freezeWorldMatrix(); 
+            // console.log("[TableEnv]   Froze world matrix for deck dispenser mesh.");
 
             console.log("%c[TableEnv] Deck Visual Box setup COMPLETE.", "color: blue; font-weight: bold;");
 
         } catch (error) {
              console.error("%c[TableEnv] CRITICAL ERROR during createDeckVisualBox:", "color: red; font-weight: bold;", error);
              this.deckVisualMesh?.dispose();
-             this.scene.getMaterialByName("deckDispenserMat")?.dispose();
+             this.scene.getMaterialByName("deckDispenserMultiMat")?.dispose(); // Dispose MultiMaterial
+             this.scene.getMaterialByName("deckDispenserBottomMat")?.dispose(); // Dispose specific sub-material
+             // CardBack and CardSide materials are managed by CardVisualizer, no need to dispose here.
              this.deckVisualMesh = null;
         }
     }
@@ -170,7 +204,9 @@ export class TableEnvironment {
         this.scene.getMaterialByName("tableMaterial")?.dispose();
         this.scene.getMaterialByName("dealerAreaMat")?.dispose();
         this.scene.getMaterialByName("playerAreaMat")?.dispose();
-        this.scene.getMaterialByName("deckDispenserMat")?.dispose();
+        // Dispose materials created by TableEnvironment
+        this.scene.getMaterialByName("deckDispenserMultiMat")?.dispose();
+        this.scene.getMaterialByName("deckDispenserBottomMat")?.dispose();
         console.log("[TableEnv] Disposed.");
     }
 }
