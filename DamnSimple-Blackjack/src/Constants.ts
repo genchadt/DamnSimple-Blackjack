@@ -1,6 +1,18 @@
 // src/constants.ts
 import { Vector3 } from "@babylonjs/core";
 
+// --- Graphics Quality ---
+/** Defines quality settings for rendering and textures. */
+export const QualitySettings = {
+    Low: { name: "Low", scaling: 1.5, textureSize: 256 },
+    Medium: { name: "Medium", scaling: 1.0, textureSize: 512 },
+    High: { name: "High", scaling: 0.75, textureSize: 1024 },
+    Ultra: { name: "Ultra", scaling: 0.5, textureSize: 2048 },
+};
+export type QualityLevel = keyof typeof QualitySettings;
+export const DEFAULT_QUALITY_LEVEL: QualityLevel = "Medium";
+
+
 // --- Card Dimensions & Scaling ---
 const CARD_SCALE = 0.8;
 const CARD_ASPECT_RATIO = 1.4; // Standard playing card height/width ratio

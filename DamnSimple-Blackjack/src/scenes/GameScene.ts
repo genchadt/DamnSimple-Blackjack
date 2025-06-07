@@ -7,7 +7,7 @@ import { DebugManager } from "../debug/DebugManager";
 import { TableEnvironment } from "./components/TableEnvironment";
 import { CardVisualizer } from "./components/CardVisualizer";
 import { GameController } from "./components/GameController";
-import { Constants, DefaultDeckPositionXZ } from "../Constants"; // *** IMPORT Constants and DefaultDeckPositionXZ ***
+import { Constants, DefaultDeckPositionXZ, QualityLevel } from "../Constants"; // *** IMPORT Constants and DefaultDeckPositionXZ ***
 
 export class GameScene {
     private scene: Scene;
@@ -87,18 +87,30 @@ export class GameScene {
         this.gameController.update();
     }
 
+    /**
+     * Applies a new quality setting to the scene's components.
+     * @param level The quality level to apply.
+     */
+    public applyQualitySetting(level: QualityLevel): void {
+        if (this.cardVisualizer) {
+            this.cardVisualizer.setQualityLevel(level);
+            // Force a re-render of cards to apply new textures immediately
+            this.cardVisualizer.renderCards(true);
+        }
+    }
+
     // --- Getters ---
     public getGameUI(): GameUI { return this.gameUI; }
     public getScene(): Scene { return this.scene; }
     public getBlackjackGame(): BlackjackGame { return this.blackjackGame; }
 
-     public dispose(): void {
-         console.log("Disposing GameScene");
-         this.gameUI?.dispose();
-         // this.debugManager?.dispose(); // Assuming no specific dispose needed for DebugManager
-         this.cardVisualizer?.clearTable(); // Clear visuals before disposing scene elements
-         this.tableEnvironment?.dispose(); // Dispose table, deck visuals etc.
-         this.scene.dispose(); // Dispose the Babylon scene itself
-         console.log("GameScene disposed.");
-     }
+    public dispose(): void {
+        console.log("Disposing GameScene");
+        this.gameUI?.dispose();
+        // this.debugManager?.dispose(); // Assuming no specific dispose needed for DebugManager
+        this.cardVisualizer?.clearTable(); // Clear visuals before disposing scene elements
+        this.tableEnvironment?.dispose(); // Dispose table, deck visuals etc.
+        this.scene.dispose(); // Dispose the Babylon scene itself
+        console.log("GameScene disposed.");
+    }
 }

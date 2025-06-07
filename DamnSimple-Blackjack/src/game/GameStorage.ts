@@ -2,6 +2,7 @@
 // No changes needed here for the core issue, but included for completeness.
 import { Card, Suit, Rank } from "./Card"; // Import enums too
 import { GameState, GameResult } from "./GameState";
+import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings } from "../Constants";
 
 // Interface for the serialized card data
 interface SerializedCard {
@@ -28,6 +29,7 @@ export class GameStorage {
     private static readonly STORAGE_KEY_BET = "damnSimpleBlackjack_currentBet";
     private static readonly STORAGE_KEY_RESULT = "damnSimpleBlackjack_gameResult";
     private static readonly STORAGE_KEY_FUNDS = "damnSimpleBlackjack_funds"; // Added funds key
+    private static readonly STORAGE_KEY_QUALITY = "damnSimpleBlackjack_qualityLevel"; // *** ADDED ***
 
     /**
      * Saves the current game state to local storage.
@@ -53,39 +55,39 @@ export class GameStorage {
                 }));
                 localStorage.setItem(this.STORAGE_KEY_PLAYER_HAND, JSON.stringify(playerHandData));
             } else {
-                 localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
+                localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
             }
 
             // Save dealer hand (only if not in Initial state, otherwise clear it)
-             if (gameState !== GameState.Initial) {
+            if (gameState !== GameState.Initial) {
                 const dealerHandData: SerializedCard[] = dealerHand.map(card => ({
                     suit: card.getSuit(),
                     rank: card.getRank(),
                     faceUp: card.isFaceUp()
                 }));
                 localStorage.setItem(this.STORAGE_KEY_DEALER_HAND, JSON.stringify(dealerHandData));
-             } else {
-                 localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
-             }
+            } else {
+                localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
+            }
 
         } catch (error) {
             console.error("Error saving game state:", error);
         }
     }
 
-     /**
-      * Clears saved hand data from local storage.
-      * Useful when starting a fresh game or resetting.
-      */
-     public static clearSavedHands(): void {
-         try {
-             localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
-             localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
-             console.log("Cleared saved hand data.");
-         } catch (error) {
-             console.error("Error clearing saved hands:", error);
-         }
-     }
+    /**
+     * Clears saved hand data from local storage.
+     * Useful when starting a fresh game or resetting.
+     */
+    public static clearSavedHands(): void {
+        try {
+            localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
+            localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
+            console.log("Cleared saved hand data.");
+        } catch (error) {
+            console.error("Error clearing saved hands:", error);
+        }
+    }
 
 
     /**
@@ -103,9 +105,9 @@ export class GameStorage {
 
             const gameState = parseInt(savedStateStr) as GameState;
             if (isNaN(gameState) || !GameState[gameState]) {
-                 console.error("Invalid saved game state value:", savedStateStr);
-                 this.clearAllGameData(); // Clear corrupted state
-                 return emptyState;
+                console.error("Invalid saved game state value:", savedStateStr);
+                this.clearAllGameData(); // Clear corrupted state
+                return emptyState;
             }
 
 
@@ -120,20 +122,20 @@ export class GameStorage {
             // Load other components for active game states
             const savedBetStr = localStorage.getItem(this.STORAGE_KEY_BET);
             const currentBet = savedBetStr ? parseInt(savedBetStr) : null;
-             if (currentBet === null || isNaN(currentBet)) {
-                 console.error("Invalid saved bet value:", savedBetStr);
-                 // Don't necessarily clear all data, maybe just reset bet?
-                 // For now, return empty to force reset.
-                 return emptyState;
-             }
+            if (currentBet === null || isNaN(currentBet)) {
+                console.error("Invalid saved bet value:", savedBetStr);
+                // Don't necessarily clear all data, maybe just reset bet?
+                // For now, return empty to force reset.
+                return emptyState;
+            }
 
 
             const savedResultStr = localStorage.getItem(this.STORAGE_KEY_RESULT);
             const gameResult = savedResultStr ? parseInt(savedResultStr) as GameResult : null;
-             if (gameResult === null || isNaN(gameResult) || !GameResult[gameResult]) {
-                 console.error("Invalid saved game result value:", savedResultStr);
-                 return emptyState; // Force reset
-             }
+            if (gameResult === null || isNaN(gameResult) || !GameResult[gameResult]) {
+                console.error("Invalid saved game result value:", savedResultStr);
+                return emptyState; // Force reset
+            }
 
 
             // Restore player hand
@@ -144,8 +146,8 @@ export class GameStorage {
                     playerHand = JSON.parse(playerHandJson) as SerializedCard[];
                     // Basic validation
                     if (!Array.isArray(playerHand) || playerHand.some(c => !c.suit || !c.rank)) {
-                         console.error("Invalid player hand data structure.");
-                         playerHand = null; // Invalidate hand
+                        console.error("Invalid player hand data structure.");
+                        playerHand = null; // Invalidate hand
                     }
                 } catch (e) {
                     console.error("Error parsing player hand JSON:", e);
@@ -157,24 +159,24 @@ export class GameStorage {
             const dealerHandJson = localStorage.getItem(this.STORAGE_KEY_DEALER_HAND);
             let dealerHand: SerializedCard[] | null = null;
             if (dealerHandJson) {
-                 try {
+                try {
                     dealerHand = JSON.parse(dealerHandJson) as SerializedCard[];
-                     if (!Array.isArray(dealerHand) || dealerHand.some(c => !c.suit || !c.rank)) {
-                         console.error("Invalid dealer hand data structure.");
-                         dealerHand = null;
-                     }
-                 } catch (e) {
+                    if (!Array.isArray(dealerHand) || dealerHand.some(c => !c.suit || !c.rank)) {
+                        console.error("Invalid dealer hand data structure.");
+                        dealerHand = null;
+                    }
+                } catch (e) {
                     console.error("Error parsing dealer hand JSON:", e);
                     dealerHand = null;
-                 }
+                }
             }
 
-             // If hands are missing/invalid in a state that requires them, treat as error
-             if (!playerHand || !dealerHand) {
-                 console.error("Missing or invalid hand data for active game state. Resetting.");
-                 this.clearAllGameData();
-                 return emptyState;
-             }
+            // If hands are missing/invalid in a state that requires them, treat as error
+            if (!playerHand || !dealerHand) {
+                console.error("Missing or invalid hand data for active game state. Resetting.");
+                this.clearAllGameData();
+                return emptyState;
+            }
 
 
             return { gameState, currentBet, gameResult, playerHand, dealerHand };
@@ -186,8 +188,8 @@ export class GameStorage {
         }
     }
 
-     // --- Funds Save/Load (Moved from PlayerFunds for consistency) ---
-     public static saveFunds(funds: number): void {
+    // --- Funds Save/Load (Moved from PlayerFunds for consistency) ---
+    public static saveFunds(funds: number): void {
         try {
             localStorage.setItem(this.STORAGE_KEY_FUNDS, funds.toString());
         } catch (error) {
@@ -209,18 +211,43 @@ export class GameStorage {
         }
     }
 
-     // --- Utility to clear all game data ---
-     public static clearAllGameData(): void {
-         try {
-             localStorage.removeItem(this.STORAGE_KEY_STATE);
-             localStorage.removeItem(this.STORAGE_KEY_BET);
-             localStorage.removeItem(this.STORAGE_KEY_RESULT);
-             localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
-             localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
-             localStorage.removeItem(this.STORAGE_KEY_FUNDS);
-             console.log("Cleared all saved game data.");
-         } catch (error) {
-             console.error("Error clearing all game data:", error);
-         }
-     }
+    // --- Quality Settings Save/Load ---
+    public static saveQualityLevel(level: QualityLevel): void {
+        try {
+            localStorage.setItem(this.STORAGE_KEY_QUALITY, level);
+        } catch (error) {
+            console.error("Error saving quality level:", error);
+        }
+    }
+
+    public static loadQualityLevel(): QualityLevel {
+        try {
+            const storedLevel = localStorage.getItem(this.STORAGE_KEY_QUALITY) as QualityLevel;
+            // Check if the stored value is a valid key in our QualitySettings object
+            if (storedLevel && QualitySettings[storedLevel]) {
+                return storedLevel;
+            }
+            return DEFAULT_QUALITY_LEVEL; // Return default if not found or invalid
+        } catch (error) {
+            console.error("Error loading quality level:", error);
+            return DEFAULT_QUALITY_LEVEL; // Return default on error
+        }
+    }
+
+
+    // --- Utility to clear all game data ---
+    public static clearAllGameData(): void {
+        try {
+            localStorage.removeItem(this.STORAGE_KEY_STATE);
+            localStorage.removeItem(this.STORAGE_KEY_BET);
+            localStorage.removeItem(this.STORAGE_KEY_RESULT);
+            localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
+            localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
+            localStorage.removeItem(this.STORAGE_KEY_FUNDS);
+            localStorage.removeItem(this.STORAGE_KEY_QUALITY); // *** ADDED ***
+            console.log("Cleared all saved game data.");
+        } catch (error) {
+            console.error("Error clearing all game data:", error);
+        }
+    }
 }

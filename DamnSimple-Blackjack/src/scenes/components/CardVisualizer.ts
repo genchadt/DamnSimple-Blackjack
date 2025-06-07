@@ -3,7 +3,7 @@ import { Scene, Vector3, MeshBuilder, StandardMaterial, Color3, Texture, Dynamic
     Mesh, Animation, EasingFunction, CubicEase, QuadraticEase, SineEase, Material, BackEase, MultiMaterial, Vector4, SubMesh, Quaternion } from "@babylonjs/core";
 import { Card } from "../../game/Card"; // Ensure Card is imported
 import { BlackjackGame } from "../../game/BlackjackGame";
-import { Constants } from "../../Constants";
+import { Constants, QualityLevel, QualitySettings, DEFAULT_QUALITY_LEVEL } from "../../Constants";
 
 export class CardVisualizer {
     private scene: Scene;
@@ -13,6 +13,7 @@ export class CardVisualizer {
     private animationOriginPosition: Vector3;
     private animationInProgress: boolean = false;
     private onAnimationCompleteCallback: (() => void) | null = null;
+    private currentTextureSize: number; // *** ADDED ***
 
     // --- Constants Kept Local ---
     private static readonly SUBMESH_PLUS_Z = 0;
@@ -43,6 +44,7 @@ export class CardVisualizer {
     constructor(scene: Scene, blackjackGame: BlackjackGame, deckPositionXZ: Vector3) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
+        this.currentTextureSize = QualitySettings[DEFAULT_QUALITY_LEVEL].textureSize; // *** ADDED ***
 
         const animationOriginY = Constants.CARD_Y_POS + Constants.DECK_DISPENSER_Y_OFFSET;
         this.animationOriginPosition = new Vector3(deckPositionXZ.x, animationOriginY, deckPositionXZ.z);
@@ -60,6 +62,22 @@ export class CardVisualizer {
         this.getCardSideMaterial(); // Pre-cache side
         console.log("[CardViz] Initialized (Using CardMeister SVGs).");
         console.log(`[CardViz] Animation Origin (animationOriginPosition): ${this.animationOriginPosition.toString()}`);
+    }
+
+    /**
+     * Sets the quality level, updating texture size and clearing caches.
+     * @param level The new quality level.
+     */
+    public setQualityLevel(level: QualityLevel): void {
+        const newTextureSize = QualitySettings[level].textureSize;
+        if (this.currentTextureSize !== newTextureSize) {
+            console.log(`%c[CardViz] Quality Change: Updating texture size from ${this.currentTextureSize} to ${newTextureSize}.`, 'color: fuchsia');
+            this.currentTextureSize = newTextureSize;
+            // Clear caches to force regeneration of textures and materials at the new resolution
+            this.svgTextureCache.clear();
+            this.cardFaceMaterials.clear();
+            console.log(`%c[CardViz]   -> Cleared SVG texture and material caches.`, 'color: fuchsia');
+        }
     }
 
     private _createDefaultTempCardContainer(): HTMLElement {
@@ -121,7 +139,7 @@ export class CardVisualizer {
      */
     public async getCardFaceMaterial(card: Card): Promise<StandardMaterial> {
         const cid = card.getCid(); // Use cid as the unique key
-        const materialCacheKey = `svgMat_${cid}`;
+        const materialCacheKey = `svgMat_${cid}_${this.currentTextureSize}`; // *** UPDATED *** Include size in key
 
         if (this.cardFaceMaterials.has(materialCacheKey)) {
             return this.cardFaceMaterials.get(materialCacheKey)!;
@@ -166,13 +184,13 @@ export class CardVisualizer {
      */
     private getOrCreateSVGTexture(card: Card): Promise<Texture> {
         const cid = card.getCid();
-        const textureCacheKey = `svgTex_dynamic_${cid}`; // Use a new cache key for the dynamic texture approach
+        const textureCacheKey = `svgTex_dynamic_${cid}_${this.currentTextureSize}`; // *** UPDATED ***
 
         if (this.svgTextureCache.has(textureCacheKey)) {
             return Promise.resolve(this.svgTextureCache.get(textureCacheKey)!);
         }
 
-        console.log(`%c[CardViz] Creating DYNAMIC SVG Texture for ${cid}...`, 'color: blue');
+        console.log(`%c[CardViz] Creating DYNAMIC SVG Texture for ${cid} at size ${this.currentTextureSize}...`, 'color: blue');
 
         return new Promise((resolve, reject) => {
             const cardElement = document.createElement('playing-card');
@@ -212,11 +230,12 @@ export class CardVisualizer {
                 image.onload = () => {
                     console.log(`%c[CardViz]   -> HTMLImageElement loaded SVG for ${cid}. Dimensions: ${image.width}x${image.height}`, 'color: green');
 
-                    const texWidth = image.width > 0 ? image.width : 256;
-                    const texHeight = image.height > 0 ? image.height : 358;
+                    // *** UPDATED: Use quality setting for texture size ***
+                    const texWidth = this.currentTextureSize;
+                    const texHeight = this.currentTextureSize * Constants.CARD_ASPECT_RATIO;
 
                     const texture = new DynamicTexture(
-                        `dynamic_svg_${cid}`,
+                        `dynamic_svg_${cid}_${this.currentTextureSize}`,
                         { width: texWidth, height: texHeight },
                         this.scene,
                         true // generateMipMaps
@@ -231,7 +250,7 @@ export class CardVisualizer {
                     // Update the texture to apply the drawing
                     texture.update(true);
 
-                    console.log(`%c[CardViz]   -> DynamicTexture created and updated for ${cid}`, 'color: green');
+                    console.log(`%c[CardViz]   -> DynamicTexture created and updated for ${cid} at ${texWidth}x${texHeight}`, 'color: green');
                     this.svgTextureCache.set(textureCacheKey, texture);
                     cleanup();
                     resolve(texture);

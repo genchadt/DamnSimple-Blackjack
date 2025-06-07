@@ -1,15 +1,19 @@
 // src/scenes/settingsscene-ts (Apply cornerRadius fix)
 import { Scene, Engine, Vector3, HemisphericLight, Color3, Color4, ArcRotateCamera } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
+import { QualityLevel, QualitySettings } from "../Constants"; // *** ADDED ***
 
 export class SettingsScene {
     private scene: Scene;
     private guiTexture!: AdvancedDynamicTexture;
+    private qualityButtons: Map<QualityLevel, Button> = new Map(); // *** ADDED ***
 
     constructor(
         engine: Engine, canvas: HTMLCanvasElement, onBack: () => void,
         onResetFunds: () => void, onLanguageChange: (lang: string) => void,
-        onCurrencyChange: (currency: string) => void
+        onCurrencyChange: (currency: string) => void,
+        onQualityChange: (level: QualityLevel) => void, // *** ADDED ***
+        currentQuality: QualityLevel // *** ADDED ***
     ) {
         this.scene = new Scene(engine);
         this.scene.clearColor = new Color4(0.05, 0.1, 0.15, 1.0);
@@ -17,12 +21,14 @@ export class SettingsScene {
         // camera.attachControl(canvas, true); // Usually not needed for static menu
         const light = new HemisphericLight("settingsLight", new Vector3(0, 1, 0), this.scene);
         light.intensity = 0.8;
-        this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange);
+        this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange, onQualityChange, currentQuality);
     }
 
     private createGUI(
         onBack: () => void, onResetFunds: () => void,
-        onLanguageChange: (lang: string) => void, onCurrencyChange: (currency: string) => void
+        onLanguageChange: (lang: string) => void, onCurrencyChange: (currency: string) => void,
+        onQualityChange: (level: QualityLevel) => void, // *** ADDED ***
+        currentQuality: QualityLevel // *** ADDED ***
     ): void {
         this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("SettingsUI", true, this.scene);
 
@@ -49,6 +55,24 @@ export class SettingsScene {
         titleText.color = "white"; titleText.fontSize = 32; titleText.height = "60px";
         panel.addControl(titleText);
 
+        // --- Graphics Quality ---
+        this.createSectionTitle(panel, "Graphics Quality");
+        const qualityPanel = new StackPanel("qualityPanel");
+        qualityPanel.isVertical = false; qualityPanel.height = "50px"; qualityPanel.spacing = 10;
+        qualityPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        panel.addControl(qualityPanel);
+        (Object.keys(QualitySettings) as QualityLevel[]).forEach(level => {
+            const qualityButton = this.createOptionButton(`quality${level}Button`, level, () => {
+                onQualityChange(level);
+                this.updateQualityButtons(level); // Update visuals immediately
+            });
+            qualityButton.width = "80px";
+            this.qualityButtons.set(level, qualityButton);
+            qualityPanel.addControl(qualityButton);
+        });
+        this.updateQualityButtons(currentQuality); // Set initial active button
+
+
         // --- Language ---
         this.createSectionTitle(panel, "Language");
         const languagePanel = new StackPanel("languagePanel");
@@ -61,7 +85,7 @@ export class SettingsScene {
             languagePanel.addControl(langButton);
         });
 
-         // --- Currency ---
+        // --- Currency ---
         this.createSectionTitle(panel, "Currency");
         const currencyPanel = new StackPanel("currencyPanel");
         currencyPanel.isVertical = false; currencyPanel.height = "50px"; currencyPanel.spacing = 15;
@@ -107,7 +131,7 @@ export class SettingsScene {
         title.paddingLeft = "10px";
         parent.addControl(title);
     }
-     private createOptionButton(name: string, text: string, onClick: () => void): Button {
+    private createOptionButton(name: string, text: string, onClick: () => void): Button {
         const button = Button.CreateSimpleButton(name, text);
         button.width = "100px";
         button.height = "40px";
@@ -117,6 +141,17 @@ export class SettingsScene {
         button.onPointerUpObservable.add(onClick);
         return button;
     }
+
+    // *** ADDED ***
+    private updateQualityButtons(activeLevel: QualityLevel): void {
+        this.qualityButtons.forEach((button, level) => {
+            const isActive = level === activeLevel;
+            button.isEnabled = !isActive;
+            button.alpha = isActive ? 0.6 : 1.0; // Dim the active button
+            button.background = isActive ? "gray" : "darkgreen";
+        });
+    }
+
     private createSpacer(parent: StackPanel, height: string): void {
         const spacer = new Control(); // Use Control for pure spacing
         spacer.height = height;
