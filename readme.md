@@ -71,254 +71,46 @@ The project follows a decoupled architecture that separates core logic from the 
 
 This diagram illustrates the relationships between the major components of the application.
 
-```
-@startuml Blackjack Game UML
+```mermaid
+graph TD
+    subgraph "User"
+        Player([<fa:fa-user> Player])
+    end
 
-!theme spacelab
-skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-hide empty members
+    subgraph "Browser View"
+        style UI fill:#f9f,stroke:#333,stroke-width:2px
+        style 3DScene fill:#ccf,stroke:#333,stroke-width:2px
+        UI("<b>Game UI</b><br/><i>Babylon.js GUI<br/>(Buttons, Scores, Status)</i>")
+        3DScene("<b>3D Visuals</b><br/><i>Babylon.js Scene<br/>(Cards, Table, Animations)</i>")
+    end
 
-' --- Enums ---
-package "Enums" <<Frame>> {
-    enum Suit { Hearts, Diamonds, Clubs, Spades }
-    enum Rank { Two, ..., King, Ace }
-    enum GameState { Initial, Betting, PlayerTurn, DealerTurn, GameOver }
-    enum GameResult { PlayerWins, DealerWins, Push, PlayerBlackjack, InProgress }
-}
+    subgraph "Application Logic"
+        style Controller fill:#9f9,stroke:#333,stroke-width:2px
+        style Model fill:#fcf,stroke:#333,stroke-width:2px
+        Controller("<b>GameController</b><br/><i>Mediator between<br/>Model and View</i>")
+        Model("<b>BlackjackGame (Model)</b><br/><i>Core Rules, State, Deck, Funds</i>")
+    end
 
-' --- Game Logic Core ---
-package "Game Logic" <<Node>> {
-    class Card {
-        - suit: Suit
-        - rank: Rank
-        - faceUp: boolean
-        + onFlip: (card: Card) => void
-        + flip(): void
-        + getValue(): number
-    }
-    Card o-- Suit
-    Card o-- Rank
+    subgraph "Persistence"
+        style Storage fill:#f96,stroke:#333,stroke-width:2px
+        Storage("<b>GameStorage</b><br/><i>Browser localStorage</i>")
+    end
 
-    class Deck {
-        - cards: Card[]
-        + drawCard(): Card
-    }
-    Deck "1" *-- "52..*" Card : creates
+    %% --- High-Level Flow for a Player Action (e.g., "Hit") ---
+    Player -- "1. Clicks 'Hit' button" --> UI
+    UI -- "2. Calls game.playerHit()" --> Model
+    Model -- "3. Processes logic<br/>(draws card, checks state)" --> Model
+    Model -- "4. Notifies Controller of new card" --> Controller
+    Controller -- "5. Tells 3D Scene to animate card" --> 3DScene
+    3DScene -- "6. Animation finishes, notifies Controller" --> Controller
+    Controller -- "7. Notifies Model of animation completion" --> Model
+    Model -- "8. Finishes logic<br/>(e.g., checks for bust)" --> Model
+    Model -- "9. Notifies Controller of final state change" --> Controller
+    Controller -- "10. Updates all UI components" --> UI
+    UI -- "11. Displays new score & status" --> Player
 
-    class ScoreCalculator <<utility>> {
-        {static} + calculateHandValue(hand: Card[]): number
-    }
-    ScoreCalculator ..> Card
-
-    class HandManager {
-        + drawCard(): Card
-        + registerFlipCallback(card: Card): void
-    }
-    HandManager "1" *-- "1" Deck
-
-    class PlayerFunds {
-        + getFunds(): number
-        + addFunds(amount): void
-        + deductFunds(amount): boolean
-    }
-
-    class GameStorage <<utility>> {
-        {static} + saveGameState(...)
-        {static} + loadGameState(): LoadedGameState
-    }
-    PlayerFunds ..> GameStorage
-
-    class GameActions {
-        - gameState: GameState
-        + setGameState(state): void
-        + startNewGame(bet): boolean
-        + playerHit(): void
-        + playerStand(): void
-        + onAnimationComplete(): void
-    }
-    GameActions o-- GameState
-    GameActions o-- GameResult
-    GameActions ..> GameStorage
-    GameActions ..> ScoreCalculator
-
-    class BlackjackGame {
-        - playerHand: Card[]
-        - dealerHand: Card[]
-        + notifyCardDealt: (card, ...) => void
-        + setAnimationCompleteCallback(callback): void
-        + startNewGame(bet): boolean
-        + getGameState(): GameState
-        + getPlayerHand(): Card[]
-        + getDealerHand(): Card[]
-    }
-    BlackjackGame o-- "0..*" Card : has
-    BlackjackGame "1" *-- "1" GameActions
-    BlackjackGame "1" *-- "1" HandManager
-    BlackjackGame "1" *-- "1" PlayerFunds
-    BlackjackGame ..> ScoreCalculator
-    GameActions ..> BlackjackGame : modifies >
-}
-
-
-' --- UI Layer ---
-package "UI" <<Cloud>> {
-    abstract class BaseUI {
-        # guiTexture: AdvancedDynamicTexture
-        + {abstract} update(...): void
-        + applyUIScale(scaleFactor): void
-    }
-
-    class GameUI {
-        + update(isAnimating): void
-    }
-    GameUI -up-|> BaseUI
-
-    class BettingUI {
-        + update(): void
-    }
-    BettingUI -up-|> BaseUI
-
-    class GameActionUI {
-        + update(isAnimating): void
-    }
-    GameActionUI -up-|> BaseUI
-
-    class StatusUI {
-        + update(): void
-    }
-    StatusUI -up-|> BaseUI
-
-    class NavigationUI {
-        + update(): void
-    }
-    NavigationUI -up-|> BaseUI
-
-    GameUI "1" *-- "1" BettingUI
-    GameUI "1" *-- "1" GameActionUI
-    GameUI "1" *-- "1" StatusUI
-    GameUI "1" *-- "1" NavigationUI
-
-    ' UI dependencies on game logic
-    BettingUI ..> BlackjackGame
-    GameActionUI ..> BlackjackGame
-    StatusUI ..> BlackjackGame
-    NavigationUI ..> BlackjackGame
-}
-
-' --- Scene and Visuals ---
-package "Scene & Visuals" <<Database>> {
-    class GameScene {
-        + applyGraphicsQualitySetting(level): void
-        + applyUIScaleSetting(level): void
-    }
-
-    class GameController {
-        - onVisualAnimationComplete(): void
-        - onGameActionComplete(): void
-        - requestCardDealAnimation(...): void
-        + update(): void
-    }
-
-    class CardVisualizer {
-        - cardMeshes: Map<string, Mesh>
-        + createCardMesh(card, ...): void
-        + renderCards(): void
-        + clearTable(): void
-        + isAnimationInProgress(): boolean
-    }
-    CardVisualizer ..> Card : reads state
-    CardVisualizer ..> BlackjackGame : reads hands
-
-    class TableEnvironment {
-        + createTable(): Mesh
-    }
-}
-
-' --- Debugging ---
-package "Debug" {
-    class DebugManager {
-        + help(): void
-        + setGameState(state): void
-        + addCard(...): void
-    }
-}
-
-' --- Main Application ---
-package "Application" {
-    class Game {
-        - currentSceneInstance: Scene
-        - switchScene(type): void
-    }
-    class MainMenuScene {}
-    class SettingsScene {}
-
-    Game "1" o-- "1" GameScene : manages >
-    Game "1" o-- "1" SettingsScene : manages >
-    Game "1" o-- "1" MainMenuScene : manages >
-}
-
-
-' --- Relationships between packages ---
-
-GameScene "1" *-- "1" BlackjackGame
-GameScene "1" *-- "1" GameUI
-GameScene "1" *-- "1" GameController
-GameScene "1" *-- "1" CardVisualizer
-GameScene "1" *-- "1" TableEnvironment
-GameScene "1" *-- "1" DebugManager
-
-' Controller Mediation
-GameController ..> BlackjackGame : "triggers actions"
-GameController ..> GameUI : "updates UI state"
-GameController ..> CardVisualizer : "requests visuals"
-
-BlackjackGame ..> GameController : "notifies action complete"
-CardVisualizer ..> GameController : "notifies animation complete"
-GameUI ..> GameController : "forwards user input"
-
-note "The GameController acts as a mediator between the game logic (Model), the UI (View), and the 3D visuals (View)." as N1
-GameController .. N1
-
-TableEnvironment ..> CardVisualizer : "uses for materials"
-
-DebugManager ..> GameScene
-DebugManager ..> BlackjackGame
-DebugManager ..> CardVisualizer
-DebugManager ..> GameUI
-
-@enduml
-
----
-
-## 🐛 In-Game Debugger
-
-For development and testing, a powerful debug manager is exposed to the browser's developer console.
-
-1.  Open your browser's developer tools (usually `F12` or `Ctrl+Shift+I`).
-2.  Switch to the "Console" tab.
-3.  The `debug` object is available on the `window` scope. Type `debug.help()` to see a full list of available commands.
-
-### Example Commands
-
-```js
-// Get a list of all available commands
-debug.help();
-
-// Get a detailed snapshot of the current game state
-debug.getState();
-
-// Give yourself more money
-debug.setFunds(5000);
-
-// Force the game into the player's turn
-debug.setGameState(2); // 2 = PlayerTurn
-
-// Add a specific card to your hand
-debug.addCard(true, 'Spades', 'A', true); // (isPlayer, suit, rank, faceUp)
-
-// Deal a random card to the dealer, face down
-debug.dealRandomCard(false, false);
+    %% --- Storage Interaction ---
+    Model -.->|Saves/Loads State| Storage
 ```
 
 ---
