@@ -1,4 +1,4 @@
-// src/game/blackjackgame.ts
+// src/blackjackgame-ts
 // Added debug log to notifyCardDealt
 import { Card } from "./Card";
 import { GameState, GameResult } from "./GameState";
@@ -134,11 +134,11 @@ export class BlackjackGame {
      */
     public getDealerScore(): number {
         if (this.getGameState() === GameState.PlayerTurn || this.getGameState() === GameState.Betting || this.getGameState() === GameState.Initial) {
-             // Calculate score only from cards that are face up
-             return ScoreCalculator.calculateHandValue(this.dealerHand.filter(card => card.isFaceUp()));
+            // Calculate score only from cards that are face up
+            return ScoreCalculator.calculateHandValue(this.dealerHand.filter(card => card.isFaceUp()));
         } else {
-             // Calculate score from all cards in dealer's hand
-             return ScoreCalculator.calculateHandValue(this.dealerHand);
+            // Calculate score from all cards in dealer's hand
+            return ScoreCalculator.calculateHandValue(this.dealerHand);
         }
     }
 

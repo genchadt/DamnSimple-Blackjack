@@ -2,7 +2,7 @@
 // No changes needed here for the core issue, but included for completeness.
 import { Card, Suit, Rank } from "./Card"; // Import enums too
 import { GameState, GameResult } from "./GameState";
-import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings } from "../Constants";
+import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL } from "../Constants";
 
 // Interface for the serialized card data
 interface SerializedCard {
@@ -29,7 +29,8 @@ export class GameStorage {
     private static readonly STORAGE_KEY_BET = "damnSimpleBlackjack_currentBet";
     private static readonly STORAGE_KEY_RESULT = "damnSimpleBlackjack_gameResult";
     private static readonly STORAGE_KEY_FUNDS = "damnSimpleBlackjack_funds"; // Added funds key
-    private static readonly STORAGE_KEY_QUALITY = "damnSimpleBlackjack_qualityLevel"; // *** ADDED ***
+    private static readonly STORAGE_KEY_QUALITY = "damnSimpleBlackjack_qualityLevel";
+    private static readonly STORAGE_KEY_UI_SCALE = "damnSimpleBlackjack_uiScaleLevel"; // *** ADDED ***
 
     /**
      * Saves the current game state to local storage.
@@ -234,6 +235,28 @@ export class GameStorage {
         }
     }
 
+    // --- UI Scale Settings Save/Load --- // *** ADDED ***
+    public static saveUIScaleLevel(level: UIScaleLevel): void {
+        try {
+            localStorage.setItem(this.STORAGE_KEY_UI_SCALE, level);
+        } catch (error) {
+            console.error("Error saving UI scale level:", error);
+        }
+    }
+
+    public static loadUIScaleLevel(): UIScaleLevel {
+        try {
+            const storedLevel = localStorage.getItem(this.STORAGE_KEY_UI_SCALE) as UIScaleLevel;
+            if (storedLevel && UIScaleSettings[storedLevel]) {
+                return storedLevel;
+            }
+            return DEFAULT_UI_SCALE_LEVEL;
+        } catch (error) {
+            console.error("Error loading UI scale level:", error);
+            return DEFAULT_UI_SCALE_LEVEL;
+        }
+    }
+
 
     // --- Utility to clear all game data ---
     public static clearAllGameData(): void {
@@ -244,7 +267,8 @@ export class GameStorage {
             localStorage.removeItem(this.STORAGE_KEY_PLAYER_HAND);
             localStorage.removeItem(this.STORAGE_KEY_DEALER_HAND);
             localStorage.removeItem(this.STORAGE_KEY_FUNDS);
-            localStorage.removeItem(this.STORAGE_KEY_QUALITY); // *** ADDED ***
+            localStorage.removeItem(this.STORAGE_KEY_QUALITY);
+            localStorage.removeItem(this.STORAGE_KEY_UI_SCALE); // *** ADDED ***
             console.log("Cleared all saved game data.");
         } catch (error) {
             console.error("Error clearing all game data:", error);

@@ -1,5 +1,4 @@
 // src/scenes/gamescene-ts
-// Use constants and pass correct XZ vector
 import { Scene, Engine, Vector3 } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameUI } from "../ui/GameUI";
@@ -7,7 +6,7 @@ import { DebugManager } from "../debug/DebugManager";
 import { TableEnvironment } from "./components/TableEnvironment";
 import { CardVisualizer } from "./components/CardVisualizer";
 import { GameController } from "./components/GameController";
-import { Constants, DefaultDeckPositionXZ, QualityLevel } from "../Constants"; // *** IMPORT Constants and DefaultDeckPositionXZ ***
+import { Constants, DefaultDeckPositionXZ, QualityLevel, UIScaleLevel, UIScaleSettings } from "../Constants";
 
 export class GameScene {
     private scene: Scene;
@@ -71,7 +70,7 @@ export class GameScene {
 
         // 6. Debug Manager (optional)
         console.log("[GS] Creating DebugManager...");
-        this.debugManager = new DebugManager(this, this.cardVisualizer);
+        this.debugManager = new DebugManager(this, this.cardVisualizer, this.blackjackGame); // Pass BlackjackGame
         console.log("[GS] DebugManager created.");
 
 
@@ -88,14 +87,29 @@ export class GameScene {
     }
 
     /**
-     * Applies a new quality setting to the scene's components.
+     * Applies a new graphics quality setting to the scene's components.
      * @param level The quality level to apply.
      */
-    public applyQualitySetting(level: QualityLevel): void {
+    public applyGraphicsQualitySetting(level: QualityLevel): void {
         if (this.cardVisualizer) {
+            console.log(`[GameScene] Applying graphics quality: ${level}`);
             this.cardVisualizer.setQualityLevel(level);
+            // Clear existing card meshes to force them to be recreated with new materials/textures
+            this.cardVisualizer.clearTable();
             // Force a re-render of cards to apply new textures immediately
             this.cardVisualizer.renderCards(true);
+            console.log(`[GameScene] Graphics quality applied and cards re-rendered.`);
+        }
+    }
+
+    /**
+     * Applies a new UI scale setting to the scene's UI components.
+     * @param level The UI scale level to apply.
+     */
+    public applyUIScaleSetting(level: UIScaleLevel): void {
+        if (this.gameUI) {
+            const scaleFactor = UIScaleSettings[level].scale;
+            this.gameUI.applyUIScale(scaleFactor);
         }
     }
 
@@ -107,10 +121,10 @@ export class GameScene {
     public dispose(): void {
         console.log("Disposing GameScene");
         this.gameUI?.dispose();
-        // this.debugManager?.dispose(); // Assuming no specific dispose needed for DebugManager
-        this.cardVisualizer?.clearTable(); // Clear visuals before disposing scene elements
-        this.tableEnvironment?.dispose(); // Dispose table, deck visuals etc.
-        this.scene.dispose(); // Dispose the Babylon scene itself
+        this.debugManager?.dispose();
+        this.cardVisualizer?.clearTable();
+        this.tableEnvironment?.dispose();
+        this.scene.dispose();
         console.log("GameScene disposed.");
     }
 }

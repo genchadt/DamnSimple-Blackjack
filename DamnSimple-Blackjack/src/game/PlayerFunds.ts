@@ -17,18 +17,18 @@ export class PlayerFunds {
         return this.funds;
     }
 
-     /**
-      * Directly sets the player's funds. Use with caution (e.g., for debug or loading).
-      * Saves the new amount.
-      */
-     public setFunds(amount: number): void {
-         if (amount >= 0) {
-             this.funds = amount;
-             this.saveFunds();
-         } else {
-             console.error("Cannot set negative funds.");
-         }
-     }
+    /**
+     * Directly sets the player's funds. Use with caution (e.g., for debug or loading).
+     * Saves the new amount.
+     */
+    public setFunds(amount: number): void {
+        if (amount >= 0) {
+            this.funds = amount;
+            this.saveFunds();
+        } else {
+            console.error("Cannot set negative funds.");
+        }
+    }
 
 
     public addFunds(amount: number): void {

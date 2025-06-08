@@ -1,56 +1,73 @@
-// src/scenes/settingsscene-ts (Apply cornerRadius fix)
-import { Scene, Engine, Vector3, HemisphericLight, Color3, Color4, ArcRotateCamera } from "@babylonjs/core";
+// src/scenes/settingsscene-ts
+import { Scene, Engine, Vector3, HemisphericLight, Color4, ArcRotateCamera } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
-import { QualityLevel, QualitySettings } from "../Constants"; // *** ADDED ***
+import { QualityLevel, QualitySettings, UIScaleLevel, UIScaleSettings, UI_IDEAL_WIDTH, UI_IDEAL_HEIGHT } from "../Constants";
 
 export class SettingsScene {
     private scene: Scene;
+    private engine: Engine;
     private guiTexture!: AdvancedDynamicTexture;
-    private qualityButtons: Map<QualityLevel, Button> = new Map(); // *** ADDED ***
+    private qualityButtons: Map<QualityLevel, Button> = new Map();
+    private uiScaleButtons: Map<UIScaleLevel, Button> = new Map();
 
     constructor(
-        engine: Engine, canvas: HTMLCanvasElement, onBack: () => void,
+        engine: Engine,
+        canvasElement: HTMLCanvasElement,
+        onBack: () => void,
         onResetFunds: () => void, onLanguageChange: (lang: string) => void,
         onCurrencyChange: (currency: string) => void,
-        onQualityChange: (level: QualityLevel) => void, // *** ADDED ***
-        currentQuality: QualityLevel // *** ADDED ***
+        onQualityChange: (level: QualityLevel) => void,
+        currentQuality: QualityLevel,
+        onUIScaleChange: (level: UIScaleLevel) => void,
+        currentUIScale: UIScaleLevel
     ) {
         this.scene = new Scene(engine);
+        this.engine = engine;
         this.scene.clearColor = new Color4(0.05, 0.1, 0.15, 1.0);
         const camera = new ArcRotateCamera("settingsCamera", -Math.PI / 2, Math.PI / 2, 5, Vector3.Zero(), this.scene);
-        // camera.attachControl(canvas, true); // Usually not needed for static menu
         const light = new HemisphericLight("settingsLight", new Vector3(0, 1, 0), this.scene);
         light.intensity = 0.8;
-        this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange, onQualityChange, currentQuality);
+
+        this.createGUI(onBack, onResetFunds, onLanguageChange, onCurrencyChange, onQualityChange, currentQuality, onUIScaleChange, currentUIScale);
     }
 
     private createGUI(
         onBack: () => void, onResetFunds: () => void,
         onLanguageChange: (lang: string) => void, onCurrencyChange: (currency: string) => void,
-        onQualityChange: (level: QualityLevel) => void, // *** ADDED ***
-        currentQuality: QualityLevel // *** ADDED ***
+        onQualityChange: (level: QualityLevel) => void,
+        currentQuality: QualityLevel,
+        onUIScaleChange: (level: UIScaleLevel) => void,
+        currentUIScale: UIScaleLevel
     ): void {
-        this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI("SettingsUI", true, this.scene);
+        // Create UI texture
+        this.guiTexture = AdvancedDynamicTexture.CreateFullscreenUI(
+            "SettingsUI",
+            true, // foreground
+            this.scene
+        );
+        // Set initial ideal dimensions based on the current scale from the main game
+        const initialScaleFactor = UIScaleSettings[currentUIScale].scale;
+        this.guiTexture.idealWidth = UI_IDEAL_WIDTH / initialScaleFactor;
+        this.guiTexture.idealHeight = UI_IDEAL_HEIGHT / initialScaleFactor;
+        // When false, ideal dimensions are used to scale controls, which is what we want.
+        this.guiTexture.renderAtIdealSize = false;
+        console.log(`[SettingsScene] Initialized GUI. Initial ideal dimensions: ${this.guiTexture.idealWidth.toFixed(0)}x${this.guiTexture.idealHeight.toFixed(0)}. renderAtIdealSize: false.`);
 
-        // *** WRAPPER RECTANGLE for background/cornerRadius ***
         const panelContainer = new Rectangle("settingsPanelContainer");
-        panelContainer.width = "450px";
-        panelContainer.adaptHeightToChildren = true; // Auto height based on content
+        panelContainer.width = "480px";
+        panelContainer.adaptHeightToChildren = true;
         panelContainer.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panelContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        panelContainer.background = "rgba(0, 0, 0, 0.6)"; // Darker semi-transparent background
-        panelContainer.cornerRadius = 15; // Apply cornerRadius here
-        panelContainer.thickness = 0; // No border for container itself
+        panelContainer.background = "rgba(0, 0, 0, 0.6)";
+        panelContainer.cornerRadius = 15;
+        panelContainer.thickness = 0;
         this.guiTexture.addControl(panelContainer);
 
-        // Main StackPanel (goes inside the container)
         const panel = new StackPanel("settingsPanel");
-        // Remove background/cornerRadius from StackPanel itself
         panel.paddingTop = "20px"; panel.paddingBottom = "20px";
-        panel.paddingLeft = "15px"; panel.paddingRight = "15px"; // Padding inside container
-        panelContainer.addControl(panel); // Add StackPanel to Rectangle
+        panel.paddingLeft = "15px"; panel.paddingRight = "15px";
+        panelContainer.addControl(panel);
 
-        // Title
         const titleText = new TextBlock("settingsTitle", "Settings");
         titleText.color = "white"; titleText.fontSize = 32; titleText.height = "60px";
         panel.addControl(titleText);
@@ -62,24 +79,47 @@ export class SettingsScene {
         qualityPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panel.addControl(qualityPanel);
         (Object.keys(QualitySettings) as QualityLevel[]).forEach(level => {
-            const qualityButton = this.createOptionButton(`quality${level}Button`, level, () => {
+            const qualityButton = this.createOptionButton(`quality${level}Button`, QualitySettings[level].name, () => {
                 onQualityChange(level);
-                this.updateQualityButtons(level); // Update visuals immediately
+                this.updateQualityButtons(level);
             });
-            qualityButton.width = "80px";
+            qualityButton.width = "90px";
             this.qualityButtons.set(level, qualityButton);
             qualityPanel.addControl(qualityButton);
         });
-        this.updateQualityButtons(currentQuality); // Set initial active button
+        this.updateQualityButtons(currentQuality);
+
+        // --- UI Scale ---
+        this.createSectionTitle(panel, "UI Scale");
+        const uiScalePanel = new StackPanel("uiScalePanel");
+        uiScalePanel.isVertical = false; uiScalePanel.height = "50px"; uiScalePanel.spacing = 10;
+        uiScalePanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
+        panel.addControl(uiScalePanel);
+        (Object.keys(UIScaleSettings) as UIScaleLevel[]).forEach(level => {
+            const scaleButton = this.createOptionButton(`uiScale${level}Button`, UIScaleSettings[level].name, () => {
+                // This call informs the main game class to save the setting
+                onUIScaleChange(level);
+                // We also update the settings scene's own UI scale immediately
+                const scaleFactor = UIScaleSettings[level].scale;
+                this.guiTexture.idealWidth = UI_IDEAL_WIDTH / scaleFactor;
+                this.guiTexture.idealHeight = UI_IDEAL_HEIGHT / scaleFactor;
+                console.log(`[SettingsScene] UI Scale button clicked. New ideal dimensions: ${this.guiTexture.idealWidth.toFixed(0)}x${this.guiTexture.idealHeight.toFixed(0)}`);
+                this.updateUIScaleButtons(level);
+            });
+            scaleButton.width = "90px";
+            this.uiScaleButtons.set(level, scaleButton);
+            uiScalePanel.addControl(scaleButton);
+        });
+        this.updateUIScaleButtons(currentUIScale);
 
 
         // --- Language ---
         this.createSectionTitle(panel, "Language");
         const languagePanel = new StackPanel("languagePanel");
         languagePanel.isVertical = false; languagePanel.height = "50px"; languagePanel.spacing = 15;
-        languagePanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center buttons
+        languagePanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panel.addControl(languagePanel);
-        const languages = ["English", "Spanish", "French"]; // Example languages
+        const languages = ["English", "Spanish", "French"];
         languages.forEach(lang => {
             const langButton = this.createOptionButton(`${lang}Button`, lang, () => onLanguageChange(lang.toLowerCase()));
             languagePanel.addControl(langButton);
@@ -89,22 +129,21 @@ export class SettingsScene {
         this.createSectionTitle(panel, "Currency");
         const currencyPanel = new StackPanel("currencyPanel");
         currencyPanel.isVertical = false; currencyPanel.height = "50px"; currencyPanel.spacing = 15;
-        currencyPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center buttons
+        currencyPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         panel.addControl(currencyPanel);
-        const currencies = ["$", "€", "£", "¥"]; // Example currencies
+        const currencies = ["$", "€", "£", "¥"];
         currencies.forEach(currency => {
             const currencyButton = this.createOptionButton(`${currency}Button`, currency, () => onCurrencyChange(currency));
-            currencyButton.width = "60px"; // Adjust width for single characters
+            currencyButton.width = "60px";
             currencyPanel.addControl(currencyButton);
         });
 
         this.createSpacer(panel, "20px");
 
-        // --- Reset Funds ---
         const resetFundsButton = Button.CreateSimpleButton("resetFundsButton", "Reset Funds");
         resetFundsButton.width = "200px"; resetFundsButton.height = "50px"; resetFundsButton.color = "white";
         resetFundsButton.background = "orange"; resetFundsButton.cornerRadius = 8;
-        resetFundsButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center button
+        resetFundsButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         resetFundsButton.onPointerUpObservable.add(() => {
             this.showConfirmDialog("Are you sure you want to reset your funds to the default amount?", onResetFunds);
         });
@@ -112,11 +151,10 @@ export class SettingsScene {
 
         this.createSpacer(panel, "30px");
 
-        // --- Back Button ---
         const backButton = Button.CreateSimpleButton("backButton", "Back to Game");
         backButton.width = "200px"; backButton.height = "50px"; backButton.color = "white";
         backButton.background = "cornflowerblue"; backButton.cornerRadius = 8;
-        backButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER; // Center button
+        backButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         backButton.onPointerUpObservable.add(onBack);
         panel.addControl(backButton);
     }
@@ -124,7 +162,7 @@ export class SettingsScene {
     private createSectionTitle(parent: StackPanel, text: string): void {
         const title = new TextBlock();
         title.text = text;
-        title.color = "#CCCCCC"; // Lighter gray
+        title.color = "#CCCCCC";
         title.fontSize = 20;
         title.height = "40px";
         title.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
@@ -136,66 +174,67 @@ export class SettingsScene {
         button.width = "100px";
         button.height = "40px";
         button.color = "white";
-        button.background = "darkgreen"; // Darker green
+        button.background = "darkgreen";
         button.cornerRadius = 5;
         button.onPointerUpObservable.add(onClick);
         return button;
     }
 
-    // *** ADDED ***
     private updateQualityButtons(activeLevel: QualityLevel): void {
         this.qualityButtons.forEach((button, level) => {
             const isActive = level === activeLevel;
             button.isEnabled = !isActive;
-            button.alpha = isActive ? 0.6 : 1.0; // Dim the active button
+            button.alpha = isActive ? 0.6 : 1.0;
+            button.background = isActive ? "gray" : "darkgreen";
+        });
+    }
+
+    private updateUIScaleButtons(activeLevel: UIScaleLevel): void {
+        this.uiScaleButtons.forEach((button, level) => {
+            const isActive = level === activeLevel;
+            button.isEnabled = !isActive;
+            button.alpha = isActive ? 0.6 : 1.0;
             button.background = isActive ? "gray" : "darkgreen";
         });
     }
 
     private createSpacer(parent: StackPanel, height: string): void {
-        const spacer = new Control(); // Use Control for pure spacing
+        const spacer = new Control();
         spacer.height = height;
         parent.addControl(spacer);
     }
     private showConfirmDialog(message: string, onConfirm: () => void): void {
-        // Container for the dialog + overlay
         const dialogContainer = new Rectangle("confirmDialogContainer");
-        dialogContainer.width = 1.0; // Fullscreen
+        dialogContainer.width = 1.0;
         dialogContainer.height = 1.0;
-        dialogContainer.background = "rgba(0, 0, 0, 0.7)"; // Dark overlay
-        dialogContainer.zIndex = 100; // Ensure it's on top
+        dialogContainer.background = "rgba(0, 0, 0, 0.7)";
+        dialogContainer.zIndex = 100;
         this.guiTexture.addControl(dialogContainer);
 
-        // *** ADDED: Wrapper Rectangle for the dialog panel ***
         const dialogPanelContainer = new Rectangle("confirmDialogPanelContainer");
         dialogPanelContainer.width = "400px";
-        dialogPanelContainer.adaptHeightToChildren = true; // Auto height
-        dialogPanelContainer.background = "#444444"; // Dark gray background on container
-        dialogPanelContainer.cornerRadius = 10;      // cornerRadius on container
-        dialogPanelContainer.thickness = 1;          // Optional border on container
+        dialogPanelContainer.adaptHeightToChildren = true;
+        dialogPanelContainer.background = "#444444";
+        dialogPanelContainer.cornerRadius = 10;
+        dialogPanelContainer.thickness = 1;
         dialogPanelContainer.color = "#666";
         dialogPanelContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        dialogContainer.addControl(dialogPanelContainer); // Add container to overlay
+        dialogContainer.addControl(dialogPanelContainer);
 
-        // Dialog StackPanel (goes inside the container)
         const dialogPanel = new StackPanel("confirmDialogPanel");
-        // Remove background/cornerRadius from StackPanel
         dialogPanel.paddingTop = "20px";
         dialogPanel.paddingBottom = "20px";
         dialogPanel.paddingLeft = "15px";
         dialogPanel.paddingRight = "15px";
-        // *** CHANGED: Add StackPanel to the new Rectangle container ***
         dialogPanelContainer.addControl(dialogPanel);
 
-        // Dialog text (remains inside dialogPanel)
         const dialogText = new TextBlock("confirmText", message);
         dialogText.color = "white";
         dialogText.fontSize = 18;
-        dialogText.height = "80px"; // Adjust as needed or use adaptHeightToChildren on container
+        dialogText.height = "80px";
         dialogText.textWrapping = true;
         dialogPanel.addControl(dialogText);
 
-        // Buttons panel (remains inside dialogPanel)
         const buttonsPanel = new StackPanel("confirmButtonsPanel");
         buttonsPanel.isVertical = false;
         buttonsPanel.height = "50px";
@@ -203,28 +242,26 @@ export class SettingsScene {
         buttonsPanel.spacing = 20;
         dialogPanel.addControl(buttonsPanel);
 
-        // Yes button (remains inside buttonsPanel)
         const yesButton = Button.CreateSimpleButton("yesButton", "Yes");
         yesButton.width = "100px";
         yesButton.height = "40px";
         yesButton.color = "white";
-        yesButton.background = "darkred"; // Confirm action color
+        yesButton.background = "darkred";
         yesButton.cornerRadius = 5;
         yesButton.onPointerUpObservable.add(() => {
             onConfirm();
-            this.guiTexture.removeControl(dialogContainer); // Dispose container
+            this.guiTexture.removeControl(dialogContainer);
         });
         buttonsPanel.addControl(yesButton);
 
-        // No button (remains inside buttonsPanel)
         const noButton = Button.CreateSimpleButton("noButton", "No");
         noButton.width = "100px";
         noButton.height = "40px";
         noButton.color = "white";
-        noButton.background = "#555555"; // Cancel action color
+        noButton.background = "#555555";
         noButton.cornerRadius = 5;
         noButton.onPointerUpObservable.add(() => {
-            this.guiTexture.removeControl(dialogContainer); // Dispose container
+            this.guiTexture.removeControl(dialogContainer);
         });
         buttonsPanel.addControl(noButton);
     }

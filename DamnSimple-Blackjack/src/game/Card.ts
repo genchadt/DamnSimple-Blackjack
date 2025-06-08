@@ -1,4 +1,3 @@
-// src/game/card.ts
 /** Defines the suits of a standard playing card. */
 export enum Suit {
     Hearts = "Hearts",
@@ -116,7 +115,7 @@ export class Card {
         if (this.onFlip) {
             this.onFlip(this); // Notify listeners about the flip
         } else {
-             // console.warn(`Card ${this.toString()} flipped, but no onFlip callback registered.`); // Reduce log noise
+            // console.warn(`Card ${this.toString()} flipped, but no onFlip callback registered.`); // Reduce log noise
         }
     }
 

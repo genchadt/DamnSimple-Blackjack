@@ -4,8 +4,8 @@ import { Engine } from "@babylonjs/core/Engines/engine"; // Corrected import pat
 import { GameScene } from "./scenes/GameScene";
 import { SettingsScene } from "./scenes/SettingsScene";
 import { Scene } from "@babylonjs/core/scene"; // Import Scene
-import { GameStorage } from "./game/GameStorage"; // *** ADDED ***
-import { QualityLevel, QualitySettings } from "./Constants"; // *** ADDED ***
+import { GameStorage } from "./game/GameStorage";
+import { QualityLevel, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL } from "./Constants";
 
 // Required for GUI and Inspector
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
@@ -22,7 +22,8 @@ class Game {
     private currentSceneType: "game" | "settings" | "none" = "none";
     private currentLanguage: string = "english";
     private currencySign: string = "$";
-    private currentQualityLevel: QualityLevel; // *** ADDED ***
+    private currentQualityLevel: QualityLevel;
+    private currentUIScaleLevel: UIScaleLevel; // *** ADDED ***
     private loadingIndicator: HTMLElement | null;
 
     constructor() {
@@ -36,28 +37,23 @@ class Game {
         }
         this.canvas = canvas;
 
-        // *** ADDED: Load quality setting before creating engine ***
         this.currentQualityLevel = GameStorage.loadQualityLevel();
+        this.currentUIScaleLevel = GameStorage.loadUIScaleLevel(); // *** ADDED ***
 
         try {
-            this.engine = new Engine(this.canvas, true, { stencil: true, preserveDrawingBuffer: true }, true); // Added options
+            this.engine = new Engine(this.canvas, true, { stencil: true, preserveDrawingBuffer: true }, true);
             console.log("[Game] Engine created");
 
-            // *** ADDED: Apply loaded quality setting to engine ***
-            this.applyQualitySettings(this.currentQualityLevel, false); // Apply without saving again
+            this.applyGraphicsQualitySettings(this.currentQualityLevel, false); // Apply without saving again
+            // UI Scale is applied when GameScene/GameUI is created/switched to
 
-            // Expose engine globally for debugging if needed
             (window as any).engine = this.engine;
 
-            // Start the game directly
             this.startGame();
 
-            // Run the render loop
             this.engine.runRenderLoop(() => {
                 if (this.currentSceneInstance) {
                     this.currentSceneInstance.render();
-                } else {
-                    // console.warn("[Game] Render loop running but no active scene.");
                 }
             });
 
@@ -89,7 +85,6 @@ class Game {
     private switchScene(newSceneType: "game" | "settings"): void {
         console.log(`[Game] Switching scene from ${this.currentSceneType} to ${newSceneType}`);
 
-        // Dispose previous scene if it exists
         if (this.currentSceneInstance) {
             console.log(`[Game] Disposing previous scene (${this.currentSceneType})`);
             if (this.currentSceneType === "game" && this.gameScene) {
@@ -102,17 +97,15 @@ class Game {
             this.currentSceneInstance = null;
         }
 
-        // Create and set the new scene
         try {
             if (newSceneType === "game") {
                 console.log("[Game] Creating new GameScene...");
                 this.gameScene = new GameScene(this.engine, this.canvas, () => this.openSettings());
                 this.currentSceneInstance = this.gameScene.getScene();
                 this.currentSceneType = "game";
-                // Apply settings after scene creation
                 this.applyCurrencySign();
-                // Apply quality setting to the new GameScene's components
-                this.gameScene.applyQualitySetting(this.currentQualityLevel);
+                this.gameScene.applyGraphicsQualitySetting(this.currentQualityLevel); // Apply current graphics quality
+                this.gameScene.applyUIScaleSetting(this.currentUIScaleLevel); // *** ADDED: Apply UI Scale ***
                 console.log("[Game] GameScene created and set as active.");
             } else if (newSceneType === "settings") {
                 console.log("[Game] Creating new SettingsScene...");
@@ -122,15 +115,16 @@ class Game {
                     () => this.resetFunds(),
                     (lang) => this.changeLanguage(lang),
                     (currency) => this.changeCurrency(currency),
-                    (level) => this.changeQuality(level), // Pass quality change handler
-                    this.currentQualityLevel // Pass current quality level
+                    (level) => this.changeGraphicsQuality(level),
+                    this.currentQualityLevel,
+                    (level) => this.changeUIScale(level), // *** ADDED: Pass UI Scale handler ***
+                    this.currentUIScaleLevel // *** ADDED: Pass current UI Scale ***
                 );
                 this.currentSceneInstance = this.settingsScene.getScene();
                 this.currentSceneType = "settings";
                 console.log("[Game] SettingsScene created and set as active.");
             }
 
-            // Hide loading indicator once the first scene is ready
             if (this.currentSceneInstance) {
                 this.currentSceneInstance.executeWhenReady(() => {
                     this.hideLoading();
@@ -157,34 +151,28 @@ class Game {
     private closeSettings(): void {
         console.log("[Game] Closing settings (switching back to game scene).");
         this.switchScene("game");
-        // Update game UI after returning (handled by applyCurrencySign in switchScene)
     }
 
     private resetFunds(): void {
         console.log("[Game] Resetting funds request.");
-        // Ensure we are in the game scene logic context when resetting
         if (this.gameScene) {
             this.gameScene.getBlackjackGame().resetFunds();
             console.log("[Game] Funds reset in BlackjackGame instance.");
-            // Optionally update UI immediately if needed, though switching back will update it
             this.gameScene.update();
         } else {
             console.warn("[Game] Cannot reset funds: GameScene not active.");
-            // If settings needs direct access, PlayerFunds would need static methods or event bus
         }
     }
 
     private changeLanguage(language: string): void {
         console.log(`[Game] Changing language to ${language}`);
         this.currentLanguage = language;
-        // TODO: Implement actual language change logic (e.g., update UI text)
         console.warn("[Game] Language change functionality not fully implemented.");
     }
 
     private changeCurrency(currency: string): void {
         console.log(`[Game] Changing currency to ${currency}`);
         this.currencySign = currency;
-        // Apply the change to the game UI if it's active
         this.applyCurrencySign();
     }
 
@@ -192,35 +180,55 @@ class Game {
      * Changes the graphics quality setting.
      * @param level The new quality level.
      */
-    private changeQuality(level: QualityLevel): void {
-        if (this.currentQualityLevel === level) return; // No change
-        console.log(`[Game] Changing quality from ${this.currentQualityLevel} to ${level}`);
-        this.applyQualitySettings(level, true); // Apply and save
+    private changeGraphicsQuality(level: QualityLevel): void {
+        if (this.currentQualityLevel === level) return;
+        console.log(`[Game] Changing graphics quality from ${this.currentQualityLevel} to ${level}`);
+        this.applyGraphicsQualitySettings(level, true);
 
-        // If the game scene is active, tell it to update its visuals
         if (this.currentSceneType === "game" && this.gameScene) {
-            console.log("[Game] Applying quality setting to active GameScene.");
-            this.gameScene.applyQualitySetting(level);
+            console.log("[Game] Applying graphics quality setting to active GameScene.");
+            this.gameScene.applyGraphicsQualitySetting(level);
         }
     }
 
     /**
-     * Applies quality settings to the engine and saves the choice.
+     * Applies graphics quality settings to the engine and saves the choice.
      * @param level The quality level to apply.
      * @param save Whether to save the setting to storage.
      */
-    private applyQualitySettings(level: QualityLevel, save: boolean): void {
+    private applyGraphicsQualitySettings(level: QualityLevel, save: boolean): void {
         this.currentQualityLevel = level;
         const settings = QualitySettings[level];
 
-        // Apply hardware scaling to the engine
-        this.engine.setHardwareScalingLevel(settings.scaling);
-        console.log(`[Game] Applied quality setting: ${level} (Scaling: ${settings.scaling}, Texture: ${settings.textureSize})`);
+        // Hardware scaling is no longer part of graphics quality to decouple it from UI rendering.
+        // This call affected the entire canvas resolution, including UI elements.
+        // this.engine.setHardwareScalingLevel(settings.scaling);
+        console.log(`[Game] Applied graphics quality setting: ${level} (Texture Size: ${settings.textureSize})`);
 
         if (save) {
             GameStorage.saveQualityLevel(level);
         }
     }
+
+    // *** ADDED METHOD ***
+    /**
+     * Changes the UI scale setting.
+     * @param level The new UI scale level.
+     */
+    private changeUIScale(level: UIScaleLevel): void {
+        if (this.currentUIScaleLevel === level) return;
+        console.log(`[Game] Changing UI scale from ${this.currentUIScaleLevel} to ${level}`);
+        this.currentUIScaleLevel = level;
+        GameStorage.saveUIScaleLevel(level); // Save setting
+
+        // If the game scene is active, tell it to update its UI scale
+        if (this.currentSceneType === "game" && this.gameScene) {
+            console.log("[Game] Applying UI scale setting to active GameScene.");
+            this.gameScene.applyUIScaleSetting(level);
+        }
+        // If settings scene is active, it will be recreated on switch, applying new scale then.
+    }
+
 
     private applyCurrencySign(): void {
         if (this.currentSceneType === "game" && this.gameScene) {
@@ -239,7 +247,6 @@ class Game {
     }
 }
 
-// Start the game when the page loads
 window.addEventListener("DOMContentLoaded", () => {
     console.log("[DOM] DOM content loaded, creating game...");
     try {

@@ -35,8 +35,8 @@ export class Deck {
 
     public drawCard(): Card | undefined {
         if (this.needsShuffle()) {
-             console.log(`[Deck] Low cards (${this.cards.length}), reshuffling...`);
-             this.reset();
+            console.log(`[Deck] Low cards (${this.cards.length}), reshuffling...`);
+            this.reset();
         }
         if (this.cards.length === 0) {
             console.warn("[Deck] is empty!");

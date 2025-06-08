@@ -1,5 +1,4 @@
 // src/game/handmanager-ts
-// Added debug log to registerFlipCallback
 import { Card } from "./Card";
 import { Deck } from "./Deck";
 
@@ -58,7 +57,7 @@ export class HandManager {
         card.setFlipCallback((flippedCard) => {
             console.log(`%c[HandManager] Flip detected for ${flippedCard.toString()} (now ${flippedCard.isFaceUp() ? 'UP' : 'DOWN'}), notifying ${this.cardFlipCallbacks.size} listeners.`, 'color: #B8860B');
             this.cardFlipCallbacks.forEach((callback, id) => {
-                 // console.log(`Notifying listener: ${id}`);
+                // console.log(`Notifying listener: ${id}`);
                 try {
                     callback(flippedCard);
                 } catch (e) {

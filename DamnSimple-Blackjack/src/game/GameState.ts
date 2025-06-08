@@ -1,4 +1,4 @@
-// game/GameState.ts
+// src/game/PlayerFunds.ts
 export enum GameState {
     Initial,      // Initial state - empty table
     Betting,      // Player setting bet

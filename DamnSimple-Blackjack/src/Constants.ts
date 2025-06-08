@@ -4,18 +4,29 @@ import { Vector3 } from "@babylonjs/core";
 // --- Graphics Quality ---
 /** Defines quality settings for rendering and textures. */
 export const QualitySettings = {
-    Low: { name: "Low", scaling: 1.5, textureSize: 256 },
-    Medium: { name: "Medium", scaling: 1.0, textureSize: 512 },
-    High: { name: "High", scaling: 0.75, textureSize: 1024 },
-    Ultra: { name: "Ultra", scaling: 0.5, textureSize: 2048 },
+    Low: { name: "Low", textureSize: 256 },
+    Medium: { name: "Medium", textureSize: 512 },
+    High: { name: "High", textureSize: 1024 },
+    Ultra: { name: "Ultra", textureSize: 2048 },
 };
 export type QualityLevel = keyof typeof QualitySettings;
 export const DEFAULT_QUALITY_LEVEL: QualityLevel = "Medium";
 
+// --- UI Scale ---
+/** Defines UI scale settings. The scale factor is applied to GUI textures. */
+export const UIScaleSettings = {
+    Small: { name: "Small", scale: 0.8 },
+    Normal: { name: "Normal", scale: 1.0 },
+    Large: { name: "Large", scale: 1.2 },
+    ExtraLarge: { name: "X-Large", scale: 1.4 },
+};
+export type UIScaleLevel = keyof typeof UIScaleSettings;
+export const DEFAULT_UI_SCALE_LEVEL: UIScaleLevel = "Normal";
 
-// --- Card Dimensions & Scaling ---
-const CARD_SCALE = 0.8;
-const CARD_ASPECT_RATIO = 1.4; // Standard playing card height/width ratio
+// --- UI Rendering ---
+export const UI_IDEAL_WIDTH = 1920;
+export const UI_IDEAL_HEIGHT = 1080;
+
 
 // --- Game Rules ---
 const DEFAULT_FUNDS = 1000;
@@ -34,6 +45,8 @@ const CARD_Y_POS = 0.05; // How high cards sit off the table surface
 const DECK_DISPENSER_Y_OFFSET = 0.10; // How high the center of the dispenser is above CARD_Y_POS
 
 // --- Card Visuals & Spacing ---
+const CARD_SCALE = 1.0; // Default scale for cards
+const CARD_ASPECT_RATIO = 1.4; // Height / Width
 const CARD_WIDTH = 1.0 * CARD_SCALE;
 const CARD_HEIGHT = CARD_WIDTH * CARD_ASPECT_RATIO;
 const CARD_DEPTH = 0.02 * CARD_SCALE; // Thickness scales too

@@ -1,4 +1,4 @@
-// src/scenes/components/cardvisualizer.ts
+// src/scenes/components/CardVisualizer.ts
 import { Scene, Vector3, MeshBuilder, StandardMaterial, Color3, Texture, DynamicTexture,
     Mesh, Animation, EasingFunction, CubicEase, QuadraticEase, SineEase, Material, BackEase, MultiMaterial, Vector4, SubMesh, Quaternion } from "@babylonjs/core";
 import { Card } from "../../game/Card"; // Ensure Card is imported
@@ -13,7 +13,7 @@ export class CardVisualizer {
     private animationOriginPosition: Vector3;
     private animationInProgress: boolean = false;
     private onAnimationCompleteCallback: (() => void) | null = null;
-    private currentTextureSize: number; // *** ADDED ***
+    private currentTextureSize: number;
 
     // --- Constants Kept Local ---
     private static readonly SUBMESH_PLUS_Z = 0;
@@ -26,7 +26,6 @@ export class CardVisualizer {
     private static readonly MATIDX_BACK = 1;
     private static readonly MATIDX_SIDE = 2;
 
-    // *** CORRECTED QUATERNION DEFINITIONS ***
     // Face Up: Rotate the box so its original -Z face (where face texture is applied) points towards world +Y
     private static readonly FACE_UP_FLAT_QUAT = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
     // Face Down: Rotate the box so its original +Z face (where back texture is applied) points towards world +Y
@@ -38,13 +37,12 @@ export class CardVisualizer {
     private cardSideMaterial: StandardMaterial | null = null;
     private cardFaceMaterials: Map<string, StandardMaterial> = new Map(); // Cache for materials using SVG textures
     private svgTextureCache: Map<string, Texture> = new Map(); // Cache for the loaded SVG textures
-    private tempCardContainer: HTMLElement; // Current container for <playing-card> elements
-    private internalTempCardContainer: HTMLElement; // Default hidden container
+    private internalTempCardContainer: HTMLElement; // Default hidden container for <playing-card> elements
 
     constructor(scene: Scene, blackjackGame: BlackjackGame, deckPositionXZ: Vector3) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
-        this.currentTextureSize = QualitySettings[DEFAULT_QUALITY_LEVEL].textureSize; // *** ADDED ***
+        this.currentTextureSize = QualitySettings[DEFAULT_QUALITY_LEVEL].textureSize;
 
         const animationOriginY = Constants.CARD_Y_POS + Constants.DECK_DISPENSER_Y_OFFSET;
         this.animationOriginPosition = new Vector3(deckPositionXZ.x, animationOriginY, deckPositionXZ.z);
@@ -52,7 +50,6 @@ export class CardVisualizer {
         // Create and manage an internal hidden container for SVG generation
         this.internalTempCardContainer = this._createDefaultTempCardContainer();
         document.body.appendChild(this.internalTempCardContainer);
-        this.tempCardContainer = this.internalTempCardContainer; // Use internal by default
 
         this.blackjackGame.addCardFlipCallback(
             "cardVisualizerFlipHandler",
@@ -96,21 +93,9 @@ export class CardVisualizer {
         return container;
     }
 
-    /**
-     * Allows an external (e.g., debug) container to be used for temporary card elements.
-     * Caution: This can expose internal rendering details. Use for debugging only.
-     */
-    public setTempCardContainer(container: HTMLElement | null): void {
-        if (container) {
-            // If switching to a new container, move existing elements
-            this.tempCardContainer.childNodes.forEach(node => {
-                container.appendChild(node);
-            });
-        } else {
-            // Revert to internal container
-            this.tempCardContainer = this.internalTempCardContainer;
-        }
-    }
+    // *** REMOVED setTempCardContainer method ***
+    // CardVisualizer will now always use its internalTempCardContainer for texture generation.
+    // The debug display of cards will be handled entirely by DebugManager.
 
     public setOnAnimationCompleteCallback(callback: () => void): void {
         this.onAnimationCompleteCallback = callback;
@@ -139,7 +124,7 @@ export class CardVisualizer {
      */
     public async getCardFaceMaterial(card: Card): Promise<StandardMaterial> {
         const cid = card.getCid(); // Use cid as the unique key
-        const materialCacheKey = `svgMat_${cid}_${this.currentTextureSize}`; // *** UPDATED *** Include size in key
+        const materialCacheKey = `svgMat_${cid}_${this.currentTextureSize}`; // Include size in key
 
         if (this.cardFaceMaterials.has(materialCacheKey)) {
             return this.cardFaceMaterials.get(materialCacheKey)!;
@@ -184,7 +169,7 @@ export class CardVisualizer {
      */
     private getOrCreateSVGTexture(card: Card): Promise<Texture> {
         const cid = card.getCid();
-        const textureCacheKey = `svgTex_dynamic_${cid}_${this.currentTextureSize}`; // *** UPDATED ***
+        const textureCacheKey = `svgTex_dynamic_${cid}_${this.currentTextureSize}`;
 
         if (this.svgTextureCache.has(textureCacheKey)) {
             return Promise.resolve(this.svgTextureCache.get(textureCacheKey)!);
@@ -196,11 +181,11 @@ export class CardVisualizer {
             const cardElement = document.createElement('playing-card');
             cardElement.setAttribute('cid', cid);
             cardElement.id = `temp-card-${cid}-${Date.now()}`;
-            cardElement.style.display = 'inline-block';
-            cardElement.style.width = '70px';
-            cardElement.style.height = '100px';
-            cardElement.style.border = '1px solid green';
-            cardElement.style.margin = '2px';
+            cardElement.style.display = 'inline-block'; // Important for rendering
+            // These dimensions are for the temporary HTML element, not the final texture
+            cardElement.style.width = `${this.currentTextureSize}px`;
+            cardElement.style.height = `${this.currentTextureSize * Constants.CARD_ASPECT_RATIO}px`;
+
 
             let observer: MutationObserver | null = null;
             let timeoutId: number | null = null;
@@ -214,8 +199,9 @@ export class CardVisualizer {
                     clearTimeout(timeoutId);
                     timeoutId = null;
                 }
-                if (cardElement.parentNode === this.tempCardContainer) {
-                    this.tempCardContainer.removeChild(cardElement);
+                // Use internalTempCardContainer for cleanup
+                if (cardElement.parentNode === this.internalTempCardContainer) {
+                    this.internalTempCardContainer.removeChild(cardElement);
                 }
             };
 
@@ -230,7 +216,6 @@ export class CardVisualizer {
                 image.onload = () => {
                     console.log(`%c[CardViz]   -> HTMLImageElement loaded SVG for ${cid}. Dimensions: ${image.width}x${image.height}`, 'color: green');
 
-                    // *** UPDATED: Use quality setting for texture size ***
                     const texWidth = this.currentTextureSize;
                     const texHeight = this.currentTextureSize * Constants.CARD_ASPECT_RATIO;
 
@@ -287,8 +272,9 @@ export class CardVisualizer {
             });
 
             observer.observe(cardElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-            this.tempCardContainer.appendChild(cardElement);
-            console.log(`%c[CardViz]   -> Appended <playing-card cid=${cid}> to temp container. Waiting for internal <img> with data URI src...`, 'color: blue');
+            // Use internalTempCardContainer for appending
+            this.internalTempCardContainer.appendChild(cardElement);
+            console.log(`%c[CardViz]   -> Appended <playing-card cid=${cid}> to internal temp container. Waiting for internal <img> with data URI src...`, 'color: blue');
 
             timeoutId = window.setTimeout(() => {
                 timeoutId = null;
@@ -528,7 +514,7 @@ export class CardVisualizer {
 
         hand.forEach((card, index) => {
             const cardMesh = this.cardMeshes.get(card.getUniqueId());
-            if (cardMesh && index < newHandSize - 1) {
+            if (cardMesh && index < newHandSize - 1) { // Only reposition existing cards, not the new one being dealt
                 const newPosition = this.calculateCardPosition(index, isPlayer, newHandSize);
                 console.log(`%c[CardViz]   -> Repositioning ${card.toString()} (Index ${index}) to ${newPosition.toString()}`, 'color: #FFA500');
                 if (!cardMesh.position.equalsWithEpsilon(newPosition, 0.01)) {
@@ -542,7 +528,7 @@ export class CardVisualizer {
                         newPosition,
                         Constants.REPOSITION_DURATION_MS,
                         ease,
-                        false
+                        false // Repositioning does not trigger the main onAnimationCompleteCallback
                     );
                 }
             } else if (!cardMesh && index < newHandSize - 1) {
@@ -594,7 +580,7 @@ export class CardVisualizer {
             cardMesh.rotationQuaternion = targetQuaternion.clone();
         } else {
             console.log(`%c[CardViz]   -> No rotation needed. Visual state matches logical state.`, 'color: #BA55D3');
-            if (!currentQuaternion.equals(targetQuaternion)) {
+            if (!currentQuaternion.equals(targetQuaternion)) { // Ensure exact match if no animation
                 cardMesh.rotationQuaternion = targetQuaternion.clone();
             }
         }
@@ -616,8 +602,10 @@ export class CardVisualizer {
     public isAnimationInProgress(): boolean {
         if (this.animationInProgress) return true;
 
+        // Check if any card mesh has active animations
         for (const mesh of this.cardMeshes.values()) {
             if (this.scene.getAllAnimatablesByTarget(mesh).length > 0) {
+                // console.log(`[CardViz] Animation in progress for mesh: ${mesh.name}`);
                 return true;
             }
         }
@@ -628,7 +616,7 @@ export class CardVisualizer {
     private animateCardDealing(mesh: Mesh, index: number, isPlayer: boolean, faceUp: boolean, card: Card): void {
         const cardId = card.getUniqueId();
         const targetOwner = isPlayer ? 'Player' : 'Dealer';
-        const finalHandSize = this.getHandSize(isPlayer);
+        const finalHandSize = this.getHandSize(isPlayer); // Size of hand *after* this card is added
 
         console.log(`%c[CardViz] >>> animateCardDealing START for ${card.toString()} (Mesh: ${mesh.name}) to ${targetOwner}`, 'color: #1E90FF');
         console.log(`%c[CardViz]     Target Index: ${index}, Final Hand Size: ${finalHandSize}, Target FaceUp: ${faceUp}`, 'color: #1E90FF');
@@ -647,12 +635,15 @@ export class CardVisualizer {
         const rotationEase = new QuadraticEase(); rotationEase.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
 
         const startQuat = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : Quaternion.Identity();
-        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone();
+        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone(); // Ensure it's initialized
         console.log(`%c[CardViz]     Start Quat (New Card): ${startQuat.toString()}`, 'color: #FF4500; font-weight: bold;');
 
+        // Reposition existing cards in the hand *before* animating the new card
+        // Pass finalHandSize so existing cards move to their positions considering the new card
         console.log(`%c[CardViz]     Calling repositionHandCards for ${targetOwner} BEFORE starting new card animation.`, 'color: #FFA500; font-weight: bold;');
         this.repositionHandCards(isPlayer, finalHandSize);
 
+        // Animations for the new card
         const posAnim = new Animation("dealPosAnim", "position", Constants.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
         posAnim.setKeys([{ frame: 0, value: mesh.position.clone() }, { frame: slideFrames, value: targetPos }]);
         posAnim.setEasingFunction(slideEase);
@@ -668,9 +659,11 @@ export class CardVisualizer {
             () => {
                 console.log(`%c[CardViz] <<< Deal Animation CALLBACK START for ${card.toString()} (Mesh: ${mesh.name})`, 'color: #1E90FF; font-weight: bold;');
 
+                // Ensure final state is set precisely
                 mesh.position = targetPos;
                 mesh.rotationQuaternion = targetQuat.clone();
 
+                // Verify final rotation matches logical card state
                 const logicalCard = this.blackjackGame.getPlayerHand().find(c => c.getUniqueId() === cardId) || this.blackjackGame.getDealerHand().find(c => c.getUniqueId() === cardId);
                 if (logicalCard && mesh.rotationQuaternion) {
                     const expectedQuat = logicalCard.isFaceUp() ? CardVisualizer.FACE_UP_FLAT_QUAT : CardVisualizer.FACE_DOWN_FLAT_QUAT;
@@ -682,16 +675,19 @@ export class CardVisualizer {
                     console.warn(`[CardViz] Could not find logical card ${cardId} or mesh quaternion after deal animation to verify final rotation.`);
                 }
 
-                this.animationInProgress = false;
+                this.animationInProgress = false; // Mark this specific animation as complete
 
+                // Check if *any* other animations are still running (e.g., repositioning)
+                // before calling the global onAnimationCompleteCallback.
                 if (this.onAnimationCompleteCallback) {
-                    setTimeout(() => {
+                    setTimeout(() => { // Use setTimeout to allow current stack to clear
                         if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                            // console.log(`[CardViz] Deal Callback: No other animations running. Calling master onAnimationCompleteCallback.`);
                             this.onAnimationCompleteCallback();
                         } else {
-                            console.warn(`[CardViz] Deal Callback skipped: Another animation started or callback became null.`);
+                            console.warn(`[CardViz] Deal Callback: Another animation still in progress or callback became null. Master callback NOT called yet.`);
                         }
-                    }, 0);
+                    }, 0); // A small delay might be safer: 10-50ms
                 } else {
                     console.warn("[CardViz] Deal animation finished, but no onAnimationCompleteCallback set.");
                 }
@@ -706,8 +702,8 @@ export class CardVisualizer {
         const durationFrames = Constants.FLIP_DURATION_MS / 1000 * Constants.FPS;
         const easing = new QuadraticEase(); easing.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
 
-        const startQuat = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : CardVisualizer.FACE_UP_FLAT_QUAT;
-        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone();
+        const startQuat = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : CardVisualizer.FACE_UP_FLAT_QUAT; // Default to a known state if null
+        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone(); // Initialize if null
 
         const rotQuatAnim = new Animation("flipRotQuatAnim", "rotationQuaternion", Constants.FPS, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CONSTANT);
         rotQuatAnim.setKeys([{ frame: 0, value: startQuat }, { frame: durationFrames, value: targetQuat }]);
@@ -716,16 +712,17 @@ export class CardVisualizer {
         this.scene.beginDirectAnimation(mesh, [rotQuatAnim], 0, durationFrames, false, 1, () => {
             console.log(`%c[CardViz] <<< Flip Animation CALLBACK START for mesh ${mesh.name}`, 'color: orange; font-weight: bold;');
 
-            mesh.rotationQuaternion = targetQuat.clone();
+            mesh.rotationQuaternion = targetQuat.clone(); // Ensure final state
 
-            this.animationInProgress = false;
+            this.animationInProgress = false; // Mark this specific animation as complete
 
             if (this.onAnimationCompleteCallback) {
-                setTimeout(() => {
+                setTimeout(() => { // Use setTimeout to allow current stack to clear
                     if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                        // console.log(`[CardViz] Flip Callback: No other animations running. Calling master onAnimationCompleteCallback.`);
                         this.onAnimationCompleteCallback();
                     } else {
-                        console.warn(`[CardViz] Flip Callback skipped: Another animation started or callback became null.`);
+                        console.warn(`[CardViz] Flip Callback: Another animation still in progress or callback became null. Master callback NOT called yet.`);
                     }
                 }, 0);
             } else {
@@ -741,9 +738,9 @@ export class CardVisualizer {
             return;
         }
 
-        if (triggerCompletionCallback) {
-            this.animationInProgress = true;
-        }
+        // This type of animation (like reposition) should not set the global animationInProgress flag
+        // or trigger the main onAnimationCompleteCallback, as it's often a secondary animation.
+        // The main deal/flip animations control the game flow callback.
 
         const durationFrames = durationMs / 1000 * Constants.FPS;
         const effectiveEasing = easing ?? new CubicEase();
@@ -760,7 +757,7 @@ export class CardVisualizer {
         let startValue = mesh.position.clone();
 
         if (startValue.equalsWithEpsilon(targetValue, 0.001)) {
-            if (triggerCompletionCallback) this.animationInProgress = false;
+            // No animation needed if already at target
             return;
         }
 
@@ -768,10 +765,12 @@ export class CardVisualizer {
         anim.setEasingFunction(effectiveEasing);
 
         this.scene.beginDirectAnimation(mesh, [anim], 0, durationFrames, false, 1.0, () => {
-            mesh.position = targetValue;
+            mesh.position = targetValue; // Ensure final position
+            // console.log(`%c[CardViz] animateVector3 completed for ${mesh.name} (property: ${property}). TriggerCallback: ${triggerCompletionCallback}`, 'color: gray');
+
+            // Only trigger the main callback if explicitly told to AND it's the only animation left.
             if (triggerCompletionCallback) {
-                console.log(`%c[CardViz] animateVector3 completed for ${mesh.name} (triggering callback).`, 'color: gray');
-                this.animationInProgress = false;
+                this.animationInProgress = false; // Mark this specific animation complete
                 if(this.onAnimationCompleteCallback) {
                     setTimeout(() => {
                         if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
@@ -798,7 +797,7 @@ export class CardVisualizer {
 
         try {
             console.log("[CardViz] Creating DYNAMIC card back material...");
-            const textureSize = { width: 256, height: 358 };
+            const textureSize = { width: 256, height: 358 }; // Fixed size for back texture for now
             const cornerRadius = 20;
 
             const texture = new DynamicTexture("dynamicCardBackTexture", textureSize, this.scene, true);
@@ -809,7 +808,7 @@ export class CardVisualizer {
             const height = textureSize.height;
 
             ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = "#B22222";
+            ctx.fillStyle = "#B22222"; // Firebrick red
             ctx.beginPath();
             ctx.moveTo(cornerRadius, 0);
             ctx.lineTo(width - cornerRadius, 0);
@@ -823,32 +822,47 @@ export class CardVisualizer {
             ctx.closePath();
             ctx.fill();
 
-            const patternLineColor = "rgba(0, 0, 0, 0.15)";
-            const patternLineWidth = 1;
-            const patternSpacing = 8;
+            // Simple cross-hatch pattern
+            const patternLineColor = "rgba(0, 0, 0, 0.15)"; // Darker, semi-transparent
+            const patternLineWidth = 1; // Thinner lines
+            const patternSpacing = 8; // Spacing of lines
+
             ctx.strokeStyle = patternLineColor;
             ctx.lineWidth = patternLineWidth;
-            ctx.clip();
+
+            // Clip to the rounded rectangle path before drawing pattern
+            // (The path is already defined and filled, so we can reuse it for clipping)
+            ctx.clip(); // Apply the existing path as a clipping region
+
+            // Draw diagonal lines (/)
             for (let i = -height; i < width; i += patternSpacing) {
-                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + height, height); ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + height, height);
+                ctx.stroke();
             }
+            // Draw anti-diagonal lines (\)
             for (let i = 0; i < width + height; i += patternSpacing) {
-                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i - height, height); ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i - height, height);
+                ctx.stroke();
             }
 
-            (ctx as any).imageSmoothingEnabled = true;
-            texture.update(false);
+            (ctx as any).imageSmoothingEnabled = true; // Enable smoothing for better quality
+            texture.update(false); // Update texture, don't invert Y for canvas2D
 
             material.diffuseTexture = texture;
-            material.useAlphaFromDiffuseTexture = true;
-            material.transparencyMode = Material.MATERIAL_ALPHABLEND;
+            material.useAlphaFromDiffuseTexture = true; // Use alpha from texture
+            material.transparencyMode = Material.MATERIAL_ALPHABLEND; // Enable alpha blending
 
             console.log("[CardViz] Dynamic back texture created and assigned.");
             this.cardBackMaterial = material;
 
         } catch (error) {
             console.error("[CardViz] CRITICAL error during dynamic back material creation:", error);
-            material.diffuseColor = new Color3(1.0, 0.6, 0.6);
+            // Fallback color if texture fails
+            material.diffuseColor = new Color3(1.0, 0.6, 0.6); // Light red error color
         }
         return material;
     }

@@ -23,7 +23,6 @@ export class TableEnvironment {
         console.log("[TableEnv] Constructor called.");
         this.scene.clearColor = new Color4(0.05, 0.2, 0.05, 1);
 
-        // *** CALL Restored Methods ***
         this.setupCamera();
         this.setupLighting();
         this.table = this.createTable();
@@ -36,7 +35,6 @@ export class TableEnvironment {
         console.log("[TableEnv] Constructor finished.");
     }
 
-    // *** RESTORED setupCamera ***
     private setupCamera(): void {
         const camera = new UniversalCamera("camera", new Vector3(0, 15, 0), this.scene);
         camera.setTarget(new Vector3(0, 0, 0));
@@ -44,7 +42,6 @@ export class TableEnvironment {
         console.log("[TableEnv] Camera setup.");
     }
 
-    // *** RESTORED setupLighting ***
     private setupLighting(): void {
         const ambientLight = new HemisphericLight("ambientLight", new Vector3(0, 1, 0), this.scene);
         ambientLight.intensity = 1.0;
@@ -74,39 +71,31 @@ export class TableEnvironment {
             mat.alpha = 0.5;
             mat.transparencyMode = Material.MATERIAL_ALPHABLEND;
             area.material = mat;
-            // Place indicator slightly above table surface (Y=0)
             area.position = new Vector3(0, 0.01, zPos);
             area.rotation.x = Math.PI / 2;
             return area;
         };
 
-        createAreaIndicator("dealerArea", Constants.DEALER_HAND_Z); // Place at dealer hand Z
-        createAreaIndicator("playerArea", Constants.PLAYER_HAND_Z); // Place at player hand Z
+        createAreaIndicator("dealerArea", Constants.DEALER_HAND_Z);
+        createAreaIndicator("playerArea", Constants.PLAYER_HAND_Z);
         console.log("[TableEnv] Table and area indicators created.");
         return table;
     }
 
-    /**
-     * Creates a simple black box mesh to visually represent the card dispenser.
-     * Card animations will originate from the center of this box's location.
-     * @param cardVisualizer Used to get card dimensions for sizing the box.
-     */
     private createDeckVisualBox(cardVisualizer: CardVisualizer): void {
         console.log("%c[TableEnv] Creating Deck Visual Box (Dispenser)...", "color: blue; font-weight: bold;");
         try {
-            // --- Get Card Dimensions ---
             console.log("[TableEnv]   Getting dimensions from CardVisualizer...");
             const cardWidth = cardVisualizer.getCardWidth();
-            const cardHeight = cardVisualizer.getCardHeight(); // This is card's visual height, used as depth for dispenser
-            const dispenserHeight = 0.25; // Fixed visual height for the dispenser box itself
+            const cardHeight = cardVisualizer.getCardHeight();
+            const dispenserHeight = 0.25;
             console.log(`[TableEnv]     -> CardWidth: ${cardWidth}, CardDepth(fromCardHeight): ${cardHeight}, DispenserHeight: ${dispenserHeight}`);
 
-            // --- Create the Box Mesh ---
             console.log("[TableEnv]   Calling MeshBuilder.CreateBox...");
             this.deckVisualMesh = MeshBuilder.CreateBox("deckDispenserBox", {
-                width: cardWidth,       // X-axis
-                height: dispenserHeight,  // Y-axis (actual height of the box)
-                depth: cardHeight        // Z-axis (depth of the box, using card's visual height)
+                width: cardWidth,
+                height: dispenserHeight,
+                depth: cardHeight
             }, this.scene);
 
             if (!this.deckVisualMesh) {
@@ -115,83 +104,60 @@ export class TableEnvironment {
             }
             console.log(`%c[TableEnv]   Deck dispenser box mesh CREATED successfully. Name: ${this.deckVisualMesh.name}`, "color: green;");
 
-            // --- Create and Assign MultiMaterial ---
             console.log("[TableEnv]   Creating dispenser multi-material...");
             const dispenserMultiMat = new MultiMaterial("deckDispenserMultiMat", this.scene);
 
             const cardBackMat = cardVisualizer.getCardBackMaterial();
             const cardSideMat = cardVisualizer.getCardSideMaterial();
             const bottomMat = new StandardMaterial("deckDispenserBottomMat", this.scene);
-            bottomMat.diffuseColor = new Color3(0.05, 0.05, 0.05); // Black for bottom
+            bottomMat.diffuseColor = new Color3(0.05, 0.05, 0.05);
 
-            // Material order for MultiMaterial:
-            const MATIDX_DISP_TOP_BACK = 0; // Card Back for Top Face (+Y)
-            const MATIDX_DISP_SIDE = 1;     // Card Side for Side Faces
-            const MATIDX_DISP_BOTTOM = 2;   // Black for Bottom Face (-Y)
+            const MATIDX_DISP_TOP_BACK = 0;
+            const MATIDX_DISP_SIDE = 1;
+            const MATIDX_DISP_BOTTOM = 2;
 
-            dispenserMultiMat.subMaterials.push(cardBackMat);    // [0]
-            dispenserMultiMat.subMaterials.push(cardSideMat);    // [1]
-            dispenserMultiMat.subMaterials.push(bottomMat);      // [2]
+            dispenserMultiMat.subMaterials.push(cardBackMat);
+            dispenserMultiMat.subMaterials.push(cardSideMat);
+            dispenserMultiMat.subMaterials.push(bottomMat);
 
             this.deckVisualMesh.material = dispenserMultiMat;
 
-            // Assign SubMeshes. Box faces order: +Z, -Z, +X, -X, +Y, -Y
             this.deckVisualMesh.subMeshes = [];
             const verticesCount = this.deckVisualMesh.getTotalVertices();
-            // Face 0 (+Z side of dispenser)
             new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 0, 6, this.deckVisualMesh);
-            // Face 1 (-Z side of dispenser)
             new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 6, 6, this.deckVisualMesh);
-            // Face 2 (+X side of dispenser)
             new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 12, 6, this.deckVisualMesh);
-            // Face 3 (-X side of dispenser)
             new SubMesh(MATIDX_DISP_SIDE, 0, verticesCount, 18, 6, this.deckVisualMesh);
-            // Face 4 (+Y top of dispenser)
             new SubMesh(MATIDX_DISP_TOP_BACK, 0, verticesCount, 24, 6, this.deckVisualMesh);
-            // Face 5 (-Y bottom of dispenser)
             new SubMesh(MATIDX_DISP_BOTTOM, 0, verticesCount, 30, 6, this.deckVisualMesh);
 
             console.log("[TableEnv]   Assigned MultiMaterial with card back/side textures.");
 
 
-            // --- Position the Box ---
-            // Calculate the Y position for the CENTER of the dispenser box.
-            // It should sit slightly above the table surface (Y=0).
-            // We use the animation origin Y from CardVisualizer as the target center.
             const targetCenterY = cardVisualizer.getAnimationOriginY();
             console.log(`[TableEnv]     -> Target Center Y for Dispenser: ${targetCenterY}`);
 
-            // Use the Constants for X and Z from this.deckPosition
             this.deckVisualMesh.position = new Vector3(
-                this.deckPosition.x, // From Constants via constructor
-                targetCenterY,      // Calculated center Y
-                this.deckPosition.z  // From Constants via constructor
+                this.deckPosition.x,
+                targetCenterY,
+                this.deckPosition.z
             );
             console.log(`[TableEnv]   Final Deck Dispenser Position: ${this.deckVisualMesh.position.toString()}`);
 
-            // --- Final Settings ---
             this.deckVisualMesh.isPickable = false;
-            console.log("[TableEnv]   Attempting to freeze world matrix...");
-            // Do not freeze world matrix if individual sub-materials might need updates (e.g. dynamic textures)
-            // this.deckVisualMesh.freezeWorldMatrix(); 
-            // console.log("[TableEnv]   Froze world matrix for deck dispenser mesh.");
-
             console.log("%c[TableEnv] Deck Visual Box setup COMPLETE.", "color: blue; font-weight: bold;");
 
         } catch (error) {
-             console.error("%c[TableEnv] CRITICAL ERROR during createDeckVisualBox:", "color: red; font-weight: bold;", error);
-             this.deckVisualMesh?.dispose();
-             this.scene.getMaterialByName("deckDispenserMultiMat")?.dispose(); // Dispose MultiMaterial
-             this.scene.getMaterialByName("deckDispenserBottomMat")?.dispose(); // Dispose specific sub-material
-             // CardBack and CardSide materials are managed by CardVisualizer, no need to dispose here.
-             this.deckVisualMesh = null;
+            console.error("%c[TableEnv] CRITICAL ERROR during createDeckVisualBox:", "color: red; font-weight: bold;", error);
+            this.deckVisualMesh?.dispose();
+            this.scene.getMaterialByName("deckDispenserMultiMat")?.dispose();
+            this.scene.getMaterialByName("deckDispenserBottomMat")?.dispose();
+            this.deckVisualMesh = null;
         }
     }
 
     public getScene(): Scene { return this.scene; }
-    /** Returns the logical position (XZ) where card animations should originate. */
     public getDeckPosition(): Vector3 {
-        // Return a clone using the constants
         return new Vector3(Constants.DECK_POSITION_X, 0, Constants.DECK_POSITION_Z);
     }
 
@@ -204,7 +170,6 @@ export class TableEnvironment {
         this.scene.getMaterialByName("tableMaterial")?.dispose();
         this.scene.getMaterialByName("dealerAreaMat")?.dispose();
         this.scene.getMaterialByName("playerAreaMat")?.dispose();
-        // Dispose materials created by TableEnvironment
         this.scene.getMaterialByName("deckDispenserMultiMat")?.dispose();
         this.scene.getMaterialByName("deckDispenserBottomMat")?.dispose();
         console.log("[TableEnv] Disposed.");
