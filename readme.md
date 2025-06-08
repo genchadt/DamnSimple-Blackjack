@@ -67,50 +67,83 @@ The project follows a decoupled architecture that separates core logic from the 
 *   **Scene & Visuals (View)**: The `src/scenes` and `src/ui` directories contain all the visual components. `CardVisualizer` and `TableEnvironment` handle the 3D objects, while the UI classes handle the 2D GUI.
 *   **GameController (Controller)**: The `GameController` class acts as a **mediator** between the game logic and the visual components. It listens for events from both sides and orchestrates the flow of data, ensuring that the view is always a reflection of the model's state.
 
-### UML Class Diagram
+### UML Class Diagrams
 
-This diagram illustrates the relationships between the major components of the application.
+#### Game Logic (Model)
 
 ```mermaid
 graph TD
     subgraph "User"
-        Player([<fa:fa-user> Player])
+        Player([Player])
     end
 
-    subgraph "Browser View"
+    subgraph "View (Babylon.js)"
         style UI fill:#f9f,stroke:#333,stroke-width:2px
-        style 3DScene fill:#ccf,stroke:#333,stroke-width:2px
-        UI("<b>Game UI</b><br/><i>Babylon.js GUI<br/>(Buttons, Scores, Status)</i>")
-        3DScene("<b>3D Visuals</b><br/><i>Babylon.js Scene<br/>(Cards, Table, Animations)</i>")
+        style Visuals fill:#ccf,stroke:#333,stroke-width:2px
+        UI("Game UI\n(Buttons, Scores, Status)")
+        Visuals("3D Visuals\n(Cards, Table, Animations)")
     end
 
     subgraph "Application Logic"
         style Controller fill:#9f9,stroke:#333,stroke-width:2px
         style Model fill:#fcf,stroke:#333,stroke-width:2px
-        Controller("<b>GameController</b><br/><i>Mediator between<br/>Model and View</i>")
-        Model("<b>BlackjackGame (Model)</b><br/><i>Core Rules, State, Deck, Funds</i>")
+        Controller("GameController\n(Mediator)")
+        Model("BlackjackGame (Model)\n(Rules, State, Deck)")
     end
-
+    
     subgraph "Persistence"
         style Storage fill:#f96,stroke:#333,stroke-width:2px
-        Storage("<b>GameStorage</b><br/><i>Browser localStorage</i>")
+        Storage("GameStorage\n(localStorage)")
     end
 
-    %% --- High-Level Flow for a Player Action (e.g., "Hit") ---
-    Player -- "1. Clicks 'Hit' button" --> UI
-    UI -- "2. Calls game.playerHit()" --> Model
-    Model -- "3. Processes logic<br/>(draws card, checks state)" --> Model
-    Model -- "4. Notifies Controller of new card" --> Controller
-    Controller -- "5. Tells 3D Scene to animate card" --> 3DScene
-    3DScene -- "6. Animation finishes, notifies Controller" --> Controller
-    Controller -- "7. Notifies Model of animation completion" --> Model
-    Model -- "8. Finishes logic<br/>(e.g., checks for bust)" --> Model
-    Model -- "9. Notifies Controller of final state change" --> Controller
-    Controller -- "10. Updates all UI components" --> UI
-    UI -- "11. Displays new score & status" --> Player
+    %% Relationships
+    Player -- Interacts with --> UI
 
-    %% --- Storage Interaction ---
-    Model -.->|Saves/Loads State| Storage
+    UI -- User Actions --> Controller
+    Controller -- Updates UI --> UI
+    
+    Controller -- Calls Game Logic --> Model
+    Model -- Notifies of State Changes --> Controller
+    
+    Controller -- Updates Visuals --> Visuals
+    Visuals -- Animation Events --> Controller
+    
+    Model -.->|Saves & Loads State| Storage
+```
+#### Player "Hit" Action Sequence
+
+```mermaid
+sequenceDiagram
+    participant P as Player
+    participant UI as GameUI
+    participant C as GameController
+    participant M as BlackjackGame (Model)
+    participant V as CardVisualizer (3D)
+
+    P->>+UI: Clicks 'Hit' Button
+    UI->>+M: playerHit()
+
+    M->>M: Processes logic (draws card)
+    M-->>-C: notifyCardDealt(newCard)
+
+    C->>+V: createCardMesh(newCard)
+    V->>V: Animates card dealing
+    V-->>-C: onVisualAnimationComplete()
+
+    C-->>+M: onAnimationComplete()
+    M->>M: Finishes logic (checks for bust)
+    
+    alt Player Busts
+        M-->>C: notifyAnimationComplete()
+        C->>UI: update()
+        UI->>UI: Displays 'Bust!' message
+    else Player is OK
+        M-->>C: notifyAnimationComplete()
+        C->>UI: update()
+        UI->>UI: Displays new score
+    end
+    deactivate M
+    deactivate UI
 ```
 
 ---
