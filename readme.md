@@ -1,13 +1,9 @@
-Of course. Here is a comprehensive `README.md` file suitable for your GitHub repository, including the UML diagram.
-
----
-
 # Damn Simple Blackjack
 
 **A modern, 3D Blackjack game built with TypeScript and Babylon.js.**
 
 
-*(A screenshot of the game in action would go here)*
+*(Screenshot placeholder)*
 
 This project is a fully-featured Blackjack game rendered in a 3D environment. It demonstrates a clean separation between core game logic and visual presentation, using Babylon.js for rendering and UI, and pure TypeScript for the game rules and state management.
 
@@ -24,17 +20,7 @@ This project is a fully-featured Blackjack game rendered in a 3D environment. It
 
 ## 🚀 Live Demo
 
-**[Play the game live here!](https://your-deployment-url.com)** *(Replace with your actual deployment link)*
-
----
-
-## 🛠️ Tech Stack
-
-*   **Language**: [TypeScript](https://www.typescriptlang.org/)
-*   **3D Rendering**: [Babylon.js](https://www.babylonjs.com/)
-*   **UI Library**: [Babylon.js GUI](https://doc.babylonjs.com/features/featuresDeepDive/gui/introduction)
-*   **Card Visuals**: [CardMeister Web Components](https://cardmeister.github.io/cardmeister/) for generating SVG card faces.
-*   **Build Tool**: [Vite](https://vitejs.dev/)
+**[Play the game live here!](https://your-deployment-url.com)** *(deployment link)*
 
 ---
 
