@@ -71,7 +71,6 @@ The project follows a decoupled architecture that separates core logic from the 
 
 This diagram illustrates the relationships between the major components of the application.
 
-```plantuml
 @startuml Blackjack Game UML
 
 !theme spacelab
@@ -288,7 +287,6 @@ DebugManager ..> CardVisualizer
 DebugManager ..> GameUI
 
 @enduml
-```
 
 ---
 
