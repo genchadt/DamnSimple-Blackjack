@@ -1,3 +1,7 @@
+Of course. Here is a comprehensive `README.md` file suitable for your GitHub repository, including the UML diagram.
+
+---
+
 # Damn Simple Blackjack
 
 **A modern, 3D Blackjack game built with TypeScript and Babylon.js.**
