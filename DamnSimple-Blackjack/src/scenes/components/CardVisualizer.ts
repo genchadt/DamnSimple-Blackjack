@@ -510,7 +510,8 @@ export class CardVisualizer {
 
         hand.forEach((card, index) => {
             const cardMesh = this.cardMeshes.get(card.getUniqueId());
-            if (cardMesh && index < newHandSize - 1) { // Only reposition existing cards, not the new one being dealt
+            // Only reposition existing cards, not the new one being dealt (which is at index hand.length - 1, or newHandSize - 1)
+            if (cardMesh && index < newHandSize - 1) {
                 const newPosition = this.calculateCardPosition(index, isPlayer, newHandSize);
                 console.log(`%c[CardViz]   -> Repositioning ${card.toString()} (Index ${index}) to ${newPosition.toString()}`, 'color: #FFA500');
                 if (!cardMesh.position.equalsWithEpsilon(newPosition, 0.01)) {
@@ -540,11 +541,22 @@ export class CardVisualizer {
         let yPos: number;
 
         if (isPlayer) {
-            // New logic for player cards: stacked left-to-right
-            // handSize parameter is not directly used here for player, as stacking is additive from a start point.
-            xPos = Constants.PLAYER_HAND_START_X + (index * Constants.PLAYER_CARD_STACK_X_OFFSET);
-            yPos = Constants.CARD_Y_POS + (index * Constants.PLAYER_CARD_STACK_Y_OFFSET);
-        } else { // Dealer cards: centered, spaced side-by-side
+            // Player cards: Centered. Hand grows from player's right to left.
+            // Newest card (highest index) is leftmost and on top.
+            const stackXOffset = Constants.PLAYER_CARD_STACK_X_OFFSET;
+            const stackYOffset = Constants.PLAYER_CARD_STACK_Y_OFFSET;
+
+            const effectiveHandSize = Math.max(1, handSize);
+
+            // Calculate the X position for the center of the card at 'index'.
+            // The hand is centered at X=0.
+            // 'firstCardCenterX' is the X-coordinate of the rightmost card (index 0).
+            const firstCardCenterX = ((effectiveHandSize - 1) * stackXOffset) / 2;
+            xPos = firstCardCenterX - (index * stackXOffset);
+
+            // Y position: higher index means higher Y (on top for stacking effect)
+            yPos = Constants.CARD_Y_POS + (index * stackYOffset);
+        } else { // Dealer cards: centered, spaced side-by-side (left-to-right)
             const totalWidth = (handSize - 1) * Constants.CARD_SPACING;
             const startXDealer = -(totalWidth / 2);
             xPos = startXDealer + (index * Constants.CARD_SPACING);

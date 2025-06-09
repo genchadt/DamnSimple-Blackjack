@@ -1,4 +1,4 @@
-// src/constants.ts
+// src/Constants.ts
 import { Vector3 } from "@babylonjs/core";
 
 // --- Graphics Quality ---
@@ -55,6 +55,11 @@ const CARD_SPACING = CARD_WIDTH + 0.15; // Horizontal space between cards in han
 // const CARD_STACK_OFFSET = CARD_DEPTH + 0.002; // Vertical offset for cards in hand // REMOVED
 
 // --- Player Hand Specific Layout ---
+// The PLAYER_HAND_START_X constant is no longer used for player card positioning.
+// Player card X positions are now dynamically calculated in CardVisualizer.calculateCardPosition
+// to ensure the hand is always centered on the X-axis.
+/*
+// OLD COMMENT AND CONSTANT:
 // PLAYER_HAND_START_X: Calculated to roughly center a 5-card hand.
 // A 5-card hand: Card1_X_Start to Card5_X_End.
 // Card5_X_Start = PLAYER_HAND_START_X + 4 * PLAYER_CARD_STACK_X_OFFSET
@@ -66,9 +71,11 @@ const CARD_SPACING = CARD_WIDTH + 0.15; // Horizontal space between cards in han
 // Center = (PLAYER_HAND_START_X + PLAYER_HAND_START_X + 2.2 * CARD_WIDTH) / 2
 // Center = PLAYER_HAND_START_X + 1.1 * CARD_WIDTH
 // For Center = 0: PLAYER_HAND_START_X = -1.1 * CARD_WIDTH
-const PLAYER_HAND_START_X = -1.1 * CARD_WIDTH;
-const PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3; // Horizontal overlap, shows ~30% of card face
-const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 0.75;  // Slight vertical lift for each card
+// const PLAYER_HAND_START_X = -1.1 * CARD_WIDTH; // DEPRECATED
+*/
+
+const PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3; // Horizontal overlap, shows ~30% of card face. Used for player hand centering.
+const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 0.75;  // Slight vertical lift for each card in player's hand for stacking.
 
 // --- Animation ---
 const FPS = 60;
@@ -108,7 +115,7 @@ export const Constants = {
     // CARD_STACK_OFFSET, // REMOVED
 
     // Player Hand Specific Layout
-    PLAYER_HAND_START_X,
+    // PLAYER_HAND_START_X, // DEPRECATED - Player hand X positions are dynamically centered
     PLAYER_CARD_STACK_X_OFFSET,
     PLAYER_CARD_STACK_Y_OFFSET,
 
