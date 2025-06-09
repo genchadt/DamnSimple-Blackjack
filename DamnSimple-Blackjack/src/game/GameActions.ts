@@ -124,6 +124,7 @@ export class GameActions {
 
         this.currentBet = validBet;
         this.lastBet = validBet;
+        // The setPlayerHand/setDealerHand methods now trigger the onHandModified callback
         this.blackjackGame.setPlayerHand([]);
         this.blackjackGame.setDealerHand([]);
         this.setGameResult(GameResult.InProgress);
@@ -459,9 +460,13 @@ export class GameActions {
             card.setFaceUp(dealInfo.faceUp);
             console.log(`%c[GameActions]   -> Card state after setFaceUp: ${card.isFaceUp()}`, 'color: cyan');
 
-            dealInfo.hand.push(card);
+            const isPlayer = dealInfo.isPlayer;
+            if (isPlayer) {
+                this.blackjackGame.addCardToPlayerHand(card);
+            } else {
+                this.blackjackGame.addCardToDealerHand(card);
+            }
             this.handManager.registerFlipCallback(card); // Ensure flip callback is attached
-            const isPlayer = dealInfo.isPlayer; // Use stored isPlayer
 
             console.log(`%c[GameActions]   -> Adding card to ${target} hand. New hand size: ${dealInfo.hand.length}`, 'color: cyan');
 
@@ -515,7 +520,11 @@ export class GameActions {
             card.setFaceUp(faceUp);
             console.log(`%c[GameActions]   -> Card state after setFaceUp: ${card.isFaceUp()}`, 'color: cyan');
 
-            hand.push(card);
+            if (isPlayer) {
+                this.blackjackGame.addCardToPlayerHand(card);
+            } else {
+                this.blackjackGame.addCardToDealerHand(card);
+            }
             this.handManager.registerFlipCallback(card);
             console.log(`%c[GameActions]   -> Added card to ${target} hand. New size: ${hand.length}`, 'color: cyan');
 

@@ -1,26 +1,29 @@
 // src/scenes/components/gamecontroller-ts
 // Added extensive debug logs to callbacks and requestCardDealAnimation
 import { Scene } from "@babylonjs/core";
-import { BlackjackGame } from "../../game/BlackjackGame";
+import { BlackjackGame, HandModificationUpdate } from "../../game/BlackjackGame";
 import { GameResult, GameState } from "../../game/GameState";
 import { GameUI } from "../../ui/GameUI";
 import { CardVisualizer } from "./CardVisualizer";
 import { Card } from "../../game/Card";
+import { DebugManager } from "../../debug/DebugManager";
 
 export class GameController {
     private scene: Scene;
     private blackjackGame: BlackjackGame;
     private gameUI: GameUI;
     private cardVisualizer: CardVisualizer;
+    private debugManager: DebugManager;
     private gameStateRestored: boolean = false;
     private isProcessingVisualComplete: boolean = false;
     private isProcessingGameActionComplete: boolean = false;
 
-    constructor(scene: Scene, blackjackGame: BlackjackGame, gameUI: GameUI, cardVisualizer: CardVisualizer) {
+    constructor(scene: Scene, blackjackGame: BlackjackGame, gameUI: GameUI, cardVisualizer: CardVisualizer, debugManager: DebugManager) {
         this.scene = scene;
         this.blackjackGame = blackjackGame;
         this.gameUI = gameUI;
         this.cardVisualizer = cardVisualizer;
+        this.debugManager = debugManager;
         this.isProcessingVisualComplete = false;
         this.isProcessingGameActionComplete = false;
         console.log("[Controller] Initializing...");
@@ -33,6 +36,10 @@ export class GameController {
         // 2. GameActions logic step finishes -> Calls BlackjackGame.notifyAnimationComplete -> GameController.onGameActionComplete -> GameUI.update
         this.blackjackGame.setAnimationCompleteCallback(this.onGameActionComplete.bind(this));
         console.log("[Controller] BlackjackGame action complete callback set.");
+
+        // NEW: Set the hand modified callback for instant debug updates
+        this.blackjackGame.onHandModified = this.onHandModified.bind(this);
+        console.log("[Controller] BlackjackGame onHandModified callback set.");
 
         // 3. GameActions needs to trigger visual dealing -> Calls BlackjackGame.notifyCardDealt -> GameController.requestCardDealAnimation -> CardVisualizer.createCardMesh
         this.blackjackGame.notifyCardDealt = this.requestCardDealAnimation.bind(this);
@@ -113,6 +120,14 @@ export class GameController {
         console.log(`%c[Controller] <<< onVisualAnimationComplete finished.`, 'color: green; font-weight: bold;');
     }
 
+    /** NEW: Handles the notification that a hand has been logically modified. */
+    private onHandModified(update: HandModificationUpdate): void {
+        const type = update.type;
+        const target = update.isPlayer ? 'Player' : 'Dealer';
+        console.log(`%c[Controller] <<< onHandModified called. Type: ${type}, Target: ${target}`, 'color: #FF6347; font-weight: bold;'); // Tomato
+        this.debugManager.updateDebugHandDisplay();
+    }
+
     private onGameActionComplete(): void {
         console.log(`%c[Controller] <<< onGameActionComplete called. isProcessingGameActionComplete=${this.isProcessingGameActionComplete}`, 'color: purple; font-weight: bold;');
         if (this.isProcessingGameActionComplete) {
@@ -124,6 +139,8 @@ export class GameController {
         console.log("[Controller]     Processing: Updating UI...");
 
         this.update();
+        // This call is still useful for state changes that don't involve hand modification
+        this.debugManager.updateDebugHandDisplay();
 
         this.isProcessingGameActionComplete = false;
         console.log("[Controller]     Processing finished. isProcessingGameActionComplete = false.");

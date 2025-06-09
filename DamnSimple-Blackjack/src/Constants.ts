@@ -51,8 +51,24 @@ const CARD_WIDTH = 1.0 * CARD_SCALE;
 const CARD_HEIGHT = CARD_WIDTH * CARD_ASPECT_RATIO;
 const CARD_DEPTH = 0.02 * CARD_SCALE; // Thickness scales too
 const CARD_CORNER_RADIUS = 0.08 * CARD_SCALE; // Rounded corners scale
-const CARD_SPACING = CARD_WIDTH + 0.15; // Horizontal space between cards in hand
-const CARD_STACK_OFFSET = CARD_DEPTH + 0.002; // Vertical offset for cards in hand
+const CARD_SPACING = CARD_WIDTH + 0.15; // Horizontal space between cards in hand (used for Dealer)
+// const CARD_STACK_OFFSET = CARD_DEPTH + 0.002; // Vertical offset for cards in hand // REMOVED
+
+// --- Player Hand Specific Layout ---
+// PLAYER_HAND_START_X: Calculated to roughly center a 5-card hand.
+// A 5-card hand: Card1_X_Start to Card5_X_End.
+// Card5_X_Start = PLAYER_HAND_START_X + 4 * PLAYER_CARD_STACK_X_OFFSET
+// Card5_X_End = Card5_X_Start + CARD_WIDTH
+// Center of 5 cards = (Card1_X_Start + Card5_X_End) / 2
+// If PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3:
+// Card5_X_Start = PLAYER_HAND_START_X + 4 * 0.3 * CARD_WIDTH = PLAYER_HAND_START_X + 1.2 * CARD_WIDTH
+// Card5_X_End = PLAYER_HAND_START_X + 1.2 * CARD_WIDTH + CARD_WIDTH = PLAYER_HAND_START_X + 2.2 * CARD_WIDTH
+// Center = (PLAYER_HAND_START_X + PLAYER_HAND_START_X + 2.2 * CARD_WIDTH) / 2
+// Center = PLAYER_HAND_START_X + 1.1 * CARD_WIDTH
+// For Center = 0: PLAYER_HAND_START_X = -1.1 * CARD_WIDTH
+const PLAYER_HAND_START_X = -1.1 * CARD_WIDTH;
+const PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3; // Horizontal overlap, shows ~30% of card face
+const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 0.75;  // Slight vertical lift for each card
 
 // --- Animation ---
 const FPS = 60;
@@ -88,8 +104,13 @@ export const Constants = {
     CARD_HEIGHT,
     CARD_DEPTH,
     CARD_CORNER_RADIUS,
-    CARD_SPACING,
-    CARD_STACK_OFFSET,
+    CARD_SPACING, // Used for Dealer hand
+    // CARD_STACK_OFFSET, // REMOVED
+
+    // Player Hand Specific Layout
+    PLAYER_HAND_START_X,
+    PLAYER_CARD_STACK_X_OFFSET,
+    PLAYER_CARD_STACK_Y_OFFSET,
 
     // Animation
     FPS,

@@ -58,20 +58,22 @@ export class GameScene {
         );
         console.log("[GS] GameUI created.");
 
-        // 5. Controller (depends on all above, orchestrates interactions)
+        // 5. Debug Manager (must be created before controller)
+        console.log("[GS] Creating DebugManager...");
+        this.debugManager = new DebugManager(this, this.cardVisualizer, this.blackjackGame); // Pass BlackjackGame
+        console.log("[GS] DebugManager created.");
+
+
+        // 6. Controller (depends on all above, orchestrates interactions)
         console.log("[GS] Creating GameController...");
         this.gameController = new GameController(
             this.scene,
             this.blackjackGame,
             this.gameUI,
-            this.cardVisualizer
+            this.cardVisualizer,
+            this.debugManager // Pass the debug manager
         );
         console.log("[GS] GameController created.");
-
-        // 6. Debug Manager (optional)
-        console.log("[GS] Creating DebugManager...");
-        this.debugManager = new DebugManager(this, this.cardVisualizer, this.blackjackGame); // Pass BlackjackGame
-        console.log("[GS] DebugManager created.");
 
 
         console.log("GameScene construction complete.");

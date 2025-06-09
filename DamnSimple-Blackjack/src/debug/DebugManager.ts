@@ -19,6 +19,15 @@ export class DebugManager {
     private dragOffsetY: number = 0;
     private isDragging: boolean = false;
 
+    // --- New properties for advanced debug display ---
+    private handHistory: { player: Card[], dealer: Card[] }[] = [];
+    private readonly MAX_HISTORY_ENTRIES = 10;
+    private historyIndex: number = -1; // -1 means current hand, 0 is most recent history, etc.
+
+    // Store last known hands to detect changes (deal/discard)
+    private lastPlayerHand: Card[] = [];
+    private lastDealerHand: Card[] = [];
+
     /**
      * Initializes a new instance of the DebugManager class.
      */
@@ -77,9 +86,12 @@ export class DebugManager {
             console.error("Invalid game state. Use 0-4.");
             return;
         }
+        // If moving to GameOver, record the final hands for history
+        if (state === GameState.GameOver && this.blackjackGame.getGameState() !== GameState.GameOver) {
+            this.recordHandHistory();
+        }
         this.blackjackGame.getGameActions().setGameState(state as GameState, true);
         this.updateUI();
-        this.updateDebugHandDisplay();
         console.log(`Game state set to ${GameState[state]}`);
     }
 
@@ -90,7 +102,6 @@ export class DebugManager {
         }
         this.blackjackGame.getGameActions().setGameResult(result as GameResult, true);
         this.updateUI();
-        this.updateDebugHandDisplay();
         console.log(`Game result set to ${GameResult[result]}`);
     }
 
@@ -102,18 +113,22 @@ export class DebugManager {
         this.blackjackGame.setDealerHand([]);
         this.blackjackGame.setCurrentBet(0);
         this.blackjackGame.resetFunds();
+
+        // Clear history and last known hands
+        this.handHistory = [];
+        this.historyIndex = -1;
+        this.lastPlayerHand = [];
+        this.lastDealerHand = [];
+
         this.updateUI();
-        this.updateDebugHandDisplay();
-        console.log("Game reset to initial state");
+        console.log("Game reset to initial state, debug history cleared.");
     }
 
     public startNewGame(bet: number = 10): void {
         this.cardVisualizer.clearTable();
+        // The updateDebugHandDisplay call that follows will show the old cards as discarded
         const success = this.blackjackGame.startNewGame(bet);
         if (success) {
-            // UI update and card rendering are handled by the game flow
-            // this.updateUI(); // GameController will handle this
-            // this.renderCards(); // CardVisualizer will handle this
             console.log(`Started new game with bet: ${bet}`);
         } else {
             console.error(`Failed to start new game with bet ${bet}. Insufficient funds?`);
@@ -164,8 +179,11 @@ export class DebugManager {
         const card = new Card(suit as Suit, rank as Rank);
         card.setFaceUp(faceUp);
 
-        const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
-        hand.push(card);
+        if (isPlayer) {
+            this.blackjackGame.addCardToPlayerHand(card);
+        } else {
+            this.blackjackGame.addCardToDealerHand(card);
+        }
         this.blackjackGame.getHandManager().registerFlipCallback(card);
 
         this.renderCards(); // Update Babylon visuals
@@ -194,8 +212,6 @@ export class DebugManager {
             return;
         }
         hand[index].flip(); // Triggers visual update via CardVisualizer
-        // Visual update in Babylon is handled by CardVisualizer's flip callback.
-        // UI (scores) update is handled by GameController's animation complete chain.
         this.updateDebugHandDisplay(); // Update HTML debug display
         console.log(`Flipped ${isPlayer ? 'player' : 'dealer'}'s card at index ${index}`);
     }
@@ -288,14 +304,106 @@ export class DebugManager {
         }
     }
 
+    /** Records the current hands to the history log. */
+    private recordHandHistory(): void {
+        const playerHand = this.blackjackGame.getPlayerHand();
+        const dealerHand = this.blackjackGame.getDealerHand();
+
+        if (playerHand.length > 0 || dealerHand.length > 0) {
+            this.handHistory.unshift({
+                player: [...playerHand],
+                dealer: [...dealerHand]
+            });
+
+            if (this.handHistory.length > this.MAX_HISTORY_ENTRIES) {
+                this.handHistory.pop();
+            }
+            console.log(`[DebugManager] Hand history recorded. Entries: ${this.handHistory.length}`);
+        }
+    }
+
     private createDebugHandDisplayElement(): void {
+        // Inject styles for animations and indicators if they don't exist
+        if (!document.getElementById('blackjack-debug-styles')) {
+            const styleSheet = document.createElement("style");
+            styleSheet.id = "blackjack-debug-styles";
+            styleSheet.innerText = `
+                .debug-card-container {
+                    position: relative;
+                    width: 60px;
+                    height: 84px;
+                    display: inline-block;
+                }
+                .debug-card-container playing-card {
+                    width: 100%;
+                    height: 100%;
+                    border-radius: 3px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+                }
+                .debug-card-indicator {
+                    position: absolute;
+                    top: 2px;
+                    right: 2px;
+                    width: 18px; /* Adjusted for emoji */
+                    height: 18px; /* Adjusted for emoji */
+                    background-color: rgba(0, 0, 0, 0.6);
+                    /* color property will be set dynamically for ❓ */
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px; /* Adjusted for emoji */
+                    font-family: 'Segoe UI Symbol', sans-serif;
+                    pointer-events: none;
+                    line-height: 1;
+                }
+                @keyframes green-flash {
+                    from { box-shadow: 0 0 8px 3px limegreen; }
+                    to { box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+                }
+                .card-dealt {
+                    animation: green-flash 0.5s ease-out;
+                }
+                @keyframes red-flash-and-fade {
+                    0% { box-shadow: 0 0 8px 3px tomato; opacity: 1; }
+                    70% { box-shadow: none; opacity: 1; }
+                    100% { opacity: 0; transform: scale(0.9); }
+                }
+                .card-discarded .debug-card-container {
+                    animation: red-flash-and-fade 0.5s ease-out forwards;
+                }
+                .debug-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 8px;
+                }
+                .debug-header-title {
+                    font-weight: bold;
+                    font-size: 16px;
+                }
+                .debug-header-nav button {
+                    padding: 2px 6px;
+                    margin-left: 5px;
+                    cursor: pointer;
+                    border: 1px solid #555;
+                    background-color: #eee;
+                    border-radius: 3px;
+                }
+                .debug-header-nav button:hover {
+                    background-color: #ddd;
+                }
+            `;
+            document.head.appendChild(styleSheet);
+        }
+
         this.debugHandDisplayElement = document.createElement("div");
         this.debugHandDisplayElement.id = "blackjack-debug-hand-display";
         Object.assign(this.debugHandDisplayElement.style, {
             position: 'absolute',
             left: '10px',
             top: '10px',
-            width: 'auto', // Adjust to content
+            width: 'auto',
             minWidth: '250px',
             maxWidth: '400px',
             maxHeight: '400px',
@@ -314,9 +422,7 @@ export class DebugManager {
         });
         document.body.appendChild(this.debugHandDisplayElement);
 
-        // Make it draggable
         this.debugHandDisplayElement.onmousedown = (e) => {
-            // Prevent dragging if clicking on an interactive element inside (e.g. a button, if any were added)
             if ((e.target as HTMLElement).closest('button, input, select, textarea')) {
                 return;
             }
@@ -325,7 +431,7 @@ export class DebugManager {
             this.dragOffsetY = e.clientY - this.debugHandDisplayElement!.offsetTop;
             document.onmousemove = this.dragElement.bind(this);
             document.onmouseup = this.stopDragElement.bind(this);
-            e.preventDefault(); // Prevent text selection while dragging
+            e.preventDefault();
         };
     }
 
@@ -335,7 +441,6 @@ export class DebugManager {
             let newLeft = e.clientX - this.dragOffsetX;
             let newTop = e.clientY - this.dragOffsetY;
 
-            // Constrain to viewport
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
             const elWidth = this.debugHandDisplayElement.offsetWidth;
@@ -355,69 +460,150 @@ export class DebugManager {
         document.onmouseup = null;
     }
 
+    /** Creates the HTML element for a single card in the debug view. */
+    private createCardElement(card: Card, isNew: boolean): HTMLElement {
+        const container = document.createElement('div');
+        container.className = 'debug-card-container';
+
+        const cardEl = document.createElement('playing-card');
+        cardEl.setAttribute('cid', card.getCid());
+
+        if (isNew) {
+            cardEl.classList.add('card-dealt');
+            setTimeout(() => cardEl.classList.remove('card-dealt'), 500);
+        }
+
+        container.appendChild(cardEl);
+
+        const indicator = document.createElement('span');
+        indicator.className = 'debug-card-indicator';
+        if (card.isFaceUp()) {
+            indicator.innerHTML = `👁️`;
+            // Optional: Set a specific color for the eyeball if needed, e.g., indicator.style.color = 'cyan';
+        } else {
+            indicator.innerHTML = `❓`;
+            indicator.style.color = '#aaa'; // Medium grey for the question mark
+        }
+        container.appendChild(indicator);
+
+        return container;
+    }
+
+    /** Renders a hand (dealer or player) into a container, handling diffing for animations. */
+    private renderHandInContainer(title: string, currentCards: Card[], lastCards: Card[], isHistoryView: boolean, parentElement: HTMLElement): void {
+        const header = document.createElement('h4');
+        header.textContent = title;
+        header.style.margin = '10px 0 5px 0';
+        header.style.borderBottom = '1px solid #999';
+        header.style.paddingBottom = '3px';
+        parentElement.appendChild(header);
+
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.flexWrap = 'wrap';
+        container.style.gap = '5px';
+        parentElement.appendChild(container);
+
+        const currentCardIds = new Set(currentCards.map(c => c.getUniqueId()));
+        const lastCardIds = new Set(lastCards.map(c => c.getUniqueId()));
+
+        // Animate discarded cards (only in current view)
+        if (!isHistoryView) {
+            // Iterate over a reversed copy of the last known cards
+            [...lastCards].reverse().forEach(card => {
+                if (!currentCardIds.has(card.getUniqueId())) {
+                    const discardedEl = this.createCardElement(card, false);
+                    discardedEl.classList.add('card-discarded');
+                    container.appendChild(discardedEl);
+                    setTimeout(() => discardedEl.remove(), 500);
+                }
+            });
+        }
+
+        // Render current cards in reverse order
+        [...currentCards].reverse().forEach(card => {
+            const isNew = !isHistoryView && !lastCardIds.has(card.getUniqueId());
+            container.appendChild(this.createCardElement(card, isNew));
+        });
+
+        if (currentCards.length === 0 && lastCards.length === 0) {
+            container.textContent = 'No cards';
+        }
+    }
+
     /** Updates the content of the debug hand display element. */
     public updateDebugHandDisplay(): void {
         if (!this.isHandDisplayVisible || !this.debugHandDisplayElement) {
             return;
         }
 
+        const isHistoryView = this.historyIndex > -1;
+        let playerHand: Card[], dealerHand: Card[];
+        let titleText: string;
+
+        if (isHistoryView) {
+            const historicalState = this.handHistory[this.historyIndex];
+            playerHand = historicalState.player;
+            dealerHand = historicalState.dealer;
+            titleText = `History (${this.historyIndex + 1}/${this.handHistory.length})`;
+        } else {
+            playerHand = this.blackjackGame.getPlayerHand();
+            dealerHand = this.blackjackGame.getDealerHand();
+            titleText = "Current Hand";
+        }
+
         this.debugHandDisplayElement.innerHTML = ''; // Clear previous content
 
-        const createHeader = (text: string) => {
-            const header = document.createElement('h4');
-            header.textContent = text;
-            header.style.margin = '10px 0 5px 0';
-            header.style.borderBottom = '1px solid #999';
-            header.style.paddingBottom = '3px';
-            this.debugHandDisplayElement!.appendChild(header);
-        };
+        // --- Create Header ---
+        const header = document.createElement('div');
+        header.className = 'debug-header';
+        const title = document.createElement('span');
+        title.className = 'debug-header-title';
+        title.textContent = titleText;
+        header.appendChild(title);
 
-        const createCardListContainer = () => {
-            const container = document.createElement('div');
-            container.style.display = 'flex';
-            container.style.flexWrap = 'wrap'; // Allow cards to wrap
-            container.style.gap = '5px'; // Space between cards
-            return container;
-        };
+        const navContainer = document.createElement('div');
+        navContainer.className = 'debug-header-nav';
 
-        const createPlayingCardElement = (card: Card) => {
-            const cardEl = document.createElement('playing-card');
-            cardEl.setAttribute('cid', card.getCid());
-            if (card.isFaceUp()) {
-                cardEl.setAttribute('faceup', '');
-            }
-            // Style the <playing-card> element itself for consistency
-            cardEl.style.width = '60px'; // Smaller size for debug view
-            cardEl.style.height = '84px'; // Maintain aspect ratio
-            cardEl.style.fontSize = '8px'; // If CardMeister uses em units for internal details
-            return cardEl;
-        };
-
-        // Dealer Cards
-        createHeader('Dealer Cards');
-        const dealerHand = this.blackjackGame.getDealerHand();
-        const dealerCardContainer = createCardListContainer();
-        if (dealerHand.length > 0) {
-            dealerHand.forEach(card => {
-                dealerCardContainer.appendChild(createPlayingCardElement(card));
-            });
-        } else {
-            dealerCardContainer.textContent = 'No cards';
+        if (isHistoryView) {
+            const homeButton = document.createElement('button');
+            homeButton.innerHTML = '🏠&nbsp;Current';
+            homeButton.onclick = () => {
+                this.historyIndex = -1;
+                this.updateDebugHandDisplay();
+            };
+            navContainer.appendChild(homeButton);
         }
-        this.debugHandDisplayElement.appendChild(dealerCardContainer);
-
-        // Player Cards
-        createHeader('Player Cards');
-        const playerHand = this.blackjackGame.getPlayerHand();
-        const playerCardContainer = createCardListContainer();
-        if (playerHand.length > 0) {
-            playerHand.forEach(card => {
-                playerCardContainer.appendChild(createPlayingCardElement(card));
-            });
-        } else {
-            playerCardContainer.textContent = 'No cards';
+        if (this.historyIndex > -1) {
+            const nextButton = document.createElement('button');
+            nextButton.textContent = 'Next →';
+            nextButton.onclick = () => {
+                this.historyIndex--;
+                this.updateDebugHandDisplay();
+            };
+            navContainer.appendChild(nextButton);
         }
-        this.debugHandDisplayElement.appendChild(playerCardContainer);
+        if (this.historyIndex < this.handHistory.length - 1) {
+            const prevButton = document.createElement('button');
+            prevButton.textContent = '← Prev';
+            prevButton.onclick = () => {
+                this.historyIndex++;
+                this.updateDebugHandDisplay();
+            };
+            navContainer.appendChild(prevButton);
+        }
+        header.appendChild(navContainer);
+        this.debugHandDisplayElement.appendChild(header);
+
+        // --- Render Hands ---
+        this.renderHandInContainer('Dealer', dealerHand, this.lastDealerHand, isHistoryView, this.debugHandDisplayElement);
+        this.renderHandInContainer('Player', playerHand, this.lastPlayerHand, isHistoryView, this.debugHandDisplayElement);
+
+        // --- Update last known state if viewing current hand ---
+        if (!isHistoryView) {
+            this.lastPlayerHand = [...playerHand];
+            this.lastDealerHand = [...dealerHand];
+        }
     }
 
     public dispose(): void {
@@ -425,7 +611,10 @@ export class DebugManager {
             this.debugHandDisplayElement.remove();
             this.debugHandDisplayElement = null;
         }
-        // Remove global references if set
+        const styleSheet = document.getElementById('blackjack-debug-styles');
+        if (styleSheet) {
+            styleSheet.remove();
+        }
         if ((window as any).debug === this) {
             (window as any).debug = undefined;
         }

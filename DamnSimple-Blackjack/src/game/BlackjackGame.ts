@@ -1,11 +1,18 @@
 // src/blackjackgame-ts
-// Added debug log to notifyCardDealt
+// Added onHandModified callback for granular updates
 import { Card } from "./Card";
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
 import { ScoreCalculator } from "./ScoreCalculator";
 import { GameActions } from "./GameActions";
+
+/** Defines the structure for hand modification updates. */
+export interface HandModificationUpdate {
+    card?: Card; // The card that was added (undefined for a 'set' operation)
+    isPlayer: boolean; // Which hand was modified
+    type: 'add' | 'set'; // The type of modification ('set' is used for clearing or restoring)
+}
 
 export class BlackjackGame {
     private handManager: HandManager;
@@ -16,6 +23,8 @@ export class BlackjackGame {
     private dealerHand: Card[] = [];
 
     private animationCompleteCallback: (() => void) | null = null;
+    /** NEW: Callback function set by GameController to trigger when a hand is modified. */
+    public onHandModified: ((update: HandModificationUpdate) => void) | null = null;
 
     /** Callback function set by GameController to trigger card deal animations. */
     public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = (card, index, isPlayer, faceUp) => {
@@ -107,9 +116,12 @@ export class BlackjackGame {
         return this.playerHand;
     }
 
-    /** Sets the player's hand (used primarily during game state restoration). */
+    /** Sets the player's hand and notifies listeners of the change. */
     public setPlayerHand(hand: Card[]): void {
         this.playerHand = hand;
+        if (this.onHandModified) {
+            this.onHandModified({ isPlayer: true, type: 'set' });
+        }
     }
 
     /** Gets the dealer's current hand of cards. */
@@ -117,9 +129,28 @@ export class BlackjackGame {
         return this.dealerHand;
     }
 
-    /** Sets the dealer's hand (used primarily during game state restoration). */
+    /** Sets the dealer's hand and notifies listeners of the change. */
     public setDealerHand(hand: Card[]): void {
         this.dealerHand = hand;
+        if (this.onHandModified) {
+            this.onHandModified({ isPlayer: false, type: 'set' });
+        }
+    }
+
+    /** Adds a card to the player's hand and notifies listeners. */
+    public addCardToPlayerHand(card: Card): void {
+        this.playerHand.push(card);
+        if (this.onHandModified) {
+            this.onHandModified({ card: card, isPlayer: true, type: 'add' });
+        }
+    }
+
+    /** Adds a card to the dealer's hand and notifies listeners. */
+    public addCardToDealerHand(card: Card): void {
+        this.dealerHand.push(card);
+        if (this.onHandModified) {
+            this.onHandModified({ card: card, isPlayer: false, type: 'add' });
+        }
     }
 
     /** Calculates and returns the current score of the player's hand. */
@@ -189,7 +220,7 @@ export class BlackjackGame {
     /**
      * Registers a callback function to be notified whenever any card managed by the game is flipped.
      * @param id A unique identifier for the callback.
-     * @param callback The function to execute when a card flips, receiving the Card object.
+     * @param callback The function to execute when a card is flipped, receiving the Card object.
      */
     public addCardFlipCallback(id: string, callback: (card: Card) => void): void {
         this.handManager.addCardFlipCallback(id, callback);

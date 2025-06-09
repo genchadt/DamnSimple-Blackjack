@@ -64,21 +64,7 @@ export class TableEnvironment {
         table.material = tableMaterial;
         table.position.y = -0.25; // Center of table is at -0.25, so top surface is at Y=0
 
-        const createAreaIndicator = (name: string, zPos: number) => {
-            const area = MeshBuilder.CreateDisc(name, { radius: 2.5, sideOrientation: Mesh.DOUBLESIDE }, this.scene);
-            const mat = new StandardMaterial(name + "Mat", this.scene);
-            mat.diffuseColor = new Color3(0.05, 0.25, 0.05);
-            mat.alpha = 0.5;
-            mat.transparencyMode = Material.MATERIAL_ALPHABLEND;
-            area.material = mat;
-            area.position = new Vector3(0, 0.01, zPos);
-            area.rotation.x = Math.PI / 2;
-            return area;
-        };
-
-        createAreaIndicator("dealerArea", Constants.DEALER_HAND_Z);
-        createAreaIndicator("playerArea", Constants.PLAYER_HAND_Z);
-        console.log("[TableEnv] Table and area indicators created.");
+        console.log("[TableEnv] Table created.");
         return table;
     }
 
@@ -165,11 +151,7 @@ export class TableEnvironment {
         console.log("[TableEnv] Disposing TableEnvironment elements");
         this.table?.dispose();
         this.deckVisualMesh?.dispose();
-        this.scene.getMeshByName("dealerArea")?.dispose();
-        this.scene.getMeshByName("playerArea")?.dispose();
         this.scene.getMaterialByName("tableMaterial")?.dispose();
-        this.scene.getMaterialByName("dealerAreaMat")?.dispose();
-        this.scene.getMaterialByName("playerAreaMat")?.dispose();
         this.scene.getMaterialByName("deckDispenserMultiMat")?.dispose();
         this.scene.getMaterialByName("deckDispenserBottomMat")?.dispose();
         console.log("[TableEnv] Disposed.");

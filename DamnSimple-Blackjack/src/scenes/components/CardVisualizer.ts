@@ -93,10 +93,6 @@ export class CardVisualizer {
         return container;
     }
 
-    // *** REMOVED setTempCardContainer method ***
-    // CardVisualizer will now always use its internalTempCardContainer for texture generation.
-    // The debug display of cards will be handled entirely by DebugManager.
-
     public setOnAnimationCompleteCallback(callback: () => void): void {
         this.onAnimationCompleteCallback = callback;
     }
@@ -540,14 +536,22 @@ export class CardVisualizer {
 
     private calculateCardPosition(index: number, isPlayer: boolean, handSize: number): Vector3 {
         const zPos = isPlayer ? Constants.PLAYER_HAND_Z : Constants.DEALER_HAND_Z;
-        const yPos = Constants.CARD_Y_POS;
-        const stackOffset = (index * Constants.CARD_STACK_OFFSET);
+        let xPos: number;
+        let yPos: number;
 
-        const totalWidth = (handSize - 1) * Constants.CARD_SPACING;
-        const startX = -(totalWidth / 2);
-        const xPos = startX + (index * Constants.CARD_SPACING);
+        if (isPlayer) {
+            // New logic for player cards: stacked left-to-right
+            // handSize parameter is not directly used here for player, as stacking is additive from a start point.
+            xPos = Constants.PLAYER_HAND_START_X + (index * Constants.PLAYER_CARD_STACK_X_OFFSET);
+            yPos = Constants.CARD_Y_POS + (index * Constants.PLAYER_CARD_STACK_Y_OFFSET);
+        } else { // Dealer cards: centered, spaced side-by-side
+            const totalWidth = (handSize - 1) * Constants.CARD_SPACING;
+            const startXDealer = -(totalWidth / 2);
+            xPos = startXDealer + (index * Constants.CARD_SPACING);
+            yPos = Constants.CARD_Y_POS; // Dealer cards are flat on the table
+        }
 
-        return new Vector3(xPos, yPos + stackOffset, zPos);
+        return new Vector3(xPos, yPos, zPos);
     }
 
 
