@@ -20,6 +20,13 @@ export class DebugManager {
     // --- New properties for debug menu ---
     private debugMenuElement: HTMLElement | null = null;
     private isDebugMenuVisible: boolean = false;
+    private openSubMenu: HTMLElement | null = null;
+    private activeSubMenuTrigger: HTMLElement | null = null;
+    private activeCustomPromptElement: HTMLElement | null = null; // For custom dialog
+    private customPromptConfirmCallback: ((value: string | null) => void) | null = null;
+    private customPromptEscapeListener: ((event: KeyboardEvent) => void) | null = null;
+    private boundHandleSubMenuAccessKeys = this.handleSubMenuAccessKeys.bind(this);
+
 
     // --- Properties for dragging ---
     private dragOffsetX: number = 0;
@@ -51,6 +58,8 @@ export class DebugManager {
         (window as any).scene = gameScene.getScene();
         (window as any).cardViz = this.cardVisualizer;
         (window as any).gameUI = this.gameUI;
+
+        document.addEventListener('click', this.handleGlobalClick, true);
 
         console.log("Debug manager initialized. Type 'debug.help()' for available commands.");
     }
@@ -261,28 +270,49 @@ export class DebugManager {
 
     public setFunds(amount?: number): void {
         let finalAmount: number;
-        if (amount === undefined) {
-            const amountStr = prompt("Enter new player funds:", this.blackjackGame.getPlayerFunds().toString());
-            if (amountStr === null) {
-                console.log("Set funds cancelled.");
+        if (amount !== undefined) {
+            if (amount < 0) {
+                console.error("Funds cannot be negative");
                 return;
             }
-            finalAmount = parseInt(amountStr, 10);
-            if (isNaN(finalAmount)) {
-                console.error("Invalid amount entered for funds.");
-                return;
-            }
-        } else {
-            finalAmount = amount;
-        }
-
-        if (finalAmount < 0) {
-            console.error("Funds cannot be negative");
+            this.blackjackGame.getPlayerFundsManager().setFunds(amount);
+            this.updateUI();
+            console.log(`Player funds set to ${amount}`);
             return;
         }
-        this.blackjackGame.getPlayerFundsManager().setFunds(finalAmount);
-        this.updateUI();
-        console.log(`Player funds set to ${finalAmount}`);
+
+        this.showCustomPrompt(
+            "Enter new player funds:",
+            this.blackjackGame.getPlayerFunds().toString(),
+            (value) => {
+                if (value === null) {
+                    console.log("Set funds cancelled.");
+                    return;
+                }
+                finalAmount = parseInt(value, 10);
+                if (isNaN(finalAmount) || finalAmount < 0) {
+                    console.error("Invalid amount entered for funds. Must be a non-negative number.");
+                    // Optionally, re-show prompt or show an error in the prompt itself
+                    this.showCustomPrompt(
+                        "Invalid amount. Enter new player funds:",
+                        this.blackjackGame.getPlayerFunds().toString(),
+                        // Re-pass the same logic or a refined one
+                        (reValue) => {
+                            if (reValue === null) { console.log("Set funds cancelled."); return; }
+                            const reFinalAmount = parseInt(reValue, 10);
+                            if (isNaN(reFinalAmount) || reFinalAmount < 0) { console.error("Invalid amount again."); return; }
+                            this.blackjackGame.getPlayerFundsManager().setFunds(reFinalAmount);
+                            this.updateUI();
+                            console.log(`Player funds set to ${reFinalAmount}`);
+                        }
+                    );
+                    return;
+                }
+                this.blackjackGame.getPlayerFundsManager().setFunds(finalAmount);
+                this.updateUI();
+                console.log(`Player funds set to ${finalAmount}`);
+            }
+        );
     }
 
     public resetFunds(): void {
@@ -500,6 +530,8 @@ export class DebugManager {
                     cursor: pointer;
                     text-align: left;
                     font-size: 13px;
+                    width: 100%; /* Ensure all buttons have the same width */
+                    box-sizing: border-box; /* Include padding in width calculation */
                 }
                 .debug-menu-button:hover {
                     background-color: #45a049;
@@ -509,6 +541,103 @@ export class DebugManager {
                     background-color: #aaa;
                     margin-top: 8px;
                     margin-bottom: 8px;
+                }
+                .debug-menu-button-group {
+                    position: relative; /* For submenu positioning */
+                }
+                .debug-submenu {
+                    display: none; /* Hidden by default */
+                    position: fixed; /* Use fixed to pop out of container */
+                    background-color: #f9f9f9;
+                    min-width: 200px;
+                    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+                    z-index: 1005; /* Ensure it's above other debug elements */
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    padding: 5px 0;
+                    /* left, top, right will be set dynamically */
+                }
+                .debug-submenu-button {
+                    color: black;
+                    padding: 8px 12px;
+                    text-decoration: none;
+                    display: block;
+                    text-align: left;
+                    background-color: transparent;
+                    border: none;
+                    width: 100%;
+                    font-size: 13px;
+                    cursor: pointer;
+                }
+                .debug-submenu-button:hover {
+                    background-color: #e0e0e0;
+                }
+                .debug-prompt-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0,0,0,0.5);
+                    z-index: 1010; /* Above submenus */
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .debug-prompt-dialog {
+                    position: absolute; /* Added for positioning */
+                    left: 50%; /* Added for centering */
+                    top: 50%; /* Added for centering */
+                    transform: translate(-50%, -50%); /* Added for centering */
+                    background-color: #fff;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                    min-width: 300px;
+                    max-width: 90%;
+                    z-index: 1011;
+                    cursor: move; /* Added for draggable */
+                }
+                .debug-prompt-dialog p {
+                    margin-top: 0;
+                    margin-bottom: 15px;
+                    font-size: 16px;
+                    color: #333;
+                }
+                .debug-prompt-dialog input[type="number"] {
+                    width: calc(100% - 22px); /* Account for padding/border */
+                    padding: 10px;
+                    margin-bottom: 20px;
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    font-size: 16px;
+                }
+                .debug-prompt-buttons {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                }
+                .debug-prompt-buttons button {
+                    padding: 10px 15px;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    font-weight: bold;
+                }
+                .debug-prompt-confirm {
+                    background-color: #4CAF50;
+                    color: white;
+                }
+                .debug-prompt-confirm:hover {
+                    background-color: #45a049;
+                }
+                .debug-prompt-cancel {
+                    background-color: #f44336;
+                    color: white;
+                }
+                .debug-prompt-cancel:hover {
+                    background-color: #d32f2f;
                 }
             `;
             document.head.appendChild(styleSheet);
@@ -522,8 +651,37 @@ export class DebugManager {
             }
             this.isDragging = true;
             this.draggedElement = element;
-            this.dragOffsetX = e.clientX - element.offsetLeft;
-            this.dragOffsetY = e.clientY - element.offsetTop;
+
+            const computedStyle = getComputedStyle(element);
+            let finalEffectiveLeft = element.offsetLeft;
+            let finalEffectiveTop = element.offsetTop;
+
+            // If element was centered using transform, convert to explicit L/T for dragging
+            if (computedStyle.transform !== 'none' && computedStyle.transform !== '') {
+                const rect = element.getBoundingClientRect();
+                // Assuming the element's offset parent is effectively the viewport origin
+                // (e.g., child of a full-screen fixed overlay like .debug-prompt-overlay)
+                // or the element itself is fixed.
+                // For the dialog, its parent overlay is fixed at (0,0), so rect.left/top are correct.
+                element.style.left = `${rect.left}px`;
+                element.style.top = `${rect.top}px`;
+                element.style.transform = 'none'; // Remove transform, subsequent drags won't re-enter
+
+                finalEffectiveLeft = rect.left;
+                finalEffectiveTop = rect.top;
+            }
+            
+            // Ensure the element is positioned (not static) so style.left/top will work.
+            if (computedStyle.position === 'static') {
+                // Draggable elements are typically 'absolute', 'relative', or 'fixed'.
+                // Setting to 'relative' is a fallback if it was 'static'.
+                // The .debug-prompt-dialog is set to 'absolute' via CSS, so this won't apply to it.
+                element.style.position = 'relative'; 
+            }
+
+            this.dragOffsetX = e.clientX - finalEffectiveLeft;
+            this.dragOffsetY = e.clientY - finalEffectiveTop;
+
             document.onmousemove = this.dragElement.bind(this);
             document.onmouseup = this.stopDragElement.bind(this);
             e.preventDefault();
@@ -597,29 +755,35 @@ export class DebugManager {
         };
 
         // --- Scenario Starters ---
-        createButton('Start Hand (Normal)', () => this.debugStartNormalHand());
-        createButton('Start Split Hand', () => this.debugStartSplitHand());
-        createButton('Start Insurance Hand', () => this.debugStartInsuranceHand());
+        this.createDropdownButton('Start Scenario ▸', [
+            { text: 'Start Hand (Normal)', action: () => this.debugStartNormalHand(), accessKey: 'N' },
+            { text: 'Start Split Hand', action: () => this.debugStartSplitHand(), accessKey: 'S' },
+            { text: 'Start Insurance Hand', action: () => this.debugStartInsuranceHand(), accessKey: 'I' }
+        ], content, true); // true for openLeft
 
         createSeparator();
 
         // --- Game Control ---
-        createButton('Open Card Debug Window', () => this.toggleHandDisplay(true));
+        createButton('Toggle Card Debug Window', () => this.toggleHandDisplay());
         createButton('Reveal Dealer Hole Card', () => this.revealDealerHole());
         createButton('Force Reshuffle Deck', () => this.forceReshuffle());
 
         createSeparator();
 
         // --- Funds Control ---
-        createButton('Set Player Funds...', () => this.setFunds());
-        createButton('Reset Player Bank', () => this.resetFunds());
+        this.createDropdownButton('Manage Funds ▸', [
+            { text: 'Set Player Funds...', action: () => this.setFunds(), accessKey: 'F' },
+            { text: 'Reset Player Bank', action: () => this.resetFunds(), accessKey: 'R' }
+        ], content, true); // true for openLeft
 
         createSeparator();
 
         // --- Outcome Control ---
-        createButton('Force Player Win', () => this.forceWin(true));
-        createButton('Force Dealer Win', () => this.forceWin(false));
-        createButton('Force Push', () => this.forcePush());
+        this.createDropdownButton('Force Outcome ▸', [
+            { text: 'Force Player Win', action: () => this.forceWin(true), accessKey: 'P' },
+            { text: 'Force Dealer Win', action: () => this.forceWin(false), accessKey: 'D' },
+            { text: 'Force Push', action: () => this.forcePush(), accessKey: 'U' }
+        ], content, true); // true for openLeft
 
 
         this.debugMenuElement.appendChild(content);
@@ -953,12 +1117,311 @@ export class DebugManager {
             this.debugMenuElement.remove();
             this.debugMenuElement = null;
         }
+        if (this.activeCustomPromptElement) {
+            this.closeCustomPrompt(true); // Pass true to indicate cancellation
+        }
+        // Ensure any open submenu is removed from the body and listener is cleaned up
+        this.closeOpenSubMenuAndCleanup(true);
+
         const styleSheet = document.getElementById('blackjack-debug-styles');
         if (styleSheet) {
             styleSheet.remove();
         }
+        document.removeEventListener('click', this.handleGlobalClick, true);
         if ((window as any).debug === this) {
             (window as any).debug = undefined;
+        }
+    }
+
+    // --- Sub-menu helper and global click handler ---
+    private handleGlobalClick = (event: MouseEvent): void => {
+        // If a custom prompt is active, don't close submenus.
+        // The prompt overlay should handle its own dismissal or prevent clicks from passing.
+        if (this.activeCustomPromptElement) {
+            // Check if the click was on the overlay itself to close the prompt
+            if (event.target === this.activeCustomPromptElement) { // activeCustomPromptElement is the overlay
+                 this.closeCustomPrompt(true); // true for cancel
+            }
+            return;
+        }
+
+        if (this.openSubMenu) {
+            const target = event.target as HTMLElement;
+
+            // Do not close if the click is on the button that triggered the current submenu
+            if (this.activeSubMenuTrigger && this.activeSubMenuTrigger.contains(target)) {
+                return;
+            }
+            // Do not close if the click is inside the currently open submenu
+            if (this.openSubMenu.contains(target)) {
+                return;
+            }
+
+            // Click is outside, close the submenu
+            this.closeOpenSubMenuAndCleanup(true);
+        }
+    };
+
+    private formatTextWithAccessKey(text: string, accessKey?: string): string {
+        if (!accessKey || accessKey.length !== 1) {
+            return text;
+        }
+        const keyIndex = text.toLowerCase().indexOf(accessKey.toLowerCase());
+        if (keyIndex === -1) {
+            return text;
+        }
+        return `${text.substring(0, keyIndex)}<u>${text.substring(keyIndex, keyIndex + 1)}</u>${text.substring(keyIndex + 1)}`;
+    }
+
+
+    private closeOpenSubMenuAndCleanup(removeFromDom: boolean): void {
+        if (this.openSubMenu) {
+            document.removeEventListener('keydown', this.boundHandleSubMenuAccessKeys);
+            if (removeFromDom && this.openSubMenu.parentNode === document.body) {
+                document.body.removeChild(this.openSubMenu);
+            }
+            // Ensure style.display is 'none' even if not removed from DOM,
+            // as it might be reused if its parent button is clicked again.
+            this.openSubMenu.style.display = 'none';
+            this.openSubMenu = null;
+            this.activeSubMenuTrigger = null;
+        }
+    }
+
+    private handleSubMenuAccessKeys(event: KeyboardEvent): void {
+        if (!this.openSubMenu || event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+
+        const pressedKey = event.key.toLowerCase();
+        for (const child of Array.from(this.openSubMenu.children)) {
+            const button = child as HTMLElement;
+            if (button.dataset.accessKey === pressedKey) {
+                event.preventDefault();
+                event.stopPropagation();
+                button.click(); // This will trigger the action and close the submenu
+                return;
+            }
+        }
+    }
+
+
+    private createDropdownButton(
+        mainButtonText: string,
+        items: { text: string, action: () => void, accessKey?: string }[],
+        parentContainer: HTMLElement,
+        openLeft: boolean = false
+    ): void {
+        const group = document.createElement('div');
+        group.className = 'debug-menu-button-group';
+
+        const mainButton = document.createElement('button');
+        mainButton.className = 'debug-menu-button';
+        mainButton.textContent = mainButtonText;
+
+        const subMenu = document.createElement('div');
+        subMenu.className = 'debug-submenu';
+        // subMenu.style.top and left/right will be set on show
+
+        items.forEach(item => {
+            const subButton = document.createElement('button');
+            subButton.className = 'debug-submenu-button';
+            subButton.innerHTML = this.formatTextWithAccessKey(item.text, item.accessKey);
+            if (item.accessKey) {
+                subButton.dataset.accessKey = item.accessKey.toLowerCase();
+            }
+
+            subButton.onclick = (e) => {
+                e.stopPropagation(); // Prevent global click handler from closing immediately
+                item.action();
+                this.closeOpenSubMenuAndCleanup(true);
+            };
+            subMenu.appendChild(subButton);
+        });
+
+        mainButton.onclick = (e) => {
+            e.stopPropagation(); // Prevent global click handler
+
+            const subMenuWasOpenAndWasThisOne = this.openSubMenu === subMenu;
+
+            // Always close any potentially open submenu first.
+            // This handles closing the current one if it's clicked again,
+            // or closing a different one if another mainButton is clicked.
+            this.closeOpenSubMenuAndCleanup(true);
+
+            if (!subMenuWasOpenAndWasThisOne) {
+                // If it wasn't this submenu that was visible (or nothing was visible), open this one.
+                document.body.appendChild(subMenu); // Append to body to avoid clipping
+
+                const rect = mainButton.getBoundingClientRect();
+                subMenu.style.position = 'fixed'; // Already in CSS, but good to be explicit
+
+                if (openLeft) {
+                    subMenu.style.top = `${rect.top}px`;
+                    subMenu.style.right = `${window.innerWidth - rect.left}px`;
+                    subMenu.style.left = 'auto';
+                } else {
+                    subMenu.style.top = `${rect.top}px`;
+                    subMenu.style.left = `${rect.right}px`;
+                    subMenu.style.right = 'auto';
+                }
+
+                subMenu.style.display = 'block';
+                this.openSubMenu = subMenu;
+                this.activeSubMenuTrigger = mainButton;
+                document.addEventListener('keydown', this.boundHandleSubMenuAccessKeys);
+            }
+            // If it *was* this submenu and visible, it's now closed by the call above,
+            // and we don't re-open it.
+        };
+
+        group.appendChild(mainButton);
+        // subMenu is not appended to group here, but to document.body on click
+        parentContainer.appendChild(group);
+    }
+
+    // --- Custom Prompt Methods ---
+    private showCustomPrompt(
+        message: string,
+        defaultValue: string,
+        onConfirm: (value: string | null) => void
+    ): void {
+        if (this.activeCustomPromptElement) {
+            // Close existing prompt first if any
+            this.closeCustomPrompt(true);
+        }
+
+        this.customPromptConfirmCallback = onConfirm;
+
+        const overlay = document.createElement('div');
+        overlay.className = 'debug-prompt-overlay';
+        overlay.onclick = () => this.closeCustomPrompt(true); // Close when clicking outside
+        this.activeCustomPromptElement = overlay; // The overlay is the main tracked element
+
+        const dialog = document.createElement('div');
+        dialog.className = 'debug-prompt-dialog';
+        dialog.onclick = (e) => e.stopPropagation(); // Prevent overlay click when clicking dialog
+        
+        // Add dialog header with title and close button
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'debug-header';
+        headerDiv.style.marginTop = '0';
+        
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'debug-header-title';
+        titleSpan.textContent = 'Set Player Funds';
+        
+        const closeButton = document.createElement('button');
+        closeButton.className = 'debug-close-button';
+        closeButton.innerHTML = '&#x2715;';
+        closeButton.title = 'Cancel';
+        closeButton.onclick = (e) => {
+            e.stopPropagation();
+            this.closeCustomPrompt(true);
+        };
+        
+        headerDiv.appendChild(titleSpan);
+        headerDiv.appendChild(closeButton);
+        dialog.appendChild(headerDiv);
+
+        const p = document.createElement('p');
+        p.textContent = message;
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.value = defaultValue;
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.closeCustomPrompt(false, input.value);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.closeCustomPrompt(true);
+            }
+        };
+
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'debug-prompt-buttons';
+
+        const confirmButton = document.createElement('button');
+        confirmButton.textContent = 'Confirm';
+        confirmButton.className = 'debug-prompt-confirm';
+        confirmButton.onclick = () => this.closeCustomPrompt(false, input.value);
+
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.className = 'debug-prompt-cancel';
+        cancelButton.onclick = () => this.closeCustomPrompt(true);
+
+        buttonsDiv.appendChild(cancelButton);
+        buttonsDiv.appendChild(confirmButton);
+
+        dialog.appendChild(p);
+        dialog.appendChild(input);
+        dialog.appendChild(buttonsDiv);
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        
+        // Make the dialog draggable
+        this.makeDraggable(dialog);
+
+        input.focus();
+        input.select();
+
+        // Add Escape key listener to the document
+        this.customPromptEscapeListener = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                this.closeCustomPrompt(true);
+            }
+        };
+        document.addEventListener('keydown', this.customPromptEscapeListener);
+    }
+
+    private closeCustomPrompt(isCancel: boolean, value?: string): void {
+        if (this.activeCustomPromptElement) {
+            // Remove the overlay click event to prevent memory leaks
+            if (this.activeCustomPromptElement.onclick) {
+                (this.activeCustomPromptElement as HTMLElement).onclick = null;
+            }
+            
+            // Find and clean up the dialog element
+            const dialogElement = this.activeCustomPromptElement.querySelector('.debug-prompt-dialog');
+            if (dialogElement) {
+                (dialogElement as HTMLElement).onclick = null;
+                
+                // Clean up header buttons if present
+                const closeButton = dialogElement.querySelector('.debug-close-button');
+                if (closeButton) {
+                    (closeButton as HTMLElement).onclick = null;
+                }
+                
+                // Clean up input event handlers
+                const input = dialogElement.querySelector('input');
+                if (input) {
+                    (input as HTMLInputElement).onkeydown = null;
+                }
+                
+                // Clean up button click handlers
+                const buttons = dialogElement.querySelectorAll('button');
+                buttons.forEach(button => {
+                    (button as HTMLButtonElement).onclick = null;
+                });
+            }
+            
+            document.body.removeChild(this.activeCustomPromptElement);
+            this.activeCustomPromptElement = null;
+        }
+        
+        // Remove escape key listener
+        if (this.customPromptEscapeListener) {
+            document.removeEventListener('keydown', this.customPromptEscapeListener);
+            this.customPromptEscapeListener = null;
+        }
+        
+        // Call the callback with result
+        if (this.customPromptConfirmCallback) {
+            this.customPromptConfirmCallback(isCancel ? null : (value ?? ''));
+            this.customPromptConfirmCallback = null;
         }
     }
 }
