@@ -2,6 +2,7 @@
 // Added extensive debug logs to startNewGame, processDealQueue, onAnimationComplete
 // Added insurance logic
 // Introduced GameState.Dealing
+// Made resolveInsurance public for debug purposes
 import { Card, Rank } from "./Card"; // Import Rank
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
@@ -62,10 +63,9 @@ export class GameActions {
         if (stateChanged || forceSave) {
             console.log(`%c[GameActions] State Changing: ${GameState[this.gameState]} -> ${GameState[state]}`, 'color: orange; font-weight: bold;');
             this.gameState = state;
-            this.saveGameState(); // saveGameState implicitly notifies if state changed via GameController.onGameActionComplete -> update
-                                  // when GameActions.onAnimationComplete is called by the controller.
+            this.saveGameState();
         }
-        if (notifyController) { // For immediate UI updates not tied to animation completion
+        if (notifyController) {
             this.blackjackGame.notifyAnimationComplete();
         }
     }
@@ -99,7 +99,6 @@ export class GameActions {
             const validAmount = Math.max(Constants.MIN_BET, Math.min(amount, playerFunds));
             if (this.currentBet !== validAmount) {
                 this.currentBet = validAmount;
-                // No saveGameState here, bet is confirmed by startNewGame or UI interaction
             }
         } else {
             console.warn("[GameActions] Cannot set bet outside of Betting/Initial state.");
@@ -127,12 +126,12 @@ export class GameActions {
         const validBet = Math.max(Constants.MIN_BET, Math.min(bet, playerFunds));
         if (playerFunds < validBet || validBet < Constants.MIN_BET) {
             console.error(`[GameActions] Cannot start game. Insufficient funds (${playerFunds}) for bet (${validBet}) or bet too low.`);
-            this.setGameState(GameState.Betting, false, true); // Revert to betting, notify controller
+            this.setGameState(GameState.Betting, false, true);
             return false;
         }
         if (!this.playerFunds.deductFunds(validBet)) {
             console.error("[GameActions] Fund deduction failed unexpectedly.");
-            this.setGameState(GameState.Betting, false, true); // Revert to betting, notify controller
+            this.setGameState(GameState.Betting, false, true);
             return false;
         }
 
@@ -148,24 +147,24 @@ export class GameActions {
         this.setGameResult(GameResult.InProgress);
         this.handManager.refreshDeckIfNeeded();
 
-        this.setGameState(GameState.Dealing, true, true); // Set to Dealing, force save, and notify controller immediately
+        this.setGameState(GameState.Dealing, true, true);
 
         this.dealQueue = [];
         console.log(`%c[GameActions] Queuing 1st card: Dealer, faceUp=false`, 'color: #008080');
-        this.queueDeal(this.blackjackGame.getDealerHand(), false, false); // Dealer, face down
+        this.queueDeal(this.blackjackGame.getDealerHand(), false, false);
         console.log(`%c[GameActions] Queuing 2nd card: Player, faceUp=true`, 'color: #008080');
-        this.queueDeal(this.blackjackGame.getPlayerHand(), true, true);   // Player, face up
+        this.queueDeal(this.blackjackGame.getPlayerHand(), true, true);
         console.log(`%c[GameActions] Queuing 3rd card: Dealer, faceUp=true`, 'color: #008080');
-        this.queueDeal(this.blackjackGame.getDealerHand(), true, false);  // Dealer, face up
+        this.queueDeal(this.blackjackGame.getDealerHand(), true, false);
         console.log(`%c[GameActions] Queuing 4th card: Player, faceUp=true`, 'color: #008080');
-        this.queueDeal(this.blackjackGame.getPlayerHand(), true, true);   // Player, face up
+        this.queueDeal(this.blackjackGame.getPlayerHand(), true, true);
         console.log(`%c[GameActions] Deal Queue:`, 'color: #008080', this.dealQueue.map(d => `Player=${d.isPlayer}, FaceUp=${d.faceUp}`));
 
         this.lastAction = LastAnimatedAction.InitialDeal;
         this.isDealingInitialSequence = true;
 
         console.log(`%c[GameActions] Initiating first deal from queue...`, 'color: #008080');
-        this.processDealQueue(); // This will trigger animations, and onAnimationComplete will handle UI updates thereafter.
+        this.processDealQueue();
 
         console.log(`%c[GameActions] New game started logic initiated. Bet: ${this.currentBet}`, 'color: #008080');
         return true;
@@ -178,9 +177,9 @@ export class GameActions {
      */
     private checkInitialBlackjack(): void {
         const playerScore = this.blackjackGame.getPlayerScore();
-        console.log(`%c[GameActions] checkInitialBlackjack. Player Score: ${playerScore}`, 'color: #DAA520'); // GoldenRod
+        console.log(`%c[GameActions] checkInitialBlackjack. Player Score: ${playerScore}`, 'color: #DAA520');
 
-        if (playerScore === 21) { // Player has Blackjack
+        if (playerScore === 21) {
             console.log("%c[GameActions] Player has Blackjack!", 'color: gold; font-weight: bold;');
             this.requestRevealDealerHoleCard(() => {
                 console.log(`%c[GameActions] Post-reveal callback for Player BJ.`, 'color: #DAA520');
@@ -197,11 +196,11 @@ export class GameActions {
                     this.setGameResult(GameResult.PlayerBlackjack);
                     this.playerFunds.addFunds(this.currentBet * 2.5);
                 }
-                this.setGameState(GameState.GameOver, true, true); // Notify controller for final UI
+                this.setGameState(GameState.GameOver, true, true);
             });
-        } else { // Player does not have Blackjack
+        } else {
             console.log(`%c[GameActions] No initial Blackjack. Proceeding to PlayerTurn.`, 'color: #DAA520');
-            this.setGameState(GameState.PlayerTurn, true, true); // Notify controller for player actions
+            this.setGameState(GameState.PlayerTurn, true, true);
         }
     }
 
@@ -226,12 +225,12 @@ export class GameActions {
             this.requestRevealDealerHoleCard(() => {
                 console.log(`%c[GameActions] Post-reveal callback for Player Bust.`, 'color: #DAA520');
                 this.resolveInsurance();
-                this.setGameState(GameState.GameOver, true, true); // Notify for UI
+                this.setGameState(GameState.GameOver, true, true);
             });
         } else {
             console.log(`%c[GameActions] Player Hit OK. Player turn continues.`, 'color: #DAA520');
-            this.saveGameState(); // Save, UI updated by controller via onGameActionComplete
-            this.blackjackGame.notifyAnimationComplete(); // Signal action done, UI will update
+            this.saveGameState();
+            this.blackjackGame.notifyAnimationComplete();
         }
     }
 
@@ -242,7 +241,7 @@ export class GameActions {
 
         console.log("[GameActions] Player stands.");
         this.blackjackGame.insuranceTakenThisRound = true;
-        this.setGameState(GameState.DealerTurn, true, true); // Notify for UI change (e.g. disable player buttons)
+        this.setGameState(GameState.DealerTurn, true, true);
 
         console.log("[GameActions] Requesting hole card reveal before dealer turn.");
         this.requestRevealDealerHoleCard(() => {
@@ -273,8 +272,8 @@ export class GameActions {
         this.currentBet *= 2;
         console.log("[GameActions] Bet doubled to:", this.currentBet);
         this.blackjackGame.insuranceTakenThisRound = true;
-        this.saveGameState(); // Save new bet and funds
-        this.blackjackGame.notifyAnimationComplete(); // Update UI for bet/funds change
+        this.saveGameState();
+        this.blackjackGame.notifyAnimationComplete();
 
         this.lastAction = LastAnimatedAction.DoubleDownHit;
         this.dealCardToHand(this.blackjackGame.getPlayerHand(), true);
@@ -285,7 +284,6 @@ export class GameActions {
     private completeDoubleDown(): void {
         const playerScore = this.blackjackGame.getPlayerScore();
         console.log(`%c[GameActions] completeDoubleDown. Score: ${playerScore}`, 'color: #DAA520');
-        // State already saved for bet/funds. Player hand change will be saved by dealCardToHand.
 
         if (playerScore > 21) {
             console.log("%c[GameActions] Player Bust on Double Down!", 'color: red; font-weight: bold;');
@@ -293,11 +291,11 @@ export class GameActions {
             this.requestRevealDealerHoleCard(() => {
                 console.log(`%c[GameActions] Post-reveal callback for Double Down Bust.`, 'color: #DAA520');
                 this.resolveInsurance();
-                this.setGameState(GameState.GameOver, true, true); // Notify for UI
+                this.setGameState(GameState.GameOver, true, true);
             });
         } else {
             console.log(`%c[GameActions] Double Down OK. Proceeding to DealerTurn.`, 'color: #DAA520');
-            this.setGameState(GameState.DealerTurn, true, true); // Notify for UI
+            this.setGameState(GameState.DealerTurn, true, true);
             console.log("[GameActions] Requesting hole card reveal before dealer turn (after Double Down).");
             this.requestRevealDealerHoleCard(() => {
                 console.log(`%c[GameActions] Post-reveal callback for Double Down OK. Executing dealer turn.`, 'color: #DAA520');
@@ -338,11 +336,14 @@ export class GameActions {
 
         this.lastAction = LastAnimatedAction.InsuranceTaken;
         this.saveGameState();
-        this.blackjackGame.notifyAnimationComplete(); // Notify UI to update (e.g., show insurance bet, disable insurance button)
+        this.blackjackGame.notifyAnimationComplete();
     }
 
-    /** Resolves the insurance bet based on whether the dealer has Blackjack. */
-    private resolveInsurance(): void {
+    /**
+     * Resolves the insurance bet based on whether the dealer has Blackjack.
+     * Public for DebugManager access.
+     */
+    public resolveInsurance(): void {
         if (this.roundInsuranceTaken) {
             console.log("[GameActions] Resolving insurance...");
             const dealerHand = this.blackjackGame.getDealerHand();
@@ -386,7 +387,7 @@ export class GameActions {
             this.lastAction = LastAnimatedAction.RevealDealerHole;
             this._postRevealCallback = callback || null;
             console.log(`%c[GameActions] Calling flip() on dealer card 0: ${dealerHand[0].toString()}`, 'color: magenta');
-            dealerHand[0].flip(); // This triggers CardVisualizer, which calls onVisualAnimationComplete -> GameActions.onAnimationComplete
+            dealerHand[0].flip();
         } else {
             console.log(`%c[GameActions] Dealer hole card already revealed or no card exists. Executing callback immediately (if provided).`, 'color: magenta');
             if (callback) {
@@ -431,10 +432,10 @@ export class GameActions {
             this.setGameResult(GameResult.PlayerWins);
             this.playerFunds.addFunds(this.currentBet * 2);
             this.resolveInsurance();
-            this.setGameState(GameState.GameOver, true, true); // Notify for UI
+            this.setGameState(GameState.GameOver, true, true);
         } else {
             console.log(`%c[GameActions] Dealer Hit OK. Continuing dealer turn...`, 'color: #DAA520');
-            this.executeDealerTurn(); // No UI notification needed here, executeDealerTurn will handle it or call dealerStand
+            this.executeDealerTurn();
         }
     }
 
@@ -444,7 +445,7 @@ export class GameActions {
         if ((this.gameState === GameState.Initial ||
                 this.gameState === GameState.Betting ||
                 this.gameState === GameState.PlayerTurn ||
-                this.gameState === GameState.Dealing) && // Added Dealing state
+                this.gameState === GameState.Dealing) &&
             this.lastAction === LastAnimatedAction.None) {
             console.warn(`[GameActions] dealerStand called unexpectedly in state: ${GameState[this.gameState]} with no preceding action.`);
             return;
@@ -476,7 +477,7 @@ export class GameActions {
             this.playerFunds.addFunds(this.currentBet);
         }
 
-        this.setGameState(GameState.GameOver, true, true); // Notify for UI
+        this.setGameState(GameState.GameOver, true, true);
     }
 
     // --- Card Dealing ---
@@ -506,13 +507,13 @@ export class GameActions {
                 this.isDealingInitialSequence = false;
                 this.lastAction = LastAnimatedAction.None;
                 this.setGameState(GameState.GameOver, true);
-                this.setGameResult(GameResult.DealerWins); // Or some other error result
-                this.blackjackGame.notifyAnimationComplete(); // Ensure UI updates to game over
+                this.setGameResult(GameResult.DealerWins);
+                this.blackjackGame.notifyAnimationComplete();
                 return;
             }
 
             console.log(`%c[GameActions]   -> Drawn card: ${card.toString()}`, 'color: cyan');
-            card.setFaceUp(dealInfo.faceUp); // Set faceUp *before* adding to hand or notifying
+            card.setFaceUp(dealInfo.faceUp);
             console.log(`%c[GameActions]   -> Card state after setFaceUp: ${card.isFaceUp()}`, 'color: cyan');
 
             const isPlayer = dealInfo.isPlayer;
@@ -531,14 +532,14 @@ export class GameActions {
                 card,
                 dealInfo.hand.length - 1,
                 isPlayer,
-                dealInfo.faceUp // Pass the intended faceUp state for animation
+                dealInfo.faceUp
             );
             console.log(`%c[GameActions]   -> Waiting for visual animation to complete...`, 'color: cyan');
         } else {
             console.error("[GameActions] processDealQueue called with empty queue during initial deal sequence!");
             this.isDealingInitialSequence = false;
             this.lastAction = LastAnimatedAction.None;
-            this.checkInitialBlackjack(); // This will set PlayerTurn or GameOver and notify UI
+            this.checkInitialBlackjack();
         }
     }
 
@@ -593,19 +594,19 @@ export class GameActions {
         if (actionJustCompleted === LastAnimatedAction.InitialDeal) {
             if (this.dealQueue.length > 0) {
                 console.log(`%c[GameActions]   -> InitialDeal completed, ${this.dealQueue.length} cards left in queue. Processing next...`, 'color: orange');
-                this.processDealQueue(); // Continues dealing, UI updates via this chain
+                this.processDealQueue();
                 return;
             } else {
                 console.log(`%c[GameActions]   -> InitialDeal completed, queue empty. Sequence finished.`, 'color: orange');
                 this.isDealingInitialSequence = false;
                 this.lastAction = LastAnimatedAction.None;
                 console.log(`%c[GameActions]   -> Checking for initial Blackjack...`, 'color: orange');
-                this.checkInitialBlackjack(); // This will set PlayerTurn or GameOver and notify UI
+                this.checkInitialBlackjack();
                 return;
             }
         }
 
-        const previousLastAction = this.lastAction; // Store before resetting
+        const previousLastAction = this.lastAction;
         console.log(`%c[GameActions]   -> Resetting lastAction from ${LastAnimatedAction[previousLastAction]} to None.`, 'color: orange');
         this.lastAction = LastAnimatedAction.None;
 
@@ -628,27 +629,21 @@ export class GameActions {
                     console.log(`%c[GameActions]   -> Executing post-reveal callback.`, 'color: orange');
                     const callback = this._postRevealCallback;
                     this._postRevealCallback = null;
-                    setTimeout(callback, 0); // Callback might change state and notify UI
+                    setTimeout(callback, 0);
                 } else {
                     console.warn("[GameActions] RevealDealerHole completed but no callback was set.");
-                    this.blackjackGame.notifyAnimationComplete(); // Ensure UI knows something finished
+                    this.blackjackGame.notifyAnimationComplete();
                 }
                 break;
             case LastAnimatedAction.InsuranceTaken:
                 console.log(`%c[GameActions]   -> InsuranceTaken action complete. UI already updated.`, 'color: orange');
-                // No further game logic step, UI was updated when insurance was taken.
-                // The blackjackGame.notifyAnimationComplete() was already called by playerTakeInsurance.
-                // This case is mostly for acknowledging the action completion and resetting lastAction.
                 break;
             case LastAnimatedAction.None:
-                // This case can happen if notifyAnimationComplete is called for a state change
-                // without a pending visual/logical action (e.g., from setGameState with notifyController=true)
                 console.log("[GameActions] Animation finished for None action. UI should be up-to-date.");
-                // No further action needed, GameController.onGameActionComplete already updated the UI.
                 break;
             default:
                 console.warn(`[GameActions] Unhandled animation completion for action: ${LastAnimatedAction[previousLastAction]}`);
-                this.blackjackGame.notifyAnimationComplete(); // Generic notification
+                this.blackjackGame.notifyAnimationComplete();
                 break;
         }
         console.log(`%c[GameActions] <<< onAnimationComplete finished processing for ${LastAnimatedAction[previousLastAction]} >>>`, 'color: orange; font-weight: bold');
@@ -657,11 +652,6 @@ export class GameActions {
     // --- Save/Load ---
     /** Saves the current game state to storage, avoiding saves during initial deal animation. */
     public saveGameState(): void {
-        // Allow saving during GameState.Dealing, as it's a valid persistent state.
-        // if (this.isDealingInitialSequence && this.lastAction === LastAnimatedAction.InitialDeal) {
-        //     console.log("[GameActions] Skipping saveGameState during active initial card deal animation.");
-        //     return;
-        // }
         GameStorage.saveGameState(
             this.gameState, this.currentBet, this.gameResult,
             this.blackjackGame.getPlayerHand(), this.blackjackGame.getDealerHand(),
@@ -685,7 +675,7 @@ export class GameActions {
 
         if (!loadedData.gameState) {
             GameStorage.clearSavedHands();
-            this.setGameState(GameState.Initial, true); // Force save for initial state
+            this.setGameState(GameState.Initial, true);
             this.setGameResult(GameResult.InProgress);
             this.currentBet = 0;
             const initialFunds = GameStorage.loadFunds(Constants.DEFAULT_FUNDS);
@@ -696,7 +686,7 @@ export class GameActions {
         }
 
         console.log("%c[GameActions] Restoring game state...", 'color: blue');
-        this.gameState = loadedData.gameState; // Don't use setGameState here to avoid notifications during load
+        this.gameState = loadedData.gameState;
         this.currentBet = loadedData.currentBet!;
         this.lastBet = this.currentBet > 0 ? this.currentBet : (GameStorage.loadFunds(Constants.DEFAULT_FUNDS) >= Constants.MIN_BET ? Constants.MIN_BET : 0);
         this.gameResult = loadedData.gameResult!;

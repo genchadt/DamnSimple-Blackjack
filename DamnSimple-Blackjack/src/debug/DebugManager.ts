@@ -61,7 +61,7 @@ export class DebugManager {
     public help(): void {
         console.log("%cBlackjack Debug Commands", "font-size: 16px; font-weight: bold; color: #4CAF50;");
         console.log("%cGame State Commands:", "font-weight: bold; color: #2196F3;");
-        console.log("  debug.setGameState(state) - Set game state (0=Initial, 1=Betting, 2=Dealing, 3=PlayerTurn, 4=DealerTurn, 5=GameOver)"); // Updated indices
+        console.log("  debug.setGameState(state) - Set game state (0=Initial, 1=Betting, 2=Dealing, 3=PlayerTurn, 4=DealerTurn, 5=GameOver)");
         console.log("  debug.setGameResult(result) - Set game result (0=PlayerWins, 1=DealerWins, 2=Push, 3=PlayerBlackjack, 4=InProgress)");
         console.log("  debug.resetGame() - Reset the game to initial state");
         console.log("  debug.startNewGame(bet) - Start a new game with specified bet (clears table)");
@@ -74,6 +74,7 @@ export class DebugManager {
         console.log("  debug.dealRandomCard(isPlayer, faceUp) - Deal a random card");
         console.log("  debug.renderCards() - Force re-render all cards (visuals in Babylon)");
         console.log("  debug.revealDealerHole() - Reveals the dealer's hole card");
+        console.log("  debug.forceReshuffle() - Forces the deck to reshuffle.");
 
         console.log("%cFunds Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.setFunds(amount) - Set player funds to specific amount");
@@ -86,23 +87,26 @@ export class DebugManager {
         console.log("  debug.toggleHandDisplay(visible?) - Toggle draggable display of current hands.");
         console.log("  debug.toggleDebugMenu(visible?) - Toggle the main debug menu window.");
 
+        console.log("%cQuick Scenarios:", "font-weight: bold; color: #FF9800;");
+        console.log("  debug.forceWin(isPlayer) - Force player (true) or dealer (false) win.");
+        console.log("  debug.forcePush() - Force a push result.");
+
+
         console.log("%cExamples:", "font-weight: bold; color: #FF9800;");
-        console.log("  debug.setGameState(3) - Set game to PlayerTurn"); // Updated example index
+        console.log("  debug.setGameState(3) - Set game to PlayerTurn");
         console.log("  debug.addCard(true, 'Hearts', 'A', true) - Add Ace of Hearts to player's hand face up");
         console.log("  debug.dealRandomCard(false, false) - Deal random card to dealer face down");
     }
 
     public setGameState(state: number): void {
-        if (state < 0 || state >= Object.keys(GameState).length / 2) { // Check against enum size
+        if (state < 0 || state >= Object.keys(GameState).length / 2) {
             console.error("Invalid game state. Use 0-" + (Object.keys(GameState).length / 2 - 1));
             return;
         }
         if (state === GameState.GameOver && this.blackjackGame.getGameState() !== GameState.GameOver) {
             this.recordHandHistory();
         }
-        // Notify controller for immediate UI update after state change
         this.blackjackGame.getGameActions().setGameState(state as GameState, true, true);
-        // updateUI is implicitly called by the controller after notification
         console.log(`Game state set to ${GameState[state]}`);
     }
 
@@ -112,13 +116,12 @@ export class DebugManager {
             return;
         }
         this.blackjackGame.getGameActions().setGameResult(result as GameResult, true);
-        this.updateUI(); // Game result change might not always trigger full controller update path
+        this.updateUI();
         console.log(`Game result set to ${GameResult[result]}`);
     }
 
     public resetGame(): void {
         this.cardVisualizer.clearTable();
-        // Set state to Initial and notify controller
         this.blackjackGame.getGameActions().setGameState(GameState.Initial, true, true);
         this.blackjackGame.getGameActions().setGameResult(GameResult.InProgress, true);
         this.blackjackGame.setPlayerHand([]);
@@ -133,7 +136,6 @@ export class DebugManager {
         this.lastPlayerHand = [];
         this.lastDealerHand = [];
 
-        // updateUI() is called by setGameState via controller notification
         console.log("Game reset to initial state, debug history cleared.");
     }
 
@@ -143,18 +145,14 @@ export class DebugManager {
             currentState !== GameState.Betting &&
             currentState !== GameState.GameOver) {
             console.warn(`[DebugManager] Forcing game to Initial state before starting new game.`);
-            this.resetGame(); // This will put it in Initial state and update UI.
+            this.resetGame();
         }
-        // cardVisualizer.clearTable() is called by GameActions.startNewGame if needed
         const success = this.blackjackGame.startNewGame(bet);
         if (success) {
             console.log(`Started new game with bet: ${bet}`);
         } else {
             console.error(`Failed to start new game with bet ${bet}. Insufficient funds?`);
-            // If failed, GameActions should set state to Betting and notify controller.
         }
-        // UI updates are handled by startNewGame's internal flow which calls notifyAnimationComplete.
-        // Forcing an updateDebugHandDisplay after a slight delay can be a fallback.
         setTimeout(() => this.updateDebugHandDisplay(), 100);
     }
 
@@ -261,14 +259,30 @@ export class DebugManager {
         console.log("Cards re-rendered (Babylon visuals and debug display)");
     }
 
-    public setFunds(amount: number): void {
-        if (amount < 0) {
+    public setFunds(amount?: number): void {
+        let finalAmount: number;
+        if (amount === undefined) {
+            const amountStr = prompt("Enter new player funds:", this.blackjackGame.getPlayerFunds().toString());
+            if (amountStr === null) {
+                console.log("Set funds cancelled.");
+                return;
+            }
+            finalAmount = parseInt(amountStr, 10);
+            if (isNaN(finalAmount)) {
+                console.error("Invalid amount entered for funds.");
+                return;
+            }
+        } else {
+            finalAmount = amount;
+        }
+
+        if (finalAmount < 0) {
             console.error("Funds cannot be negative");
             return;
         }
-        this.blackjackGame.getPlayerFundsManager().setFunds(amount);
+        this.blackjackGame.getPlayerFundsManager().setFunds(finalAmount);
         this.updateUI();
-        console.log(`Player funds set to ${amount}`);
+        console.log(`Player funds set to ${finalAmount}`);
     }
 
     public resetFunds(): void {
@@ -374,7 +388,7 @@ export class DebugManager {
                     width: auto;
                     min-width: 250px;
                     max-width: 400px;
-                    max-height: 400px;
+                    max-height: 500px;
                     overflow-y: auto;
                     overflow-x: hidden;
                     border: 2px solid blue;
@@ -490,6 +504,12 @@ export class DebugManager {
                 .debug-menu-button:hover {
                     background-color: #45a049;
                 }
+                .debug-menu-separator {
+                    height: 1px;
+                    background-color: #aaa;
+                    margin-top: 8px;
+                    margin-bottom: 8px;
+                }
             `;
             document.head.appendChild(styleSheet);
         }
@@ -559,24 +579,48 @@ export class DebugManager {
         const content = document.createElement('div');
         content.className = 'debug-menu-button-container';
 
-        const buttons = [
-            { text: 'Start Hand (Normal)', action: () => this.debugStartNormalHand() },
-            { text: 'Start Split Hand', action: () => this.debugStartSplitHand() },
-            { text: 'Start Insurance Hand', action: () => this.debugStartInsuranceHand() },
-            { text: 'Open Card Debug Window', action: () => this.toggleHandDisplay(true) },
-            { text: 'Reset Player Bank', action: () => this.resetFunds() },
-        ];
-
-        buttons.forEach(btnInfo => {
+        const createButton = (text: string, action: () => void) => {
             const button = document.createElement('button');
             button.className = 'debug-menu-button';
-            button.textContent = btnInfo.text;
+            button.textContent = text;
             button.onclick = (e) => {
                 e.stopPropagation();
-                btnInfo.action();
+                action();
             };
             content.appendChild(button);
-        });
+        };
+
+        const createSeparator = () => {
+            const separator = document.createElement('div');
+            separator.className = 'debug-menu-separator';
+            content.appendChild(separator);
+        };
+
+        // --- Scenario Starters ---
+        createButton('Start Hand (Normal)', () => this.debugStartNormalHand());
+        createButton('Start Split Hand', () => this.debugStartSplitHand());
+        createButton('Start Insurance Hand', () => this.debugStartInsuranceHand());
+
+        createSeparator();
+
+        // --- Game Control ---
+        createButton('Open Card Debug Window', () => this.toggleHandDisplay(true));
+        createButton('Reveal Dealer Hole Card', () => this.revealDealerHole());
+        createButton('Force Reshuffle Deck', () => this.forceReshuffle());
+
+        createSeparator();
+
+        // --- Funds Control ---
+        createButton('Set Player Funds...', () => this.setFunds());
+        createButton('Reset Player Bank', () => this.resetFunds());
+
+        createSeparator();
+
+        // --- Outcome Control ---
+        createButton('Force Player Win', () => this.forceWin(true));
+        createButton('Force Dealer Win', () => this.forceWin(false));
+        createButton('Force Push', () => this.forcePush());
+
 
         this.debugMenuElement.appendChild(content);
         document.body.appendChild(this.debugMenuElement);
@@ -767,26 +811,22 @@ export class DebugManager {
 
     private debugStartNormalHand(): void {
         console.log("DEBUG: Starting Normal Hand");
-        this.resetGame(); // Resets funds, clears table, sets state to Initial, notifies UI.
-        const success = this.blackjackGame.startNewGame(Constants.MIN_BET); // Sets state to Dealing, notifies UI, starts deal.
+        this.resetGame();
+        const success = this.blackjackGame.startNewGame(Constants.MIN_BET);
         if (!success) {
             console.error("DEBUG: Failed to start normal hand.");
-            // UI should reflect Betting state if startNewGame failed due to funds.
         }
-        // No explicit updateUI() needed here as resetGame and startNewGame handle notifications.
     }
 
     private debugStartSplitHand(): void {
         console.log("DEBUG: Starting Split Hand");
-        this.resetGame(); // Clears table, hands, resets funds, sets state to Initial, notifies UI.
+        this.resetGame();
 
         this.blackjackGame.setCurrentBet(Constants.MIN_BET);
         if (!this.blackjackGame.getPlayerFundsManager().deductFunds(this.blackjackGame.getCurrentBet())) {
             console.error("DEBUG Split: Could not deduct bet. Player funds:", this.blackjackGame.getPlayerFunds());
-            // UI already updated by resetGame to show Initial state. If funds are 0, this is expected.
             return;
         }
-        // Set to Dealing and notify UI to show "Dealing..." message
         this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
 
         const suits = Object.values(Suit);
@@ -806,22 +846,19 @@ export class DebugManager {
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
 
-        this.cardVisualizer.renderCards(true); // Render cards instantly for debug setup
-
-        // Transition to PlayerTurn and notify UI again for action buttons
+        this.cardVisualizer.renderCards(true);
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
     }
 
     private debugStartInsuranceHand(): void {
         console.log("DEBUG: Starting Insurance Hand");
-        this.resetGame(); // Clears table, hands, resets funds, sets state to Initial, notifies UI.
+        this.resetGame();
 
         this.blackjackGame.setCurrentBet(Constants.MIN_BET);
         if (!this.blackjackGame.getPlayerFundsManager().deductFunds(this.blackjackGame.getCurrentBet())) {
             console.error("DEBUG Insurance: Could not deduct bet. Player funds:", this.blackjackGame.getPlayerFunds());
             return;
         }
-        // Set to Dealing and notify UI
         this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
 
         const playerCard1 = this.dealRandomCard(true, true); playerCard1.setFaceUp(true);
@@ -830,17 +867,80 @@ export class DebugManager {
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
 
-        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false); // Hole card
-        const dealerCard2 = new Card(Suit.Spades, Rank.Ace);   // Ace up-card
+        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false);
+        const dealerCard2 = new Card(Suit.Spades, Rank.Ace);
         dealerCard2.setFaceUp(true);
         this.blackjackGame.setDealerHand([dealerCard1, dealerCard2]);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
 
-        this.cardVisualizer.renderCards(true); // Render cards instantly
-
-        // Transition to PlayerTurn and notify UI
+        this.cardVisualizer.renderCards(true);
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
+    }
+
+    public forceReshuffle(): void {
+        console.log("DEBUG: Forcing deck reshuffle.");
+        const cardsRemaining = this.blackjackGame.getHandManager().forceDeckReshuffle();
+        console.log(`Deck reshuffled. Cards remaining: ${cardsRemaining}`);
+        this.updateUI();
+    }
+
+    private ensureBetActiveForForceOutcome(): void {
+        const game = this.blackjackGame;
+        if (game.getCurrentBet() === 0) {
+            if (game.getPlayerFunds() >= Constants.MIN_BET) {
+                game.setCurrentBet(Constants.MIN_BET);
+                game.getPlayerFundsManager().deductFunds(Constants.MIN_BET);
+                console.log(`DEBUG: Auto-placed MIN_BET (${Constants.MIN_BET}) for forced outcome.`);
+            } else {
+                console.warn("DEBUG: Cannot auto-place bet for forced outcome, insufficient funds. Outcome may not have monetary effect.");
+            }
+        }
+        if (game.getGameState() !== GameState.PlayerTurn && game.getGameState() !== GameState.DealerTurn && game.getGameState() !== GameState.Dealing) {
+            game.getGameActions().setGameState(GameState.PlayerTurn, true, false);
+        }
+    }
+
+
+    public forceWin(playerWins: boolean): void {
+        console.log(`DEBUG: Forcing ${playerWins ? 'Player Win' : 'Dealer Win'}`);
+        this.ensureBetActiveForForceOutcome();
+        const game = this.blackjackGame;
+        const gameActions = game.getGameActions();
+
+        const dealerHand = game.getDealerHand();
+        if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
+            dealerHand[0].setFaceUp(true);
+            this.cardVisualizer.updateCardVisual(dealerHand[0], true);
+        }
+
+
+        if (playerWins) {
+            gameActions.setGameResult(GameResult.PlayerWins, true);
+            game.getPlayerFundsManager().addFunds(game.getCurrentBet() * 2);
+        } else {
+            gameActions.setGameResult(GameResult.DealerWins, true);
+        }
+        gameActions.resolveInsurance();
+        gameActions.setGameState(GameState.GameOver, true, true);
+    }
+
+    public forcePush(): void {
+        console.log("DEBUG: Forcing Push");
+        this.ensureBetActiveForForceOutcome();
+        const game = this.blackjackGame;
+        const gameActions = game.getGameActions();
+
+        const dealerHand = game.getDealerHand();
+        if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
+            dealerHand[0].setFaceUp(true);
+            this.cardVisualizer.updateCardVisual(dealerHand[0], true);
+        }
+
+        gameActions.setGameResult(GameResult.Push, true);
+        game.getPlayerFundsManager().addFunds(game.getCurrentBet());
+        gameActions.resolveInsurance();
+        gameActions.setGameState(GameState.GameOver, true, true);
     }
 
 
