@@ -1,6 +1,7 @@
 // src/ui/statusui-ts
 // Added debug log for dealer score calculation
 // Added insurance bet display
+// Added "Dealing Cards..." message
 import { Scene } from "@babylonjs/core";
 import { TextBlock, Control, Rectangle, StackPanel } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
@@ -15,7 +16,7 @@ export class StatusUI extends BaseUI {
     private gameStatusText!: TextBlock;
     private fundsText!: TextBlock;
     private betText!: TextBlock;
-    private insuranceBetText!: TextBlock; // Added for insurance bet
+    private insuranceBetText!: TextBlock;
     private currencySign: string = "$";
 
     constructor(scene: Scene, game: BlackjackGame) {
@@ -31,11 +32,11 @@ export class StatusUI extends BaseUI {
             shadowColor: "#000000", shadowBlur: 2, shadowOffsetX: 1, shadowOffsetY: 1
         };
         const textOptions = {
-            color: "white", fontSize: 18, height: "28px", // Default height for funds/bet
+            color: "white", fontSize: 18, height: "28px",
             textHorizontalAlignment: Control.HORIZONTAL_ALIGNMENT_CENTER
         };
-        const smallTextOptions = { // For insurance bet, potentially smaller
-            color: "#FFD700", fontSize: 16, height: "24px", // Gold color, smaller font
+        const smallTextOptions = {
+            color: "#FFD700", fontSize: 16, height: "24px",
             textHorizontalAlignment: Control.HORIZONTAL_ALIGNMENT_CENTER
         };
 
@@ -68,7 +69,7 @@ export class StatusUI extends BaseUI {
         // Funds Panel (Top Right)
         const fundsPanel = new Rectangle("fundsPanel");
         fundsPanel.width = "220px";
-        fundsPanel.adaptHeightToChildren = true; // Adapt height
+        fundsPanel.adaptHeightToChildren = true;
         fundsPanel.cornerRadius = 10;
         fundsPanel.background = "rgba(0, 0, 0, 0.6)"; fundsPanel.thickness = 1; fundsPanel.color = "#888";
         fundsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
@@ -88,10 +89,9 @@ export class StatusUI extends BaseUI {
         Object.assign(this.betText, textOptions);
         fundsStack.addControl(this.betText);
 
-        // Insurance Bet Text (added to fundsStack)
         this.insuranceBetText = new TextBlock("insuranceBetText", "");
         Object.assign(this.insuranceBetText, smallTextOptions);
-        this.insuranceBetText.isVisible = false; // Initially hidden
+        this.insuranceBetText.isVisible = false;
         fundsStack.addControl(this.insuranceBetText);
     }
 
@@ -117,11 +117,11 @@ export class StatusUI extends BaseUI {
 
         if (gameState === GameState.Initial || dealerHand.length === 0) {
             dealerScoreDisplay = "?";
-        } else if (gameState === GameState.PlayerTurn || gameState === GameState.Betting) {
+        } else if (gameState === GameState.PlayerTurn || gameState === GameState.Betting || gameState === GameState.Dealing) { // Include Dealing
             if (dealerVisibleScore > 0) {
                 dealerScoreDisplay = `${dealerVisibleScore}`;
             } else {
-                dealerScoreDisplay = "?";
+                dealerScoreDisplay = "?"; // Keep '?' if only hole card is dealt (score 0)
             }
         } else if (gameState === GameState.DealerTurn || gameState === GameState.GameOver) {
             dealerScoreDisplay = `${dealerFullScore}`;
@@ -137,9 +137,8 @@ export class StatusUI extends BaseUI {
         this.betText.text = `Bet: ${currentBet > 0 ? this.currencySign + currentBet : "--"}`;
         this.betText.isVisible = (gameState !== GameState.Initial && gameState !== GameState.Betting);
 
-        // Update Insurance Bet Text
         const insuranceBet = this.game.insuranceBetPlaced;
-        if (insuranceBet > 0 && (gameState === GameState.PlayerTurn || gameState === GameState.DealerTurn || gameState === GameState.GameOver)) {
+        if (insuranceBet > 0 && (gameState === GameState.PlayerTurn || gameState === GameState.DealerTurn || gameState === GameState.GameOver || gameState === GameState.Dealing)) {
             this.insuranceBetText.text = `Insurance: ${this.currencySign}${insuranceBet}`;
             this.insuranceBetText.isVisible = true;
         } else {
@@ -151,11 +150,11 @@ export class StatusUI extends BaseUI {
         switch (gameState) {
             case GameState.Initial: status = "Sit Down to Play"; break;
             case GameState.Betting: status = "Place Your Bet"; break;
+            case GameState.Dealing: status = "Dealing Cards..."; statusColor = "#ADD8E6"; break; // Light blue for dealing
             case GameState.PlayerTurn:
                 status = "Your Turn";
                 if (playerScore > 21) { status = "Bust!"; statusColor = "tomato"; }
                 else if (playerScore === 21 && playerHand.length === 2) { status = "Blackjack!"; statusColor = "gold"; }
-                // Display insurance offer if available and not yet taken
                 else if (this.game.isInsuranceAvailable()) { status = "Insurance Available"; statusColor = "orange"; }
                 break;
             case GameState.DealerTurn: status = "Dealer's Turn"; break;

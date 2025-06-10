@@ -1,5 +1,6 @@
 // src/scenes/components/gamecontroller-ts
 // Added extensive debug logs to callbacks and requestCardDealAnimation
+// Ensured onGameActionComplete calls GameActions.onAnimationComplete
 import { Scene } from "@babylonjs/core";
 import { BlackjackGame, HandModificationUpdate } from "../../game/BlackjackGame";
 import { GameResult, GameState } from "../../game/GameState";
@@ -33,7 +34,7 @@ export class GameController {
         this.cardVisualizer.setOnAnimationCompleteCallback(this.onVisualAnimationComplete.bind(this));
         console.log("[Controller] CardVisualizer animation complete callback set.");
 
-        // 2. GameActions logic step finishes -> Calls BlackjackGame.notifyAnimationComplete -> GameController.onGameActionComplete -> GameUI.update
+        // 2. GameActions logic step finishes -> Calls BlackjackGame.notifyAnimationComplete -> GameController.onGameActionComplete -> GameUI.update AND GameActions.onAnimationComplete
         this.blackjackGame.setAnimationCompleteCallback(this.onGameActionComplete.bind(this));
         console.log("[Controller] BlackjackGame action complete callback set.");
 
@@ -61,13 +62,13 @@ export class GameController {
                         console.log("[Controller] Restored dealer hole card is face down. Flipping visually (via logical flip).");
                         setTimeout(() => {
                             console.log("[Controller] Timeout: Calling flip() on restored dealer hole card.");
-                            dealerHand[0].flip();
+                            dealerHand[0].flip(); // This will trigger onVisualAnimationComplete -> GameActions.onAnimationComplete
                         }, 100);
                     } else {
                         console.log("[Controller] Restored dealer hole card is face up or no cards. Executing dealer turn directly.");
                         setTimeout(() => {
                             console.log("[Controller] Timeout: Calling executeDealerTurn.");
-                            this.blackjackGame.getGameActions().executeDealerTurn();
+                            this.blackjackGame.getGameActions().executeDealerTurn(); // This will proceed, and if it hits, will trigger onVisualAnimationComplete
                         }, 100);
                     }
                 } else if (this.blackjackGame.getGameState() === GameState.PlayerTurn) {
@@ -128,6 +129,13 @@ export class GameController {
         this.debugManager.updateDebugHandDisplay();
     }
 
+    /**
+     * Called by BlackjackGame when a logical game action (which might not have a visual animation,
+     * e.g., taking insurance, or after a visual animation like a card deal) completes its
+     * immediate logical processing in GameActions.
+     * This method updates the UI and then notifies GameActions that this phase is complete,
+     * allowing GameActions to reset its internal state (like lastAction).
+     */
     private onGameActionComplete(): void {
         console.log(`%c[Controller] <<< onGameActionComplete called. isProcessingGameActionComplete=${this.isProcessingGameActionComplete}`, 'color: purple; font-weight: bold;');
         if (this.isProcessingGameActionComplete) {
@@ -136,11 +144,15 @@ export class GameController {
             return;
         }
         this.isProcessingGameActionComplete = true;
-        console.log("[Controller]     Processing: Updating UI...");
+        console.log("[Controller]     Processing: Updating UI and then notifying GameActions to finalize its state...");
 
-        this.update();
-        // This call is still useful for state changes that don't involve hand modification
-        this.debugManager.updateDebugHandDisplay();
+        this.update(); // Update UI
+        this.debugManager.updateDebugHandDisplay(); // Update debug display
+
+        // Notify GameActions that its initiated logical step (or the aftermath of a visual one)
+        // has had its UI consequences processed by the controller.
+        // This allows GameActions.onAnimationComplete() to run and reset its internal state (e.g., lastAction).
+        this.blackjackGame.getGameActions().onAnimationComplete();
 
         this.isProcessingGameActionComplete = false;
         console.log("[Controller]     Processing finished. isProcessingGameActionComplete = false.");

@@ -6,18 +6,27 @@ import { Card, Suit, Rank } from "../game/Card";
 import { GameScene } from "../scenes/GameScene";
 import { CardVisualizer } from "../scenes/components/CardVisualizer";
 import { GameUI } from "../ui/GameUI";
+import { Constants } from "../Constants";
 
 export class DebugManager {
     private gameScene: GameScene;
     private blackjackGame: BlackjackGame;
-    private cardVisualizer: CardVisualizer; // Keep for other debug purposes if needed
+    private cardVisualizer: CardVisualizer;
     private gameUI: GameUI;
 
     private debugHandDisplayElement: HTMLElement | null = null;
     private isHandDisplayVisible: boolean = false;
+
+    // --- New properties for debug menu ---
+    private debugMenuElement: HTMLElement | null = null;
+    private isDebugMenuVisible: boolean = false;
+
+    // --- Properties for dragging ---
     private dragOffsetX: number = 0;
     private dragOffsetY: number = 0;
     private isDragging: boolean = false;
+    private draggedElement: HTMLElement | null = null;
+
 
     // --- New properties for advanced debug display ---
     private handHistory: { player: Card[], dealer: Card[] }[] = [];
@@ -33,7 +42,7 @@ export class DebugManager {
      */
     constructor(gameScene: GameScene, cardVisualizer: CardVisualizer, blackjackGame: BlackjackGame) {
         this.gameScene = gameScene;
-        this.blackjackGame = blackjackGame; // Use passed instance
+        this.blackjackGame = blackjackGame;
         this.cardVisualizer = cardVisualizer;
         this.gameUI = gameScene.getGameUI();
 
@@ -52,7 +61,7 @@ export class DebugManager {
     public help(): void {
         console.log("%cBlackjack Debug Commands", "font-size: 16px; font-weight: bold; color: #4CAF50;");
         console.log("%cGame State Commands:", "font-weight: bold; color: #2196F3;");
-        console.log("  debug.setGameState(state) - Set game state (0=Initial, 1=Betting, 2=PlayerTurn, 3=DealerTurn, 4=GameOver)");
+        console.log("  debug.setGameState(state) - Set game state (0=Initial, 1=Betting, 2=Dealing, 3=PlayerTurn, 4=DealerTurn, 5=GameOver)"); // Updated indices
         console.log("  debug.setGameResult(result) - Set game result (0=PlayerWins, 1=DealerWins, 2=Push, 3=PlayerBlackjack, 4=InProgress)");
         console.log("  debug.resetGame() - Reset the game to initial state");
         console.log("  debug.startNewGame(bet) - Start a new game with specified bet (clears table)");
@@ -69,29 +78,31 @@ export class DebugManager {
         console.log("%cFunds Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.setFunds(amount) - Set player funds to specific amount");
         console.log("  debug.setBet(amount) - Set current bet to specific amount");
+        console.log("  debug.resetFunds() - Reset player funds to default amount.");
 
         console.log("%cUI Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.updateUI() - Force UI update");
         console.log("  debug.toggleInspector() - Toggle Babylon.js inspector");
         console.log("  debug.toggleHandDisplay(visible?) - Toggle draggable display of current hands.");
+        console.log("  debug.toggleDebugMenu(visible?) - Toggle the main debug menu window.");
 
         console.log("%cExamples:", "font-weight: bold; color: #FF9800;");
-        console.log("  debug.setGameState(2) - Set game to PlayerTurn");
+        console.log("  debug.setGameState(3) - Set game to PlayerTurn"); // Updated example index
         console.log("  debug.addCard(true, 'Hearts', 'A', true) - Add Ace of Hearts to player's hand face up");
         console.log("  debug.dealRandomCard(false, false) - Deal random card to dealer face down");
     }
 
     public setGameState(state: number): void {
-        if (state < 0 || state > 4) {
-            console.error("Invalid game state. Use 0-4.");
+        if (state < 0 || state >= Object.keys(GameState).length / 2) { // Check against enum size
+            console.error("Invalid game state. Use 0-" + (Object.keys(GameState).length / 2 - 1));
             return;
         }
-        // If moving to GameOver, record the final hands for history
         if (state === GameState.GameOver && this.blackjackGame.getGameState() !== GameState.GameOver) {
             this.recordHandHistory();
         }
-        this.blackjackGame.getGameActions().setGameState(state as GameState, true);
-        this.updateUI();
+        // Notify controller for immediate UI update after state change
+        this.blackjackGame.getGameActions().setGameState(state as GameState, true, true);
+        // updateUI is implicitly called by the controller after notification
         console.log(`Game state set to ${GameState[state]}`);
     }
 
@@ -101,40 +112,49 @@ export class DebugManager {
             return;
         }
         this.blackjackGame.getGameActions().setGameResult(result as GameResult, true);
-        this.updateUI();
+        this.updateUI(); // Game result change might not always trigger full controller update path
         console.log(`Game result set to ${GameResult[result]}`);
     }
 
     public resetGame(): void {
         this.cardVisualizer.clearTable();
-        this.blackjackGame.getGameActions().setGameState(GameState.Initial, true);
+        // Set state to Initial and notify controller
+        this.blackjackGame.getGameActions().setGameState(GameState.Initial, true, true);
         this.blackjackGame.getGameActions().setGameResult(GameResult.InProgress, true);
         this.blackjackGame.setPlayerHand([]);
         this.blackjackGame.setDealerHand([]);
         this.blackjackGame.setCurrentBet(0);
         this.blackjackGame.resetFunds();
+        this.blackjackGame.insuranceTakenThisRound = false;
+        this.blackjackGame.insuranceBetPlaced = 0;
 
-        // Clear history and last known hands
         this.handHistory = [];
         this.historyIndex = -1;
         this.lastPlayerHand = [];
         this.lastDealerHand = [];
 
-        this.updateUI();
+        // updateUI() is called by setGameState via controller notification
         console.log("Game reset to initial state, debug history cleared.");
     }
 
-    public startNewGame(bet: number = 10): void {
-        this.cardVisualizer.clearTable();
-        // The updateDebugHandDisplay call that follows will show the old cards as discarded
+    public startNewGame(bet: number = Constants.MIN_BET): void {
+        const currentState = this.blackjackGame.getGameState();
+        if (currentState !== GameState.Initial &&
+            currentState !== GameState.Betting &&
+            currentState !== GameState.GameOver) {
+            console.warn(`[DebugManager] Forcing game to Initial state before starting new game.`);
+            this.resetGame(); // This will put it in Initial state and update UI.
+        }
+        // cardVisualizer.clearTable() is called by GameActions.startNewGame if needed
         const success = this.blackjackGame.startNewGame(bet);
         if (success) {
             console.log(`Started new game with bet: ${bet}`);
         } else {
             console.error(`Failed to start new game with bet ${bet}. Insufficient funds?`);
-            this.updateUI();
+            // If failed, GameActions should set state to Betting and notify controller.
         }
-        // Game flow should update hands, so update debug display after a short delay
+        // UI updates are handled by startNewGame's internal flow which calls notifyAnimationComplete.
+        // Forcing an updateDebugHandDisplay after a slight delay can be a fallback.
         setTimeout(() => this.updateDebugHandDisplay(), 100);
     }
 
@@ -186,9 +206,8 @@ export class DebugManager {
         }
         this.blackjackGame.getHandManager().registerFlipCallback(card);
 
-        this.renderCards(); // Update Babylon visuals
+        this.renderCards();
         this.updateUI();
-        this.updateDebugHandDisplay(); // Update HTML debug display
 
         console.log(`Added ${card.toString()} to ${isPlayer ? 'player' : 'dealer'}'s hand (${faceUp ? 'face up' : 'face down'})`);
     }
@@ -199,9 +218,8 @@ export class DebugManager {
         } else {
             this.blackjackGame.setDealerHand([]);
         }
-        this.cardVisualizer.renderCards(); // Re-render Babylon visuals (will clear the hand)
+        this.cardVisualizer.renderCards();
         this.updateUI();
-        this.updateDebugHandDisplay();
         console.log(`Cleared ${isPlayer ? 'player' : 'dealer'}'s hand`);
     }
 
@@ -211,8 +229,8 @@ export class DebugManager {
             console.error(`Invalid card index: ${index}. Hand has ${hand.length} cards.`);
             return;
         }
-        hand[index].flip(); // Triggers visual update via CardVisualizer
-        this.updateDebugHandDisplay(); // Update HTML debug display
+        hand[index].flip();
+        this.updateDebugHandDisplay();
         console.log(`Flipped ${isPlayer ? 'player' : 'dealer'}'s card at index ${index}`);
     }
 
@@ -227,17 +245,19 @@ export class DebugManager {
         this.updateDebugHandDisplay();
     }
 
-    public dealRandomCard(isPlayer: boolean, faceUp: boolean = true): void {
+    public dealRandomCard(isPlayer: boolean, faceUp: boolean = true): Card {
         const suits = Object.values(Suit);
         const ranks = Object.values(Rank);
         const randomSuit = suits[Math.floor(Math.random() * suits.length)];
         const randomRank = ranks[Math.floor(Math.random() * ranks.length)];
-        this.addCard(isPlayer, randomSuit, randomRank, faceUp);
+        const card = new Card(randomSuit, randomRank);
+        card.setFaceUp(faceUp);
+        return card;
     }
 
     public renderCards(): void {
-        this.cardVisualizer.renderCards(); // Renders Babylon visuals
-        this.updateDebugHandDisplay(); // Update HTML debug display
+        this.cardVisualizer.renderCards();
+        this.updateDebugHandDisplay();
         console.log("Cards re-rendered (Babylon visuals and debug display)");
     }
 
@@ -249,6 +269,12 @@ export class DebugManager {
         this.blackjackGame.getPlayerFundsManager().setFunds(amount);
         this.updateUI();
         console.log(`Player funds set to ${amount}`);
+    }
+
+    public resetFunds(): void {
+        this.blackjackGame.resetFunds();
+        this.updateUI();
+        console.log(`Player funds reset to ${this.blackjackGame.getPlayerFunds()}.`);
     }
 
     public setBet(amount: number): void {
@@ -263,8 +289,7 @@ export class DebugManager {
 
     public updateUI(): void {
         this.gameUI.update(this.cardVisualizer.isAnimationInProgress());
-        this.updateDebugHandDisplay(); // Also refresh debug display on general UI update
-        console.log("UI updated");
+        this.updateDebugHandDisplay();
     }
 
     public toggleInspector(): void {
@@ -278,10 +303,6 @@ export class DebugManager {
         }
     }
 
-    /**
-     * Toggles the visibility of the draggable HTML container that displays current hands.
-     * @param visible Optional. Force visibility state. If undefined, it toggles.
-     */
     public toggleHandDisplay(visible?: boolean): void {
         if (typeof visible === 'undefined') {
             this.isHandDisplayVisible = !this.isHandDisplayVisible;
@@ -304,7 +325,28 @@ export class DebugManager {
         }
     }
 
-    /** Records the current hands to the history log. */
+    public toggleDebugMenu(visible?: boolean): void {
+        if (typeof visible === 'undefined') {
+            this.isDebugMenuVisible = !this.isDebugMenuVisible;
+        } else {
+            this.isDebugMenuVisible = visible;
+        }
+
+        if (this.isDebugMenuVisible) {
+            if (!this.debugMenuElement) {
+                this.createDebugMenuElement();
+            }
+            this.debugMenuElement!.style.display = 'block';
+            console.log("Debug menu shown.");
+        } else {
+            if (this.debugMenuElement) {
+                this.debugMenuElement.style.display = 'none';
+                console.log("Debug menu hidden.");
+            }
+        }
+    }
+
+
     private recordHandHistory(): void {
         const playerHand = this.blackjackGame.getPlayerHand();
         const dealerHand = this.blackjackGame.getDealerHand();
@@ -322,12 +364,30 @@ export class DebugManager {
         }
     }
 
-    private createDebugHandDisplayElement(): void {
-        // Inject styles for animations and indicators if they don't exist
+    private injectGlobalStyles(): void {
         if (!document.getElementById('blackjack-debug-styles')) {
             const styleSheet = document.createElement("style");
             styleSheet.id = "blackjack-debug-styles";
             styleSheet.innerText = `
+                .debug-window-base {
+                    position: absolute;
+                    width: auto;
+                    min-width: 250px;
+                    max-width: 400px;
+                    max-height: 400px;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    border: 2px solid blue;
+                    background-color: rgba(220, 220, 255, 0.9);
+                    padding: 10px;
+                    z-index: 1002;
+                    cursor: move;
+                    font-family: Arial, sans-serif;
+                    font-size: 14px;
+                    color: #333;
+                    border-radius: 5px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+                }
                 .debug-card-container {
                     position: relative;
                     width: 60px;
@@ -344,15 +404,14 @@ export class DebugManager {
                     position: absolute;
                     top: 2px;
                     right: 2px;
-                    width: 18px; /* Adjusted for emoji */
-                    height: 18px; /* Adjusted for emoji */
+                    width: 18px;
+                    height: 18px;
                     background-color: rgba(0, 0, 0, 0.6);
-                    /* color property will be set dynamically for ❓ */
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 12px; /* Adjusted for emoji */
+                    font-size: 12px;
                     font-family: 'Segoe UI Symbol', sans-serif;
                     pointer-events: none;
                     line-height: 1;
@@ -377,6 +436,8 @@ export class DebugManager {
                     justify-content: space-between;
                     align-items: center;
                     margin-bottom: 8px;
+                    padding-bottom: 5px;
+                    border-bottom: 1px solid #aaa;
                 }
                 .debug-header-title {
                     font-weight: bold;
@@ -393,74 +454,164 @@ export class DebugManager {
                 .debug-header-nav button:hover {
                     background-color: #ddd;
                 }
+                .debug-close-button {
+                    padding: 0;
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 50%;
+                    background-color: #f06060;
+                    color: white;
+                    border: 1px solid #d04040;
+                    font-size: 14px;
+                    line-height: 20px;
+                    text-align: center;
+                    cursor: pointer;
+                    font-weight: bold;
+                    flex-shrink: 0;
+                }
+                .debug-close-button:hover {
+                    background-color: #e04040;
+                }
+                .debug-menu-button-container {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .debug-menu-button {
+                    padding: 8px 12px;
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    text-align: left;
+                    font-size: 13px;
+                }
+                .debug-menu-button:hover {
+                    background-color: #45a049;
+                }
             `;
             document.head.appendChild(styleSheet);
         }
+    }
 
-        this.debugHandDisplayElement = document.createElement("div");
-        this.debugHandDisplayElement.id = "blackjack-debug-hand-display";
-        Object.assign(this.debugHandDisplayElement.style, {
-            position: 'absolute',
-            left: '10px',
-            top: '10px',
-            width: 'auto',
-            minWidth: '250px',
-            maxWidth: '400px',
-            maxHeight: '400px',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            border: '2px solid blue',
-            backgroundColor: 'rgba(220, 220, 255, 0.85)',
-            padding: '10px',
-            zIndex: '1002',
-            cursor: 'move',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '14px',
-            color: '#333',
-            borderRadius: '5px',
-            boxShadow: '0 0 10px rgba(0,0,0,0.5)'
-        });
-        document.body.appendChild(this.debugHandDisplayElement);
-
-        this.debugHandDisplayElement.onmousedown = (e) => {
+    private makeDraggable(element: HTMLElement): void {
+        element.onmousedown = (e) => {
             if ((e.target as HTMLElement).closest('button, input, select, textarea')) {
                 return;
             }
             this.isDragging = true;
-            this.dragOffsetX = e.clientX - this.debugHandDisplayElement!.offsetLeft;
-            this.dragOffsetY = e.clientY - this.debugHandDisplayElement!.offsetTop;
+            this.draggedElement = element;
+            this.dragOffsetX = e.clientX - element.offsetLeft;
+            this.dragOffsetY = e.clientY - element.offsetTop;
             document.onmousemove = this.dragElement.bind(this);
             document.onmouseup = this.stopDragElement.bind(this);
             e.preventDefault();
         };
     }
 
+
+    private createDebugHandDisplayElement(): void {
+        this.injectGlobalStyles();
+
+        this.debugHandDisplayElement = document.createElement("div");
+        this.debugHandDisplayElement.id = "blackjack-debug-hand-display";
+        this.debugHandDisplayElement.classList.add("debug-window-base");
+        this.debugHandDisplayElement.style.left = '10px';
+        this.debugHandDisplayElement.style.top = '10px';
+        document.body.appendChild(this.debugHandDisplayElement);
+
+        this.makeDraggable(this.debugHandDisplayElement);
+    }
+
+    private createDebugMenuElement(): void {
+        this.injectGlobalStyles();
+
+        this.debugMenuElement = document.createElement("div");
+        this.debugMenuElement.id = "blackjack-debug-menu";
+        this.debugMenuElement.classList.add("debug-window-base");
+        this.debugMenuElement.style.left = 'calc(100vw - 270px)';
+        this.debugMenuElement.style.top = '10px';
+        this.debugMenuElement.style.minWidth = '220px';
+        this.debugMenuElement.style.maxWidth = '280px';
+
+
+        const header = document.createElement('div');
+        header.className = 'debug-header';
+
+        const title = document.createElement('span');
+        title.className = 'debug-header-title';
+        title.textContent = 'Debug Menu';
+
+        const closeButton = document.createElement('button');
+        closeButton.className = 'debug-close-button';
+        closeButton.innerHTML = '&#x2715;';
+        closeButton.title = 'Close Debug Menu';
+        closeButton.onclick = (e) => {
+            e.stopPropagation();
+            this.toggleDebugMenu(false);
+        };
+
+        header.appendChild(title);
+        header.appendChild(closeButton);
+        this.debugMenuElement.appendChild(header);
+
+        const content = document.createElement('div');
+        content.className = 'debug-menu-button-container';
+
+        const buttons = [
+            { text: 'Start Hand (Normal)', action: () => this.debugStartNormalHand() },
+            { text: 'Start Split Hand', action: () => this.debugStartSplitHand() },
+            { text: 'Start Insurance Hand', action: () => this.debugStartInsuranceHand() },
+            { text: 'Open Card Debug Window', action: () => this.toggleHandDisplay(true) },
+            { text: 'Reset Player Bank', action: () => this.resetFunds() },
+        ];
+
+        buttons.forEach(btnInfo => {
+            const button = document.createElement('button');
+            button.className = 'debug-menu-button';
+            button.textContent = btnInfo.text;
+            button.onclick = (e) => {
+                e.stopPropagation();
+                btnInfo.action();
+            };
+            content.appendChild(button);
+        });
+
+        this.debugMenuElement.appendChild(content);
+        document.body.appendChild(this.debugMenuElement);
+        this.makeDraggable(this.debugMenuElement);
+    }
+
+
     private dragElement(e: MouseEvent): void {
-        if (this.isDragging && this.debugHandDisplayElement) {
+        if (this.isDragging && this.draggedElement) {
             e.preventDefault();
             let newLeft = e.clientX - this.dragOffsetX;
             let newTop = e.clientY - this.dragOffsetY;
 
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
-            const elWidth = this.debugHandDisplayElement.offsetWidth;
-            const elHeight = this.debugHandDisplayElement.offsetHeight;
+            const elWidth = this.draggedElement.offsetWidth;
+            const elHeight = this.draggedElement.offsetHeight;
 
             newLeft = Math.max(0, Math.min(newLeft, viewportWidth - elWidth));
             newTop = Math.max(0, Math.min(newTop, viewportHeight - elHeight));
 
-            this.debugHandDisplayElement.style.left = newLeft + 'px';
-            this.debugHandDisplayElement.style.top = newTop + 'px';
+            this.draggedElement.style.left = newLeft + 'px';
+            this.draggedElement.style.top = newTop + 'px';
         }
     }
 
     private stopDragElement(): void {
-        this.isDragging = false;
-        document.onmousemove = null;
-        document.onmouseup = null;
+        if (this.isDragging) {
+            this.isDragging = false;
+            this.draggedElement = null;
+            document.onmousemove = null;
+            document.onmouseup = null;
+        }
     }
 
-    /** Creates the HTML element for a single card in the debug view. */
     private createCardElement(card: Card, isNew: boolean): HTMLElement {
         const container = document.createElement('div');
         container.className = 'debug-card-container';
@@ -479,24 +630,22 @@ export class DebugManager {
         indicator.className = 'debug-card-indicator';
         if (card.isFaceUp()) {
             indicator.innerHTML = `👁️`;
-            // Optional: Set a specific color for the eyeball if needed, e.g., indicator.style.color = 'cyan';
         } else {
             indicator.innerHTML = `❓`;
-            indicator.style.color = '#aaa'; // Medium grey for the question mark
+            indicator.style.color = '#aaa';
         }
         container.appendChild(indicator);
 
         return container;
     }
 
-    /** Renders a hand (dealer or player) into a container, handling diffing for animations. */
     private renderHandInContainer(title: string, currentCards: Card[], lastCards: Card[], isHistoryView: boolean, parentElement: HTMLElement): void {
-        const header = document.createElement('h4');
-        header.textContent = title;
-        header.style.margin = '10px 0 5px 0';
-        header.style.borderBottom = '1px solid #999';
-        header.style.paddingBottom = '3px';
-        parentElement.appendChild(header);
+        const headerEl = document.createElement('h4');
+        headerEl.textContent = title;
+        headerEl.style.margin = '10px 0 5px 0';
+        headerEl.style.borderBottom = '1px solid #999';
+        headerEl.style.paddingBottom = '3px';
+        parentElement.appendChild(headerEl);
 
         const container = document.createElement('div');
         container.style.display = 'flex';
@@ -507,9 +656,7 @@ export class DebugManager {
         const currentCardIds = new Set(currentCards.map(c => c.getUniqueId()));
         const lastCardIds = new Set(lastCards.map(c => c.getUniqueId()));
 
-        // Animate discarded cards (only in current view)
         if (!isHistoryView) {
-            // Iterate over a reversed copy of the last known cards
             [...lastCards].reverse().forEach(card => {
                 if (!currentCardIds.has(card.getUniqueId())) {
                     const discardedEl = this.createCardElement(card, false);
@@ -520,18 +667,16 @@ export class DebugManager {
             });
         }
 
-        // Render current cards in reverse order
         [...currentCards].reverse().forEach(card => {
             const isNew = !isHistoryView && !lastCardIds.has(card.getUniqueId());
             container.appendChild(this.createCardElement(card, isNew));
         });
 
-        if (currentCards.length === 0 && lastCards.length === 0) {
+        if (currentCards.length === 0 && (isHistoryView || lastCards.length === 0)) {
             container.textContent = 'No cards';
         }
     }
 
-    /** Updates the content of the debug hand display element. */
     public updateDebugHandDisplay(): void {
         if (!this.isHandDisplayVisible || !this.debugHandDisplayElement) {
             return;
@@ -552,15 +697,18 @@ export class DebugManager {
             titleText = "Current Hand";
         }
 
-        this.debugHandDisplayElement.innerHTML = ''; // Clear previous content
+        this.debugHandDisplayElement.innerHTML = '';
 
-        // --- Create Header ---
-        const header = document.createElement('div');
-        header.className = 'debug-header';
-        const title = document.createElement('span');
-        title.className = 'debug-header-title';
-        title.textContent = titleText;
-        header.appendChild(title);
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'debug-header';
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'debug-header-title';
+        titleSpan.textContent = titleText;
+
+        const rightControls = document.createElement('div');
+        rightControls.style.display = 'flex';
+        rightControls.style.alignItems = 'center';
 
         const navContainer = document.createElement('div');
         navContainer.className = 'debug-header-nav';
@@ -568,48 +716,142 @@ export class DebugManager {
         if (isHistoryView) {
             const homeButton = document.createElement('button');
             homeButton.innerHTML = '🏠&nbsp;Current';
-            homeButton.onclick = () => {
-                this.historyIndex = -1;
-                this.updateDebugHandDisplay();
-            };
+            homeButton.onclick = () => { this.historyIndex = -1; this.updateDebugHandDisplay(); };
             navContainer.appendChild(homeButton);
         }
         if (this.historyIndex > -1) {
             const nextButton = document.createElement('button');
             nextButton.textContent = 'Next →';
-            nextButton.onclick = () => {
-                this.historyIndex--;
-                this.updateDebugHandDisplay();
-            };
+            nextButton.disabled = this.historyIndex === 0;
+            nextButton.onclick = () => { if (this.historyIndex > 0) this.historyIndex--; this.updateDebugHandDisplay(); };
             navContainer.appendChild(nextButton);
         }
         if (this.historyIndex < this.handHistory.length - 1) {
             const prevButton = document.createElement('button');
             prevButton.textContent = '← Prev';
-            prevButton.onclick = () => {
-                this.historyIndex++;
-                this.updateDebugHandDisplay();
-            };
+            prevButton.disabled = this.historyIndex === this.handHistory.length - 1 && this.historyIndex !== -1;
+            prevButton.onclick = () => { if (this.historyIndex < this.handHistory.length - 1) this.historyIndex++; this.updateDebugHandDisplay(); };
             navContainer.appendChild(prevButton);
         }
-        header.appendChild(navContainer);
-        this.debugHandDisplayElement.appendChild(header);
+        if (this.handHistory.length > 0 && this.historyIndex === -1) {
+            const prevButton = document.createElement('button');
+            prevButton.textContent = '← Prev';
+            prevButton.onclick = () => { this.historyIndex = 0; this.updateDebugHandDisplay(); };
+            navContainer.appendChild(prevButton);
+        }
 
-        // --- Render Hands ---
+
+        const closeButton = document.createElement('button');
+        closeButton.className = 'debug-close-button';
+        closeButton.innerHTML = '&#x2715;';
+        closeButton.title = 'Close Card Debug Window';
+        closeButton.onclick = (e) => { e.stopPropagation(); this.toggleHandDisplay(false); };
+        closeButton.style.marginLeft = '10px';
+
+        rightControls.appendChild(navContainer);
+        rightControls.appendChild(closeButton);
+        headerDiv.appendChild(titleSpan);
+        headerDiv.appendChild(rightControls);
+        this.debugHandDisplayElement.appendChild(headerDiv);
+
         this.renderHandInContainer('Dealer', dealerHand, this.lastDealerHand, isHistoryView, this.debugHandDisplayElement);
         this.renderHandInContainer('Player', playerHand, this.lastPlayerHand, isHistoryView, this.debugHandDisplayElement);
 
-        // --- Update last known state if viewing current hand ---
         if (!isHistoryView) {
             this.lastPlayerHand = [...playerHand];
             this.lastDealerHand = [...dealerHand];
         }
     }
 
+    // --- Debug Menu Button Actions ---
+
+    private debugStartNormalHand(): void {
+        console.log("DEBUG: Starting Normal Hand");
+        this.resetGame(); // Resets funds, clears table, sets state to Initial, notifies UI.
+        const success = this.blackjackGame.startNewGame(Constants.MIN_BET); // Sets state to Dealing, notifies UI, starts deal.
+        if (!success) {
+            console.error("DEBUG: Failed to start normal hand.");
+            // UI should reflect Betting state if startNewGame failed due to funds.
+        }
+        // No explicit updateUI() needed here as resetGame and startNewGame handle notifications.
+    }
+
+    private debugStartSplitHand(): void {
+        console.log("DEBUG: Starting Split Hand");
+        this.resetGame(); // Clears table, hands, resets funds, sets state to Initial, notifies UI.
+
+        this.blackjackGame.setCurrentBet(Constants.MIN_BET);
+        if (!this.blackjackGame.getPlayerFundsManager().deductFunds(this.blackjackGame.getCurrentBet())) {
+            console.error("DEBUG Split: Could not deduct bet. Player funds:", this.blackjackGame.getPlayerFunds());
+            // UI already updated by resetGame to show Initial state. If funds are 0, this is expected.
+            return;
+        }
+        // Set to Dealing and notify UI to show "Dealing..." message
+        this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
+
+        const suits = Object.values(Suit);
+        let randomRankIndex = Math.floor(Math.random() * (Object.values(Rank).length - 1));
+        if (Object.values(Rank)[randomRankIndex] === Rank.Ace) randomRankIndex = 0;
+        const splitRank = Object.values(Rank)[randomRankIndex];
+
+        const playerCard1 = new Card(suits[0 % suits.length], splitRank); playerCard1.setFaceUp(true);
+        const playerCard2 = new Card(suits[1 % suits.length], splitRank); playerCard2.setFaceUp(true);
+        this.blackjackGame.setPlayerHand([playerCard1, playerCard2]);
+        this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
+        this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
+
+        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false);
+        const dealerCard2 = this.dealRandomCard(false, true);  dealerCard2.setFaceUp(true);
+        this.blackjackGame.setDealerHand([dealerCard1, dealerCard2]);
+        this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
+        this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
+
+        this.cardVisualizer.renderCards(true); // Render cards instantly for debug setup
+
+        // Transition to PlayerTurn and notify UI again for action buttons
+        this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
+    }
+
+    private debugStartInsuranceHand(): void {
+        console.log("DEBUG: Starting Insurance Hand");
+        this.resetGame(); // Clears table, hands, resets funds, sets state to Initial, notifies UI.
+
+        this.blackjackGame.setCurrentBet(Constants.MIN_BET);
+        if (!this.blackjackGame.getPlayerFundsManager().deductFunds(this.blackjackGame.getCurrentBet())) {
+            console.error("DEBUG Insurance: Could not deduct bet. Player funds:", this.blackjackGame.getPlayerFunds());
+            return;
+        }
+        // Set to Dealing and notify UI
+        this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
+
+        const playerCard1 = this.dealRandomCard(true, true); playerCard1.setFaceUp(true);
+        const playerCard2 = this.dealRandomCard(true, true); playerCard2.setFaceUp(true);
+        this.blackjackGame.setPlayerHand([playerCard1, playerCard2]);
+        this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
+        this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
+
+        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false); // Hole card
+        const dealerCard2 = new Card(Suit.Spades, Rank.Ace);   // Ace up-card
+        dealerCard2.setFaceUp(true);
+        this.blackjackGame.setDealerHand([dealerCard1, dealerCard2]);
+        this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
+        this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
+
+        this.cardVisualizer.renderCards(true); // Render cards instantly
+
+        // Transition to PlayerTurn and notify UI
+        this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
+    }
+
+
     public dispose(): void {
         if (this.debugHandDisplayElement) {
             this.debugHandDisplayElement.remove();
             this.debugHandDisplayElement = null;
+        }
+        if (this.debugMenuElement) {
+            this.debugMenuElement.remove();
+            this.debugMenuElement = null;
         }
         const styleSheet = document.getElementById('blackjack-debug-styles');
         if (styleSheet) {
