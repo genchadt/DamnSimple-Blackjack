@@ -1,10 +1,11 @@
-// src/ui/gameactionui-ts
+// src/ui/GameActionUI.ts
 // Added onRequiresGlobalUpdate callback
 // Updated insurance button logic
+// Updated for split button and multi-hand context
 import { Scene, KeyboardEventTypes, Vector2 } from "@babylonjs/core";
 import { Button, TextBlock, Control, Rectangle, StackPanel, Vector2WithInfo } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
-import { BlackjackGame } from "../game/BlackjackGame";
+import { BlackjackGame, PlayerHandInfo } from "../game/BlackjackGame"; // Import PlayerHandInfo
 import { GameState } from "../game/GameState";
 import { Constants } from "../Constants"; // Import Constants
 
@@ -60,8 +61,7 @@ export class GameActionUI extends BaseUI {
             if (!this.isGameBusy()) this.game.doubleDown();
         };
         this.originalSplitAction = () => {
-            if (!this.isGameBusy()) console.log("Player Split action (not implemented)");
-            // if (!this.isGameBusy()) this.game.playerSplit();
+            if (!this.isGameBusy()) this.game.playerSplit();
         };
         this.originalInsuranceAction = () => {
             if (!this.isGameBusy()) this.game.playerTakeInsurance();
@@ -79,17 +79,19 @@ export class GameActionUI extends BaseUI {
 
     /** Helper to check if game logic or animations might be busy */
     private isGameBusy(): boolean {
-        const controller = (window as any).gameController;
+        const controller = (window as any).gameController; // Access global controller if needed
         const isAnimating = controller?.isAnimating() ?? false;
         const gameState = this.game.getGameState();
-        const canAct = gameState === GameState.PlayerTurn || gameState === GameState.GameOver;
+        // Allow actions during PlayerTurn, or specific actions during GameOver
+        const canActPlayerTurn = gameState === GameState.PlayerTurn;
+        const canActGameOver = gameState === GameState.GameOver;
 
-        if (isAnimating && gameState !== GameState.GameOver) {
+        if (isAnimating && !canActGameOver) { // Animations block actions unless it's game over options
             console.log("UI Action blocked: Animation in progress.");
             return true;
         }
-        if (!canAct) {
-            if (gameState !== GameState.Betting) {
+        if (!canActPlayerTurn && !canActGameOver) {
+            if (gameState !== GameState.Betting) { // Don't log for betting as no action buttons are shown
                 console.log(`UI Action blocked: Invalid state (${GameState[gameState]})`);
             }
             return true;
@@ -181,7 +183,7 @@ export class GameActionUI extends BaseUI {
     private setupKeyboardControls(): void {
         this.scene.onKeyboardObservable.add((kbInfo) => {
             if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
-                if (this.isGameBusy() && this.game.getGameState() !== GameState.GameOver) return; // Allow keybinds in GameOver for Same/Change Bet
+                if (this.isGameBusy() && this.game.getGameState() !== GameState.GameOver) return;
 
                 const dummyPointerInfo = new Vector2WithInfo(Vector2.Zero(), 0);
 
@@ -204,13 +206,13 @@ export class GameActionUI extends BaseUI {
                             kbInfo.event.preventDefault();
                         }
                         break;
-                    case 'e':
+                    case 'e': // Split
                         if (this.splitButton.isVisible && this.splitButton.isEnabled) {
                             this.splitButton.onPointerUpObservable.notifyObservers(dummyPointerInfo);
                             kbInfo.event.preventDefault();
                         }
                         break;
-                    case 'f':
+                    case 'f': // Insurance
                         if (this.insuranceButton.isVisible && this.insuranceButton.isEnabled) {
                             this.insuranceButton.onPointerUpObservable.notifyObservers(dummyPointerInfo);
                             kbInfo.event.preventDefault();
@@ -229,6 +231,8 @@ export class GameActionUI extends BaseUI {
 
     public update(isAnimating: boolean = false): void {
         const gameState = this.game.getGameState();
+        const activeHandInfo = this.game.getActivePlayerHandInfo();
+
         let showHit = false, showStand = false, showDouble = false, showSplit = false, showInsurance = false, showLeave = false;
         let hitText = "Hit";
         let standText = "Stand";
@@ -241,20 +245,16 @@ export class GameActionUI extends BaseUI {
         let splitAction = this.originalSplitAction;
         let insuranceAction = this.originalInsuranceAction;
 
-        if (gameState === GameState.PlayerTurn) {
+        if (gameState === GameState.PlayerTurn && activeHandInfo && activeHandInfo.canHit && !activeHandInfo.isResolved) {
             showHit = true;
             showStand = true;
-            showDouble = this.game.getPlayerHand().length === 2 &&
-                this.game.getPlayerFunds() >= this.game.getCurrentBet();
-
-            // @ts-ignore - Assuming game.canSplit will be implemented
-            showSplit = this.game.canSplit ? this.game.canSplit() : false;
-            showInsurance = this.game.isInsuranceAvailable(); // Use the new method
-
+            showDouble = activeHandInfo.cards.length === 2 && this.game.getPlayerFunds() >= activeHandInfo.bet;
+            showSplit = this.game.canSplit(); // Uses game.canSplit which checks active hand
+            showInsurance = this.game.isInsuranceAvailable(); // Checks overall game state for insurance offer
             showLeave = true;
         } else if (gameState === GameState.GameOver) {
-            showHit = true;
-            showStand = true;
+            showHit = true; // "Same Bet"
+            showStand = true; // "Change Bet"
             showDouble = false;
             showSplit = false;
             showInsurance = false;
@@ -264,12 +264,10 @@ export class GameActionUI extends BaseUI {
             standText = "Change Bet";
             hitAction = this.onNewGameRequest;
             standAction = this.onChangeBetRequest;
-        } else if (gameState === GameState.Betting) {
-            showLeave = true;
+        } else if (gameState === GameState.Betting || gameState === GameState.Initial) {
+            showLeave = true; // Can always leave if in betting or initial state
         }
-        if (gameState !== GameState.Initial) {
-            showLeave = true;
-        }
+
 
         this.hitButton.isVisible = showHit;
         this.standButton.isVisible = showStand;
@@ -278,45 +276,27 @@ export class GameActionUI extends BaseUI {
         this.insuranceButton.isVisible = showInsurance;
         this.leaveTableButton.isVisible = showLeave;
 
-        if (showHit) {
-            this.updateButtonLabel(this.hitButton, hitText);
-            this.updateButtonAction(this.hitButton, hitAction);
-        }
-        if (showStand) {
-            this.updateButtonLabel(this.standButton, standText);
-            this.updateButtonAction(this.standButton, standAction);
-        }
-        if (showDouble) {
-            this.updateButtonLabel(this.doubleButton, doubleText);
-            this.updateButtonAction(this.doubleButton, doubleAction);
-        }
-        if (showSplit) {
-            this.updateButtonLabel(this.splitButton, splitText);
-            this.updateButtonAction(this.splitButton, splitAction);
-        }
-        if (showInsurance) {
-            this.updateButtonLabel(this.insuranceButton, insuranceText);
-            this.updateButtonAction(this.insuranceButton, insuranceAction);
-        }
+        if (showHit) { this.updateButtonLabel(this.hitButton, hitText); this.updateButtonAction(this.hitButton, hitAction); }
+        if (showStand) { this.updateButtonLabel(this.standButton, standText); this.updateButtonAction(this.standButton, standAction); }
+        if (showDouble) { this.updateButtonLabel(this.doubleButton, doubleText); this.updateButtonAction(this.doubleButton, doubleAction); }
+        if (showSplit) { this.updateButtonLabel(this.splitButton, splitText); this.updateButtonAction(this.splitButton, splitAction); }
+        if (showInsurance) { this.updateButtonLabel(this.insuranceButton, insuranceText); this.updateButtonAction(this.insuranceButton, insuranceAction); }
 
-        const enable = !isAnimating || gameState === GameState.GameOver;
+        const enableActions = (!isAnimating || gameState === GameState.GameOver) && (gameState === GameState.PlayerTurn || gameState === GameState.GameOver);
 
-        this.hitButton.isEnabled = enable && showHit;
-        this.standButton.isEnabled = enable && showStand;
-        const canDouble = showDouble && this.game.getPlayerFunds() >= this.game.getCurrentBet();
-        this.doubleButton.isEnabled = enable && canDouble;
+        this.hitButton.isEnabled = enableActions && showHit && (activeHandInfo ? activeHandInfo.canHit : true); // Latter true for GameOver
+        this.standButton.isEnabled = enableActions && showStand && (activeHandInfo ? activeHandInfo.canHit : true); // Latter true for GameOver
 
-        // @ts-ignore
-        const canSplit = showSplit && (this.game.canSplit ? this.game.canSplit() : false);
-        this.splitButton.isEnabled = enable && canSplit;
+        this.doubleButton.isEnabled = enableActions && showDouble && activeHandInfo && activeHandInfo.cards.length === 2 &&
+            this.game.getPlayerFunds() >= activeHandInfo.bet && activeHandInfo.canHit;
+        this.splitButton.isEnabled = enableActions && showSplit && this.game.canSplit() && activeHandInfo && activeHandInfo.canHit; // canSplit already checks funds
 
-        const insuranceCost = this.game.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
-        const canTakeInsurance = showInsurance && this.game.getPlayerFunds() >= insuranceCost;
-        this.insuranceButton.isEnabled = enable && canTakeInsurance;
+        const insuranceCost = activeHandInfo ? activeHandInfo.bet * Constants.INSURANCE_BET_RATIO : this.game.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
+        this.insuranceButton.isEnabled = enableActions && showInsurance && this.game.isInsuranceAvailable() &&
+            this.game.getPlayerFunds() >= insuranceCost;
 
-
-        const canLeave = showLeave && (gameState === GameState.Betting || gameState === GameState.GameOver || gameState === GameState.PlayerTurn);
-        this.leaveTableButton.isEnabled = enable && canLeave;
+        const canLeave = showLeave && (gameState === GameState.Betting || gameState === GameState.GameOver || gameState === GameState.Initial || gameState === GameState.PlayerTurn);
+        this.leaveTableButton.isEnabled = (!isAnimating || gameState === GameState.GameOver) && canLeave;
 
 
         this.hitButton.alpha = this.hitButton.isEnabled ? 1.0 : 0.5;

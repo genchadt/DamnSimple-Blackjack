@@ -1,3 +1,4 @@
+// src/game/Card.ts
 /** Defines the suits of a standard playing card. */
 export enum Suit {
     Hearts = "Hearts",

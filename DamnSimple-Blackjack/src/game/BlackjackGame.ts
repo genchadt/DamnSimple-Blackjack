@@ -1,6 +1,7 @@
-// src/blackjackgame-ts
+// src/game/BlackjackGame.ts
 // Added onHandModified callback for granular updates
 // Added insurance properties and methods
+// Added support for multiple player hands for split functionality
 import { Card, Rank } from "./Card"; // Import Rank
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
@@ -12,8 +13,21 @@ import { Constants } from "../Constants"; // Import Constants
 /** Defines the structure for hand modification updates. */
 export interface HandModificationUpdate {
     card?: Card; // The card that was added (undefined for a 'set' operation)
-    isPlayer: boolean; // Which hand was modified
-    type: 'add' | 'set'; // The type of modification ('set' is used for clearing or restoring)
+    isPlayer: boolean; // Which hand was modified (true for player, false for dealer)
+    handIndex?: number; // For player, which hand was modified if multiple exist
+    type: 'add' | 'set' | 'clear' | 'split'; // The type of modification
+}
+
+/** Defines the structure for a player's hand, including its bet and status. */
+export interface PlayerHandInfo {
+    id: string; // Unique ID for this hand instance, e.g., "hand-0", "hand-1"
+    cards: Card[];
+    bet: number;
+    result: GameResult; // Result for this specific hand
+    isResolved: boolean; // True if this hand has been stood, busted, doubled, or split-Aces auto-stand.
+    canHit: boolean; // Can this hand take more cards?
+    isBlackjack: boolean; // Was this hand a natural blackjack?
+    isSplitAces: boolean; // True if this hand resulted from splitting Aces (special rules apply)
 }
 
 export class BlackjackGame {
@@ -21,7 +35,8 @@ export class BlackjackGame {
     private playerFunds: PlayerFunds;
     private gameActions: GameActions;
 
-    private playerHand: Card[] = [];
+    private playerHands: PlayerHandInfo[] = [];
+    private activePlayerHandIndex: number = 0;
     private dealerHand: Card[] = [];
 
     // Insurance related properties - managed by GameActions, reflected here for UI/availability checks
@@ -34,9 +49,9 @@ export class BlackjackGame {
     public onHandModified: ((update: HandModificationUpdate) => void) | null = null;
 
     /** Callback function set by GameController to trigger card deal animations. */
-    public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = (card, index, isPlayer, faceUp) => {
+    public notifyCardDealt: (card: Card, indexInHand: number, isPlayer: boolean, handDisplayIndex: number, faceUp: boolean) => void = (card, indexInHand, isPlayer, handDisplayIndex, faceUp) => {
         // *** DEBUG LOG ADDED ***
-        console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, Index=${index}, IsPlayer=${isPlayer}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
+        console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, IndexInHand=${indexInHand}, IsPlayer=${isPlayer}, HandDisplayIndex=${handDisplayIndex}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
     };
 
 
@@ -47,14 +62,21 @@ export class BlackjackGame {
 
         const restored = this.gameActions.loadGameState(); // This will also load/set insurance state on BlackjackGame
         if (!restored) {
-            this.playerHand = [];
+            this.playerHands = [];
+            this.activePlayerHandIndex = 0;
             this.dealerHand = [];
             this.insuranceTakenThisRound = false;
             this.insuranceBetPlaced = 0;
             this.gameActions.setGameState(GameState.Initial, true);
         }
         console.log("[BlackjackGame] Initialized. State:", GameState[this.getGameState()]);
-        console.log("[BlackjackGame] Initial Player Hand:", this.playerHand.map(c => c.toString()));
+        if (this.playerHands.length > 0) {
+            this.playerHands.forEach((hand, idx) => {
+                console.log(`[BlackjackGame] Initial Player Hand ${idx}:`, hand.cards.map(c => c.toString()));
+            });
+        } else {
+            console.log("[BlackjackGame] Initial Player Hand: Empty");
+        }
         console.log("[BlackjackGame] Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
         console.log(`[BlackjackGame] Initial Insurance: Taken=${this.insuranceTakenThisRound}, Bet=${this.insuranceBetPlaced}`);
     }
@@ -109,26 +131,59 @@ export class BlackjackGame {
         return this.gameActions.doubleDown();
     }
 
+    /** Initiates the player 'split' action. */
+    public playerSplit(): void {
+        this.gameActions.playerSplit();
+    }
+
     /** Initiates the player 'take insurance' action. */
     public playerTakeInsurance(): void {
         this.gameActions.playerTakeInsurance();
     }
 
     /**
+     * Checks if the active player hand can be split.
+     * Conditions: Player's turn, active hand has 2 cards of the same rank,
+     * player has sufficient funds for an additional bet, and max splits not reached.
+     */
+    public canSplit(): boolean {
+        if (this.getGameState() !== GameState.PlayerTurn) return false;
+        const activeHandInfo = this.getActivePlayerHandInfo();
+        if (!activeHandInfo || activeHandInfo.cards.length !== 2 || activeHandInfo.isResolved) return false;
+        if (this.playerHands.length >= Constants.MAX_SPLIT_HANDS) return false; // Max splits reached
+
+        const card1Rank = activeHandInfo.cards[0].getRank();
+        const card2Rank = activeHandInfo.cards[1].getRank();
+        if (card1Rank !== card2Rank) return false;
+
+        if (this.getPlayerFunds() < activeHandInfo.bet) return false; // Not enough funds for another bet
+
+        return true;
+    }
+
+
+    /**
      * Checks if insurance is currently available to the player.
-     * Conditions: Player's turn, player has 2 cards, dealer's upcard is Ace,
+     * Conditions: Player's turn, player has 2 cards in their *first* hand, dealer's upcard is Ace,
      * insurance not yet taken/declined, player has sufficient funds.
+     * Insurance is typically offered only before any other actions (hit, stand, double, split) on the first hand.
      */
     public isInsuranceAvailable(): boolean {
         if (this.getGameState() !== GameState.PlayerTurn) return false;
-        if (this.playerHand.length !== 2) return false; // Only on first two cards
+        // Insurance is usually offered based on the initial hand, before splits.
+        // If a split has occurred, insurance is typically no longer an option for subsequent hands.
+        // For simplicity, we only check the first hand and only if no other actions have been taken on it.
+        if (this.playerHands.length > 1 || this.activePlayerHandIndex !== 0) return false;
+
+        const firstHand = this.playerHands[0];
+        if (!firstHand || firstHand.cards.length !== 2) return false; // Only on first two cards of the initial hand
         if (this.dealerHand.length !== 2) return false; // Dealer must have initial hand
         if (this.insuranceTakenThisRound) return false; // Insurance decision already made
 
         const dealerUpCard = this.dealerHand.find(card => card.isFaceUp());
         if (!dealerUpCard || dealerUpCard.getRank() !== Rank.Ace) return false;
 
-        const insuranceCost = this.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
+        const insuranceCost = this.getCurrentBet() * Constants.INSURANCE_BET_RATIO; // Bet of the first hand
         if (this.getPlayerFunds() < insuranceCost) return false;
 
         return true;
@@ -147,18 +202,51 @@ export class BlackjackGame {
     }
 
     // --- Hand Mgmt ---
-    /** Gets the player's current hand of cards. */
-    public getPlayerHand(): Card[] {
-        return this.playerHand;
+    /** Gets all player hands. */
+    public getPlayerHands(): PlayerHandInfo[] {
+        return this.playerHands;
     }
 
-    /** Sets the player's hand and notifies listeners of the change. */
-    public setPlayerHand(hand: Card[]): void {
-        this.playerHand = hand;
+    /** Sets all player hands and notifies listeners. Used for initialization/loading. */
+    public setPlayerHands(hands: PlayerHandInfo[]): void {
+        this.playerHands = hands;
         if (this.onHandModified) {
-            this.onHandModified({ isPlayer: true, type: 'set' });
+            // Notify for each hand, or a general 'set all' notification
+            hands.forEach((hand, index) => {
+                this.onHandModified!({ isPlayer: true, handIndex: index, type: 'set' });
+            });
         }
     }
+
+    /** Gets the currently active player hand's cards. */
+    public getActivePlayerHand(): Card[] {
+        const handInfo = this.getActivePlayerHandInfo();
+        return handInfo ? handInfo.cards : [];
+    }
+
+    /** Gets the currently active PlayerHandInfo object. */
+    public getActivePlayerHandInfo(): PlayerHandInfo | null {
+        if (this.playerHands.length > 0 && this.activePlayerHandIndex >= 0 && this.activePlayerHandIndex < this.playerHands.length) {
+            return this.playerHands[this.activePlayerHandIndex];
+        }
+        return null;
+    }
+
+    public getActivePlayerHandIndex(): number {
+        return this.activePlayerHandIndex;
+    }
+
+    public setActivePlayerHandIndex(index: number): void {
+        if (index >= 0 && index < this.playerHands.length) {
+            this.activePlayerHandIndex = index;
+            if (this.onHandModified) { // Notify that the active hand changed
+                this.onHandModified({ isPlayer: true, handIndex: index, type: 'set' }); // 'set' can indicate focus change
+            }
+        } else {
+            console.error(`[BlackjackGame] Invalid active hand index: ${index}`);
+        }
+    }
+
 
     /** Gets the dealer's current hand of cards. */
     public getDealerHand(): Card[] {
@@ -173,11 +261,15 @@ export class BlackjackGame {
         }
     }
 
-    /** Adds a card to the player's hand and notifies listeners. */
-    public addCardToPlayerHand(card: Card): void {
-        this.playerHand.push(card);
-        if (this.onHandModified) {
-            this.onHandModified({ card: card, isPlayer: true, type: 'add' });
+    /** Adds a card to the specified player's hand and notifies listeners. */
+    public addCardToPlayerHand(card: Card, handIndex: number): void {
+        if (handIndex >= 0 && handIndex < this.playerHands.length) {
+            this.playerHands[handIndex].cards.push(card);
+            if (this.onHandModified) {
+                this.onHandModified({ card: card, isPlayer: true, handIndex: handIndex, type: 'add' });
+            }
+        } else {
+            console.error(`[BlackjackGame] Invalid handIndex ${handIndex} for addCardToPlayerHand.`);
         }
     }
 
@@ -189,10 +281,20 @@ export class BlackjackGame {
         }
     }
 
-    /** Calculates and returns the current score of the player's hand. */
-    public getPlayerScore(): number {
-        return ScoreCalculator.calculateHandValue(this.playerHand);
+    /** Calculates and returns the current score of the active player's hand. */
+    public getPlayerScore(): number { // This now refers to the active hand
+        const activeHand = this.getActivePlayerHandInfo();
+        return activeHand ? ScoreCalculator.calculateHandValue(activeHand.cards) : 0;
     }
+
+    /** Calculates and returns the score of a specific player hand by index. */
+    public getPlayerScoreForHand(handIndex: number): number {
+        if (handIndex >= 0 && handIndex < this.playerHands.length) {
+            return ScoreCalculator.calculateHandValue(this.playerHands[handIndex].cards);
+        }
+        return 0;
+    }
+
 
     /**
      * Calculates and returns the dealer's score based on the current game state.
@@ -200,7 +302,7 @@ export class BlackjackGame {
      * Shows the full value during dealer's turn or game over.
      */
     public getDealerScore(): number {
-        if (this.getGameState() === GameState.PlayerTurn || this.getGameState() === GameState.Betting || this.getGameState() === GameState.Initial) {
+        if (this.getGameState() === GameState.PlayerTurn || this.getGameState() === GameState.Betting || this.getGameState() === GameState.Initial || this.getGameState() === GameState.Dealing) {
             // Calculate score only from cards that are face up
             return ScoreCalculator.calculateHandValue(this.dealerHand.filter(card => card.isFaceUp()));
         } else {
@@ -215,13 +317,17 @@ export class BlackjackGame {
     }
 
     // --- Money Mgmt ---
-    /** Gets the current bet amount for the round. */
-    public getCurrentBet(): number {
-        return this.gameActions.getCurrentBet();
+    /** Gets the current bet amount for the active round/hand. */
+    public getCurrentBet(): number { // This typically refers to the bet of the first/main hand or the active hand
+        const activeHandInfo = this.getActivePlayerHandInfo();
+        if (activeHandInfo) {
+            return activeHandInfo.bet;
+        }
+        return this.gameActions.getCurrentBet(); // Fallback to GameActions' general currentBet if no active hand (e.g. betting phase)
     }
 
-    /** Sets the current bet amount (typically during the Betting phase). */
-    public setCurrentBet(amount: number): void {
+    /** Sets the current bet amount (typically during the Betting phase for the first hand). */
+    public setCurrentBet(amount: number): void { // This sets the bet for the upcoming first hand
         this.gameActions.setCurrentBet(amount);
     }
 

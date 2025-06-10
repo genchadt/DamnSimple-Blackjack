@@ -1,8 +1,9 @@
-// src/scenes/components/gamecontroller-ts
+// src/scenes/components/GameController.ts
 // Added extensive debug logs to callbacks and requestCardDealAnimation
 // Ensured onGameActionComplete calls GameActions.onAnimationComplete
+// Updated for multi-hand card dealing notification
 import { Scene } from "@babylonjs/core";
-import { BlackjackGame, HandModificationUpdate } from "../../game/BlackjackGame";
+import { BlackjackGame, HandModificationUpdate, PlayerHandInfo } from "../../game/BlackjackGame"; // Import PlayerHandInfo
 import { GameResult, GameState } from "../../game/GameState";
 import { GameUI } from "../../ui/GameUI";
 import { CardVisualizer } from "./CardVisualizer";
@@ -52,38 +53,42 @@ export class GameController {
             this.gameStateRestored = true;
             this.scene.executeWhenReady(() => {
                 console.log("[Controller] Scene ready, rendering restored cards...");
-                this.cardVisualizer.renderCards(true);
-                this.update();
+                this.cardVisualizer.renderCards(true); // True to indicate restoration
+                this.update(); // Update UI based on restored state
 
-                if (this.blackjackGame.getGameState() === GameState.DealerTurn) {
+                // If restored into a state that requires immediate action (e.g., dealer's turn)
+                const currentGameState = this.blackjackGame.getGameState();
+                if (currentGameState === GameState.DealerTurn) {
                     console.log("[Controller] Restored into DealerTurn, initiating dealer logic.");
                     const dealerHand = this.blackjackGame.getDealerHand();
                     if(dealerHand.length > 0 && !dealerHand[0].isFaceUp()){
                         console.log("[Controller] Restored dealer hole card is face down. Flipping visually (via logical flip).");
+                        // Delay slightly to ensure visuals are set up from renderCards
                         setTimeout(() => {
                             console.log("[Controller] Timeout: Calling flip() on restored dealer hole card.");
-                            dealerHand[0].flip(); // This will trigger onVisualAnimationComplete -> GameActions.onAnimationComplete
+                            dealerHand[0].flip(); // This will trigger onVisualAnimationComplete -> GameActions.onAnimationComplete -> executeDealerTurn
                         }, 100);
                     } else {
                         console.log("[Controller] Restored dealer hole card is face up or no cards. Executing dealer turn directly.");
                         setTimeout(() => {
                             console.log("[Controller] Timeout: Calling executeDealerTurn.");
-                            this.blackjackGame.getGameActions().executeDealerTurn(); // This will proceed, and if it hits, will trigger onVisualAnimationComplete
+                            this.blackjackGame.getGameActions().executeDealerTurn();
                         }, 100);
                     }
-                } else if (this.blackjackGame.getGameState() === GameState.PlayerTurn) {
-                    if (this.blackjackGame.getPlayerScore() > 21) {
-                        console.warn("[Controller] Restored into PlayerTurn but player is bust. Setting to GameOver.");
-                        this.blackjackGame.getGameActions().setGameResult(GameResult.DealerWins);
-                        this.blackjackGame.getGameActions().setGameState(GameState.GameOver, true);
+                } else if (currentGameState === GameState.PlayerTurn) {
+                    const activeHand = this.blackjackGame.getActivePlayerHandInfo();
+                    if (activeHand && this.blackjackGame.getPlayerScore() > 21 && !activeHand.isResolved) {
+                        console.warn("[Controller] Restored into PlayerTurn but active hand is bust and not resolved. Resolving now.");
+                        // This state should ideally be resolved by GameActions load, but as a fallback:
+                        activeHand.isResolved = true;
+                        activeHand.result = GameResult.DealerWins;
+                        this.blackjackGame.getGameActions().proceedToNextActionOrEndGame(); // GameActions method
                         this.update();
                     } else {
-                        console.log("[Controller] Restored into PlayerTurn (not bust). Updating UI.");
-                        this.update();
+                        console.log("[Controller] Restored into PlayerTurn. UI updated.");
                     }
                 } else {
-                    console.log(`[Controller] Restored into state ${GameState[this.blackjackGame.getGameState()]}. Updating UI.`);
-                    this.update();
+                    console.log(`[Controller] Restored into state ${GameState[currentGameState]}. UI updated.`);
                 }
             });
         } else {
@@ -95,11 +100,11 @@ export class GameController {
 
 
     // Called by BlackjackGame when GameActions requests a card visual
-    private requestCardDealAnimation(card: Card, index: number, isPlayer: boolean, faceUp: boolean): void {
-        const target = isPlayer ? 'Player' : 'Dealer';
-        console.log(`%c[Controller] <<< requestCardDealAnimation received: Card=${card.toString()}, Index=${index}, Target=${target}, FaceUp=${faceUp}`, 'color: teal; font-weight: bold;');
+    private requestCardDealAnimation(card: Card, indexInHand: number, isPlayer: boolean, handDisplayIndex: number, faceUp: boolean): void {
+        const targetDesc = isPlayer ? `Player Hand ${handDisplayIndex}` : 'Dealer';
+        console.log(`%c[Controller] <<< requestCardDealAnimation received: Card=${card.toString()}, IndexInHand=${indexInHand}, Target=${targetDesc}, FaceUp=${faceUp}`, 'color: teal; font-weight: bold;');
         console.log(`%c[Controller]     Calling cardVisualizer.createCardMesh...`, 'color: teal');
-        this.cardVisualizer.createCardMesh(card, index, isPlayer, faceUp);
+        this.cardVisualizer.createCardMesh(card, indexInHand, isPlayer, handDisplayIndex, faceUp);
         console.log(`%c[Controller] >>> requestCardDealAnimation finished.`, 'color: teal; font-weight: bold;');
     }
 
@@ -121,12 +126,22 @@ export class GameController {
         console.log(`%c[Controller] <<< onVisualAnimationComplete finished.`, 'color: green; font-weight: bold;');
     }
 
-    /** NEW: Handles the notification that a hand has been logically modified. */
+    /** Handles the notification that a hand has been logically modified. */
     private onHandModified(update: HandModificationUpdate): void {
         const type = update.type;
-        const target = update.isPlayer ? 'Player' : 'Dealer';
+        const target = update.isPlayer ? `Player Hand ${update.handIndex}` : 'Dealer';
         console.log(`%c[Controller] <<< onHandModified called. Type: ${type}, Target: ${target}`, 'color: #FF6347; font-weight: bold;'); // Tomato
-        this.debugManager.updateDebugHandDisplay();
+
+        // If a split occurred, we need to tell CardVisualizer to re-render to show the new hand structure.
+        // A more sophisticated approach would be specific animations for the split card moving.
+        // For now, a full re-render will place cards correctly.
+        if (update.type === 'split' || (update.type === 'set' && update.isPlayer)) {
+            console.log(`%c[Controller]     Hand modification type '${update.type}' on player hand. Requesting CardVisualizer.renderCards().`, 'color: #FF6347;');
+            this.cardVisualizer.renderCards(false); // false because it's not a full game state restoration
+        }
+
+        this.debugManager.updateDebugHandDisplay(); // Update debug display regardless
+        this.update(); // Update main UI
     }
 
     /**
@@ -152,7 +167,30 @@ export class GameController {
         // Notify GameActions that its initiated logical step (or the aftermath of a visual one)
         // has had its UI consequences processed by the controller.
         // This allows GameActions.onAnimationComplete() to run and reset its internal state (e.g., lastAction).
-        this.blackjackGame.getGameActions().onAnimationComplete();
+        // This call was previously here, but GameActions.onAnimationComplete is now the central point.
+        // The flow is: Visual Anim -> onVisualAnimationComplete -> GA.onAnimationComplete
+        // OR Logical Action -> BlackjackGame.notifyAnimationComplete -> this.onGameActionComplete -> UI Update -> GA.onAnimationComplete (if needed)
+
+        // If the game action itself didn't have a visual that calls GA.onAnimationComplete,
+        // then GA.onAnimationComplete needs to be called here to finalize the action.
+        // However, GA.onAnimationComplete is now the primary entry point from visual completion.
+        // For purely logical steps in GA that call BlackjackGame.notifyAnimationComplete(),
+        // GA should reset its own lastAction *before* calling notifyAnimationComplete if no visual is pending.
+        // This simplifies the Controller.
+
+        // Let's refine: GameActions.onAnimationComplete() is the main handler.
+        // If a logical step in GameActions completes and needs UI update without a visual,
+        // it calls blackjackGame.notifyAnimationComplete().
+        // This (onGameActionComplete) updates UI.
+        // Then, if GameActions still has a pending `lastAction` that *wasn't* cleared by a visual animation callback,
+        // it should be cleared now. This is tricky.
+        // The new model is that GA.onAnimationComplete is called by onVisualAnimationComplete.
+        // If an action in GA *doesn't* lead to a visual that calls GA.onAnimationComplete,
+        // then GA itself should call its onAnimationComplete after notifying the controller.
+
+        // For now, let's assume GameActions manages its lastAction state correctly based on whether
+        // it expects a visual animation to complete or if it's a self-contained logical step.
+        // This method (onGameActionComplete) is primarily for UI refresh after a logical step.
 
         this.isProcessingGameActionComplete = false;
         console.log("[Controller]     Processing finished. isProcessingGameActionComplete = false.");

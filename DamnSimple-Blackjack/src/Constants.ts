@@ -29,14 +29,21 @@ export const UI_IDEAL_HEIGHT = 1080;
 
 
 // --- Game Rules ---
-const DEFAULT_FUNDS = 1000;
-const MIN_BET = 10;
-const DEFAULT_BET = MIN_BET; // Default bet is the minimum bet
-const BET_INCREMENT = 10;
-const MIN_CARDS_BEFORE_SHUFFLE = 15; // Deck reshuffle threshold
-const DEALER_STAND_SCORE = 17; // Dealer must stand on 17 or higher
-const INSURANCE_BET_RATIO = 0.5; // Insurance bet is 50% of the original bet
-const INSURANCE_PAYOUT_RATIO = 2; // Insurance pays 2:1
+export const DEFAULT_FUNDS = 1000;
+export const MIN_BET = 10;
+export const DEFAULT_BET = 10; // Added for BettingUI default
+export const BET_INCREMENT = 5; // Added for BettingUI increment
+export const INSURANCE_BET_RATIO = 0.5; // Insurance costs 50% of the original bet
+export const INSURANCE_PAYOUT_RATIO = 2; // Insurance pays 2:1 (meaning player gets original insurance bet + 2x that bet back)
+export const DEALER_STAND_SCORE = 17; // Dealer stands on 17 or more
+export const MIN_CARDS_BEFORE_SHUFFLE = 15; // Example value, adjust as needed
+export const MAX_SPLIT_HANDS = 4; // Maximum number of hands a player can have after splits
+
+// *** NEW CONSTANTS FOR NUMBER OF DECKS ***
+export const DEFAULT_NUM_DECKS = 6;
+export const MIN_NUM_DECKS = 1;
+export const MAX_NUM_DECKS = 8;
+
 
 // --- Layout Positions (Z-axis is depth from camera) ---
 const PLAYER_HAND_Z = 2.2;
@@ -54,30 +61,18 @@ const CARD_HEIGHT = CARD_WIDTH * CARD_ASPECT_RATIO;
 const CARD_DEPTH = 0.02 * CARD_SCALE; // Thickness scales too
 const CARD_CORNER_RADIUS = 0.08 * CARD_SCALE; // Rounded corners scale
 const CARD_SPACING = CARD_WIDTH + 0.15; // Horizontal space between cards in hand (used for Dealer)
-// const CARD_STACK_OFFSET = CARD_DEPTH + 0.002; // Vertical offset for cards in hand // REMOVED
 
 // --- Player Hand Specific Layout ---
-// The PLAYER_HAND_START_X constant is no longer used for player card positioning.
-// Player card X positions are now dynamically calculated in CardVisualizer.calculateCardPosition
-// to ensure the hand is always centered on the X-axis.
-/*
-// OLD COMMENT AND CONSTANT:
-// PLAYER_HAND_START_X: Calculated to roughly center a 5-card hand.
-// A 5-card hand: Card1_X_Start to Card5_X_End.
-// Card5_X_Start = PLAYER_HAND_START_X + 4 * PLAYER_CARD_STACK_X_OFFSET
-// Card5_X_End = Card5_X_Start + CARD_WIDTH
-// Center of 5 cards = (Card1_X_Start + Card5_X_End) / 2
-// If PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3:
-// Card5_X_Start = PLAYER_HAND_START_X + 4 * 0.3 * CARD_WIDTH = PLAYER_HAND_START_X + 1.2 * CARD_WIDTH
-// Card5_X_End = PLAYER_HAND_START_X + 1.2 * CARD_WIDTH + CARD_WIDTH = PLAYER_HAND_START_X + 2.2 * CARD_WIDTH
-// Center = (PLAYER_HAND_START_X + PLAYER_HAND_START_X + 2.2 * CARD_WIDTH) / 2
-// Center = PLAYER_HAND_START_X + 1.1 * CARD_WIDTH
-// For Center = 0: PLAYER_HAND_START_X = -1.1 * CARD_WIDTH
-// const PLAYER_HAND_START_X = -1.1 * CARD_WIDTH; // DEPRECATED
-*/
-
 const PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3; // Horizontal overlap, shows ~30% of card face. Used for player hand centering.
 const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 0.75;  // Slight vertical lift for each card in player's hand for stacking.
+
+// --- Split Hand Visuals ---
+const SPLIT_WAITING_HAND_X = 3.5; // X position for the waiting split hand (bottom-right)
+const SPLIT_WAITING_HAND_Y = -1.5; // Y position (relative to table, may need adjustment)
+const SPLIT_WAITING_HAND_Z = PLAYER_HAND_Z + 0.5; // Slightly behind player's main hand Z
+const SPLIT_WAITING_HAND_SCALE = 0.65; // 75% size as requested, but 0.65 might look better with perspective
+const SPLIT_CARD_ANIM_DURATION_MS = 300;
+
 
 // --- Animation ---
 const FPS = 60;
@@ -95,10 +90,14 @@ export const Constants = {
     MIN_BET,
     DEFAULT_BET,
     BET_INCREMENT,
-    MIN_CARDS_BEFORE_SHUFFLE,
-    DEALER_STAND_SCORE,
     INSURANCE_BET_RATIO,
     INSURANCE_PAYOUT_RATIO,
+    DEALER_STAND_SCORE,
+    MIN_CARDS_BEFORE_SHUFFLE,
+    MAX_SPLIT_HANDS,
+    DEFAULT_NUM_DECKS,
+    MIN_NUM_DECKS,
+    MAX_NUM_DECKS,
 
     // Layout
     PLAYER_HAND_Z,
@@ -116,12 +115,17 @@ export const Constants = {
     CARD_DEPTH,
     CARD_CORNER_RADIUS,
     CARD_SPACING, // Used for Dealer hand
-    // CARD_STACK_OFFSET, // REMOVED
 
     // Player Hand Specific Layout
-    // PLAYER_HAND_START_X, // DEPRECATED - Player hand X positions are dynamically centered
     PLAYER_CARD_STACK_X_OFFSET,
     PLAYER_CARD_STACK_Y_OFFSET,
+
+    // Split Hand Visuals
+    SPLIT_WAITING_HAND_X,
+    SPLIT_WAITING_HAND_Y,
+    SPLIT_WAITING_HAND_Z,
+    SPLIT_WAITING_HAND_SCALE,
+    SPLIT_CARD_ANIM_DURATION_MS,
 
     // Animation
     FPS,

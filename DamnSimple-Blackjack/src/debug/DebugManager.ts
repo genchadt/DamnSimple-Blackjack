@@ -1,12 +1,14 @@
+// src/debug/DebugManager.ts
 // src/debug/debugmanager-ts
 import { Scene, Vector3 } from "@babylonjs/core";
-import { BlackjackGame } from "../game/BlackjackGame";
+import { BlackjackGame, PlayerHandInfo } from "../game/BlackjackGame"; // Import PlayerHandInfo
 import { GameState, GameResult } from "../game/GameState";
 import { Card, Suit, Rank } from "../game/Card";
 import { GameScene } from "../scenes/GameScene";
 import { CardVisualizer } from "../scenes/components/CardVisualizer";
 import { GameUI } from "../ui/GameUI";
 import { Constants } from "../Constants";
+import { ScoreCalculator } from "../game/ScoreCalculator"; // Import ScoreCalculator
 
 export class DebugManager {
     private gameScene: GameScene;
@@ -36,12 +38,12 @@ export class DebugManager {
 
 
     // --- New properties for advanced debug display ---
-    private handHistory: { player: Card[], dealer: Card[] }[] = [];
+    private handHistory: { playerHands: PlayerHandInfo[], dealer: Card[] }[] = []; // Store array of PlayerHandInfo
     private readonly MAX_HISTORY_ENTRIES = 10;
     private historyIndex: number = -1; // -1 means current hand, 0 is most recent history, etc.
 
     // Store last known hands to detect changes (deal/discard)
-    private lastPlayerHand: Card[] = [];
+    private lastPlayerHands: PlayerHandInfo[] = []; // Store array of PlayerHandInfo
     private lastDealerHand: Card[] = [];
 
     /**
@@ -71,23 +73,23 @@ export class DebugManager {
         console.log("%cBlackjack Debug Commands", "font-size: 16px; font-weight: bold; color: #4CAF50;");
         console.log("%cGame State Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.setGameState(state) - Set game state (0=Initial, 1=Betting, 2=Dealing, 3=PlayerTurn, 4=DealerTurn, 5=GameOver)");
-        console.log("  debug.setGameResult(result) - Set game result (0=PlayerWins, 1=DealerWins, 2=Push, 3=PlayerBlackjack, 4=InProgress)");
+        console.log("  debug.setGameResult(result, handIndex?) - Set game result for active/specified player hand or overall (0=PlayerWins, 1=DealerWins, 2=Push, 3=PlayerBlackjack, 4=InProgress)");
         console.log("  debug.resetGame() - Reset the game to initial state");
         console.log("  debug.startNewGame(bet) - Start a new game with specified bet (clears table)");
         console.log("  debug.getState() - Get current game state information");
 
         console.log("%cCard Commands:", "font-weight: bold; color: #2196F3;");
-        console.log("  debug.addCard(isPlayer, suit, rank, faceUp) - Add a card to player or dealer hand");
-        console.log("  debug.clearCards(isPlayer) - Clear all cards from player or dealer hand");
-        console.log("  debug.flipCard(isPlayer, index) - Flip a specific card");
-        console.log("  debug.dealRandomCard(isPlayer, faceUp) - Deal a random card");
+        console.log("  debug.addCard(isPlayer, handIndex, suit, rank, faceUp) - Add a card to player (specify handIndex) or dealer hand");
+        console.log("  debug.clearCards(isPlayer, handIndex?) - Clear cards from player (specify handIndex or all) or dealer hand");
+        console.log("  debug.flipCard(isPlayer, handIndex, cardIndex) - Flip a specific card in a player or dealer hand");
+        console.log("  debug.dealRandomCard(isPlayer, faceUp) - Deal a random card (returns card, doesn't add to hand)");
         console.log("  debug.renderCards() - Force re-render all cards (visuals in Babylon)");
         console.log("  debug.revealDealerHole() - Reveals the dealer's hole card");
         console.log("  debug.forceReshuffle() - Forces the deck to reshuffle.");
 
         console.log("%cFunds Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.setFunds(amount) - Set player funds to specific amount");
-        console.log("  debug.setBet(amount) - Set current bet to specific amount");
+        console.log("  debug.setBet(amount, handIndex?) - Set current bet for active/specified hand or initial bet");
         console.log("  debug.resetFunds() - Reset player funds to default amount.");
 
         console.log("%cUI Commands:", "font-weight: bold; color: #2196F3;");
@@ -97,14 +99,13 @@ export class DebugManager {
         console.log("  debug.toggleDebugMenu(visible?) - Toggle the main debug menu window.");
 
         console.log("%cQuick Scenarios:", "font-weight: bold; color: #FF9800;");
-        console.log("  debug.forceWin(isPlayer) - Force player (true) or dealer (false) win.");
-        console.log("  debug.forcePush() - Force a push result.");
+        console.log("  debug.forceWin(isPlayer, handIndex?) - Force player (true) or dealer (false) win for active/specified hand.");
+        console.log("  debug.forcePush(handIndex?) - Force a push result for active/specified hand.");
 
 
         console.log("%cExamples:", "font-weight: bold; color: #FF9800;");
         console.log("  debug.setGameState(3) - Set game to PlayerTurn");
-        console.log("  debug.addCard(true, 'Hearts', 'A', true) - Add Ace of Hearts to player's hand face up");
-        console.log("  debug.dealRandomCard(false, false) - Deal random card to dealer face down");
+        console.log("  debug.addCard(true, 0, 'Hearts', 'A', true) - Add Ace of Hearts to player's first hand face up");
     }
 
     public setGameState(state: number): void {
@@ -119,33 +120,46 @@ export class DebugManager {
         console.log(`Game state set to ${GameState[state]}`);
     }
 
-    public setGameResult(result: number): void {
+    public setGameResult(result: number, handIndex?: number): void {
         if (result < 0 || result > 4) {
             console.error("Invalid game result. Use 0-4.");
             return;
         }
-        this.blackjackGame.getGameActions().setGameResult(result as GameResult, true);
+        const playerHands = this.blackjackGame.getPlayerHands();
+        const targetHandIdx = handIndex ?? this.blackjackGame.getActivePlayerHandIndex();
+
+        if (targetHandIdx >= 0 && targetHandIdx < playerHands.length) {
+            playerHands[targetHandIdx].result = result as GameResult;
+            console.log(`Game result for Player Hand ${targetHandIdx} set to ${GameResult[result]}`);
+        } else if (handIndex === undefined) { // Apply to overall game result if no handIndex
+            this.blackjackGame.getGameActions().setGameResult(result as GameResult, true);
+            console.log(`Overall game result set to ${GameResult[result]}`);
+        } else {
+            console.error(`Invalid handIndex ${handIndex} for setGameResult.`);
+            return;
+        }
         this.updateUI();
-        console.log(`Game result set to ${GameResult[result]}`);
     }
 
     public resetGame(): void {
         this.cardVisualizer.clearTable();
         this.blackjackGame.getGameActions().setGameState(GameState.Initial, true, true);
         this.blackjackGame.getGameActions().setGameResult(GameResult.InProgress, true);
-        this.blackjackGame.setPlayerHand([]);
+        this.blackjackGame.setPlayerHands([]); // Clear all player hands
+        this.blackjackGame.setActivePlayerHandIndex(0);
         this.blackjackGame.setDealerHand([]);
-        this.blackjackGame.setCurrentBet(0);
+        this.blackjackGame.setCurrentBet(0); // Resets initial bet for GameActions
         this.blackjackGame.resetFunds();
         this.blackjackGame.insuranceTakenThisRound = false;
         this.blackjackGame.insuranceBetPlaced = 0;
 
         this.handHistory = [];
         this.historyIndex = -1;
-        this.lastPlayerHand = [];
+        this.lastPlayerHands = [];
         this.lastDealerHand = [];
 
         console.log("Game reset to initial state, debug history cleared.");
+        this.updateDebugHandDisplay();
     }
 
     public startNewGame(bet: number = Constants.MIN_BET): void {
@@ -154,7 +168,7 @@ export class DebugManager {
             currentState !== GameState.Betting &&
             currentState !== GameState.GameOver) {
             console.warn(`[DebugManager] Forcing game to Initial state before starting new game.`);
-            this.resetGame();
+            this.resetGame(); // resetGame now clears playerHands
         }
         const success = this.blackjackGame.startNewGame(bet);
         if (success) {
@@ -167,89 +181,151 @@ export class DebugManager {
 
     public getState(): void {
         const gameState = this.blackjackGame.getGameState();
-        const gameResult = this.blackjackGame.getGameResult();
-        const playerScore = this.blackjackGame.getPlayerScore();
-        const dealerScore = this.blackjackGame.getDealerScore();
+        const gameResult = this.blackjackGame.getGameResult(); // Overall game result
         const playerFunds = this.blackjackGame.getPlayerFunds();
-        const currentBet = this.blackjackGame.getCurrentBet();
+        const currentBet = this.blackjackGame.getCurrentBet(); // Initial bet for the round
 
         console.log("%cGame State Information", "font-weight: bold; color: #4CAF50;");
         console.log(`Game State: ${GameState[gameState]} (${gameState})`);
-        console.log(`Game Result: ${GameResult[gameResult]} (${gameResult})`);
-        console.log(`Player Score: ${playerScore}`);
-        console.log(`Dealer Score: ${dealerScore} (value of face-up cards only unless revealed)`);
+        console.log(`Overall Game Result: ${GameResult[gameResult]} (${gameResult})`);
         console.log(`Player Funds: ${playerFunds}`);
-        console.log(`Current Bet: ${currentBet}`);
+        console.log(`Initial Bet for Round: ${currentBet}`);
+        console.log(`Active Player Hand Index: ${this.blackjackGame.getActivePlayerHandIndex()}`);
 
-        console.log("%cPlayer Hand:", "font-weight: bold; color: #2196F3;");
-        this.blackjackGame.getPlayerHand().forEach((card, index) => {
-            console.log(`  ${index}: ${card.toString()} (${card.isFaceUp() ? 'face up' : 'face down'})`);
+        this.blackjackGame.getPlayerHands().forEach((handInfo, index) => {
+            const score = ScoreCalculator.calculateHandValue(handInfo.cards);
+            console.log(`%cPlayer Hand ${index} (ID: ${handInfo.id}):`, "font-weight: bold; color: #2196F3;");
+            console.log(`  Score: ${score}, Bet: ${handInfo.bet}, Result: ${GameResult[handInfo.result]}, Resolved: ${handInfo.isResolved}`);
+            handInfo.cards.forEach((card, cardIdx) => {
+                console.log(`    ${cardIdx}: ${card.toString()} (${card.isFaceUp() ? 'face up' : 'face down'})`);
+            });
         });
 
+        const dealerScore = this.blackjackGame.getDealerScore(); // Visible score
+        const dealerFullScore = this.blackjackGame.getDealerFullScore(); // Full score
         console.log("%cDealer Hand:", "font-weight: bold; color: #2196F3;");
+        console.log(`  Visible Score: ${dealerScore}, Full Score (if revealed): ${dealerFullScore}`);
         this.blackjackGame.getDealerHand().forEach((card, index) => {
             console.log(`  ${index}: ${card.toString()} (${card.isFaceUp() ? 'face up' : 'face down'})`);
         });
         this.updateDebugHandDisplay();
     }
 
-    public addCard(isPlayer: boolean, suit: string, rank: string, faceUp: boolean = true): void {
-        if (!Object.values(Suit).includes(suit as Suit)) {
-            console.error(`Invalid suit: ${suit}. Use Hearts, Diamonds, Clubs, or Spades.`);
-            return;
-        }
-        if (!Object.values(Rank).includes(rank as Rank)) {
-            console.error(`Invalid rank: ${rank}. Use 2-10, J, Q, K, or A.`);
-            return;
-        }
-
-        const card = new Card(suit as Suit, rank as Rank);
-        card.setFaceUp(faceUp);
+    public addCard(isPlayer: boolean, handIndexOrSuit: number | string, suitOrRank: string, rankOrFaceUp: string | boolean, faceUp?: boolean): void {
+        let targetHandIndex = 0;
+        let cardSuit: string, cardRank: string, cardFaceUp: boolean;
 
         if (isPlayer) {
-            this.blackjackGame.addCardToPlayerHand(card);
+            if (typeof handIndexOrSuit !== 'number') {
+                console.error("For player, first argument after isPlayer must be handIndex (number)."); return;
+            }
+            targetHandIndex = handIndexOrSuit;
+            cardSuit = suitOrRank as string;
+            cardRank = rankOrFaceUp as string;
+            cardFaceUp = faceUp === undefined ? true : faceUp;
+        } else { // Dealer
+            cardSuit = handIndexOrSuit as string;
+            cardRank = suitOrRank as string;
+            cardFaceUp = rankOrFaceUp as boolean;
+        }
+
+
+        if (!Object.values(Suit).includes(cardSuit as Suit)) {
+            console.error(`Invalid suit: ${cardSuit}. Use Hearts, Diamonds, Clubs, or Spades.`); return;
+        }
+        if (!Object.values(Rank).includes(cardRank as Rank)) {
+            console.error(`Invalid rank: ${cardRank}. Use 2-10, J, Q, K, or A.`); return;
+        }
+
+        const card = new Card(cardSuit as Suit, cardRank as Rank);
+        card.setFaceUp(cardFaceUp);
+
+        if (isPlayer) {
+            const playerHands = this.blackjackGame.getPlayerHands();
+            if (targetHandIndex < 0 || targetHandIndex >= playerHands.length) {
+                // If trying to add to a non-existent hand but it's the next logical hand, create it.
+                if (targetHandIndex === playerHands.length && playerHands.length < Constants.MAX_SPLIT_HANDS) {
+                    const newHand: PlayerHandInfo = {
+                        id: `hand-${targetHandIndex}`, cards: [], bet: this.blackjackGame.getCurrentBet(), // Use initial bet or active hand's bet
+                        result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false
+                    };
+                    playerHands.push(newHand);
+                    console.log(`Created new Player Hand ${targetHandIndex} due to addCard command.`);
+                } else {
+                    console.error(`Invalid player handIndex: ${targetHandIndex}. Player has ${playerHands.length} hands.`); return;
+                }
+            }
+            this.blackjackGame.addCardToPlayerHand(card, targetHandIndex);
+            console.log(`Added ${card.toString()} to player's hand ${targetHandIndex} (${cardFaceUp ? 'face up' : 'face down'})`);
         } else {
             this.blackjackGame.addCardToDealerHand(card);
+            console.log(`Added ${card.toString()} to dealer's hand (${cardFaceUp ? 'face up' : 'face down'})`);
         }
         this.blackjackGame.getHandManager().registerFlipCallback(card);
 
-        this.renderCards();
-        this.updateUI();
-
-        console.log(`Added ${card.toString()} to ${isPlayer ? 'player' : 'dealer'}'s hand (${faceUp ? 'face up' : 'face down'})`);
+        this.renderCards(); // This will also update debug display
+        this.updateUI(); // Update main UI
     }
 
-    public clearCards(isPlayer: boolean): void {
+    public clearCards(isPlayer: boolean, handIndex?: number): void {
         if (isPlayer) {
-            this.blackjackGame.setPlayerHand([]);
-        } else {
+            const playerHands = this.blackjackGame.getPlayerHands();
+            if (handIndex !== undefined) {
+                if (handIndex < 0 || handIndex >= playerHands.length) {
+                    console.error(`Invalid player handIndex: ${handIndex}.`); return;
+                }
+                playerHands[handIndex].cards = [];
+                playerHands[handIndex].result = GameResult.InProgress;
+                playerHands[handIndex].isResolved = false;
+                // Note: Clearing a single hand might break game logic if not careful.
+                console.log(`Cleared player's hand ${handIndex}`);
+            } else { // Clear all player hands
+                this.blackjackGame.setPlayerHands([]);
+                this.blackjackGame.setActivePlayerHandIndex(0);
+                console.log(`Cleared all player hands.`);
+            }
+        } else { // Dealer
             this.blackjackGame.setDealerHand([]);
+            console.log(`Cleared dealer's hand`);
         }
         this.cardVisualizer.renderCards();
         this.updateUI();
-        console.log(`Cleared ${isPlayer ? 'player' : 'dealer'}'s hand`);
+        this.updateDebugHandDisplay();
     }
 
-    public flipCard(isPlayer: boolean, index: number): void {
-        const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
-        if (index < 0 || index >= hand.length) {
-            console.error(`Invalid card index: ${index}. Hand has ${hand.length} cards.`);
-            return;
+    public flipCard(isPlayer: boolean, handIndex: number, cardIndexInHand: number): void {
+        let hand: Card[];
+        if (isPlayer) {
+            const playerHands = this.blackjackGame.getPlayerHands();
+            if (handIndex < 0 || handIndex >= playerHands.length) {
+                console.error(`Invalid player handIndex: ${handIndex}.`); return;
+            }
+            hand = playerHands[handIndex].cards;
+        } else { // Dealer
+            // For dealer, handIndex is ignored, effectively 0
+            hand = this.blackjackGame.getDealerHand();
         }
-        hand[index].flip();
+
+        if (cardIndexInHand < 0 || cardIndexInHand >= hand.length) {
+            console.error(`Invalid card index: ${cardIndexInHand}. Hand has ${hand.length} cards.`); return;
+        }
+        hand[cardIndexInHand].flip(); // This will trigger CardVisualizer update via callback
         this.updateDebugHandDisplay();
-        console.log(`Flipped ${isPlayer ? 'player' : 'dealer'}'s card at index ${index}`);
+        console.log(`Flipped ${isPlayer ? `player hand ${handIndex}` : 'dealer'}'s card at index ${cardIndexInHand}`);
     }
+
 
     public revealDealerHole(): void {
         const dealerHand = this.blackjackGame.getDealerHand();
         if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
-            dealerHand[0].flip();
-            console.log(`DEBUG: Revealed dealer hole card: ${dealerHand[0].toString()}`);
+            // Use GameActions to reveal, as it handles animation and state
+            this.blackjackGame.getGameActions().requestRevealDealerHoleCard(() => {
+                console.log("DEBUG: Dealer hole card revealed via GameActions.");
+                this.updateDebugHandDisplay();
+            });
         } else {
             console.log("DEBUG: Dealer hole card already revealed or no cards dealt.");
         }
-        this.updateDebugHandDisplay();
     }
 
     public dealRandomCard(isPlayer: boolean, faceUp: boolean = true): Card {
@@ -259,7 +335,7 @@ export class DebugManager {
         const randomRank = ranks[Math.floor(Math.random() * ranks.length)];
         const card = new Card(randomSuit, randomRank);
         card.setFaceUp(faceUp);
-        return card;
+        return card; // Does not add to any hand
     }
 
     public renderCards(): void {
@@ -321,14 +397,31 @@ export class DebugManager {
         console.log(`Player funds reset to ${this.blackjackGame.getPlayerFunds()}.`);
     }
 
-    public setBet(amount: number): void {
+    public setBet(amount: number, handIndex?: number): void {
         if (amount < 0) {
-            console.error("Bet cannot be negative");
-            return;
+            console.error("Bet cannot be negative"); return;
         }
-        this.blackjackGame.setCurrentBet(amount);
+        if (this.blackjackGame.getGameState() === GameState.Betting || this.blackjackGame.getGameState() === GameState.Initial) {
+            this.blackjackGame.setCurrentBet(amount); // Sets initial bet for GameActions
+            console.log(`Initial bet for round set to ${amount}`);
+        } else if (handIndex !== undefined) {
+            const playerHands = this.blackjackGame.getPlayerHands();
+            if (handIndex >= 0 && handIndex < playerHands.length) {
+                playerHands[handIndex].bet = amount;
+                console.log(`Bet for Player Hand ${handIndex} set to ${amount}`);
+            } else {
+                console.error(`Invalid handIndex ${handIndex} for setBet.`); return;
+            }
+        } else { // Set for active hand if in PlayerTurn
+            const activeHand = this.blackjackGame.getActivePlayerHandInfo();
+            if (activeHand && this.blackjackGame.getGameState() === GameState.PlayerTurn) {
+                activeHand.bet = amount;
+                console.log(`Bet for active Player Hand ${this.blackjackGame.getActivePlayerHandIndex()} set to ${amount}`);
+            } else {
+                console.warn("Cannot set bet now. Game not in Betting or PlayerTurn, or no active hand.");
+            }
+        }
         this.updateUI();
-        console.log(`Current bet set to ${amount}`);
     }
 
     public updateUI(): void {
@@ -392,13 +485,18 @@ export class DebugManager {
 
 
     private recordHandHistory(): void {
-        const playerHand = this.blackjackGame.getPlayerHand();
-        const dealerHand = this.blackjackGame.getDealerHand();
+        const playerHandsInfo = this.blackjackGame.getPlayerHands();
+        const dealerHandCards = this.blackjackGame.getDealerHand();
 
-        if (playerHand.length > 0 || dealerHand.length > 0) {
+        if (playerHandsInfo.length > 0 || dealerHandCards.length > 0) {
+            // Deep clone player hands for history
+            const clonedPlayerHands = playerHandsInfo.map(hand => ({
+                ...hand,
+                cards: [...hand.cards] // Shallow clone cards within hand
+            }));
             this.handHistory.unshift({
-                player: [...playerHand],
-                dealer: [...dealerHand]
+                playerHands: clonedPlayerHands,
+                dealer: [...dealerHandCards] // Shallow clone dealer cards
             });
 
             if (this.handHistory.length > this.MAX_HISTORY_ENTRIES) {
@@ -639,6 +737,18 @@ export class DebugManager {
                 .debug-prompt-cancel:hover {
                     background-color: #d32f2f;
                 }
+                .debug-player-hand-section { /* Style for each player hand block */
+                    border: 1px solid #777;
+                    padding: 5px;
+                    margin-bottom: 10px;
+                    border-radius: 4px;
+                    background-color: rgba(230,230,250,0.5); /* Light lavender */
+                }
+                .debug-player-hand-section.active-hand {
+                     border-color: limegreen;
+                     box-shadow: 0 0 5px limegreen;
+                }
+
             `;
             document.head.appendChild(styleSheet);
         }
@@ -670,13 +780,13 @@ export class DebugManager {
                 finalEffectiveLeft = rect.left;
                 finalEffectiveTop = rect.top;
             }
-            
+
             // Ensure the element is positioned (not static) so style.left/top will work.
             if (computedStyle.position === 'static') {
                 // Draggable elements are typically 'absolute', 'relative', or 'fixed'.
                 // Setting to 'relative' is a fallback if it was 'static'.
                 // The .debug-prompt-dialog is set to 'absolute' via CSS, so this won't apply to it.
-                element.style.position = 'relative'; 
+                element.style.position = 'relative';
             }
 
             this.dragOffsetX = e.clientX - finalEffectiveLeft;
@@ -757,7 +867,7 @@ export class DebugManager {
         // --- Scenario Starters ---
         this.createDropdownButton('Start Scenario ▸', [
             { text: 'Start Hand (Normal)', action: () => this.debugStartNormalHand(), accessKey: 'N' },
-            { text: 'Start Split Hand', action: () => this.debugStartSplitHand(), accessKey: 'S' },
+            { text: 'Start Split Hand Pair', action: () => this.debugStartSplitHand(), accessKey: 'S' },
             { text: 'Start Insurance Hand', action: () => this.debugStartInsuranceHand(), accessKey: 'I' }
         ], content, true); // true for openLeft
 
@@ -780,9 +890,9 @@ export class DebugManager {
 
         // --- Outcome Control ---
         this.createDropdownButton('Force Outcome ▸', [
-            { text: 'Force Player Win', action: () => this.forceWin(true), accessKey: 'P' },
-            { text: 'Force Dealer Win', action: () => this.forceWin(false), accessKey: 'D' },
-            { text: 'Force Push', action: () => this.forcePush(), accessKey: 'U' }
+            { text: 'Force Player Win (Active Hand)', action: () => this.forceWin(true), accessKey: 'P' },
+            { text: 'Force Dealer Win (Active Hand)', action: () => this.forceWin(false), accessKey: 'D' },
+            { text: 'Force Push (Active Hand)', action: () => this.forcePush(), accessKey: 'U' }
         ], content, true); // true for openLeft
 
 
@@ -847,20 +957,40 @@ export class DebugManager {
         return container;
     }
 
-    private renderHandInContainer(title: string, currentCards: Card[], lastCards: Card[], isHistoryView: boolean, parentElement: HTMLElement): void {
+    private renderPlayerHandInContainer(
+        playerHandInfo: PlayerHandInfo,
+        lastPlayerHandInfo: PlayerHandInfo | undefined,
+        isHistoryView: boolean,
+        parentElement: HTMLElement,
+        handIndex: number
+    ): void {
+        const section = document.createElement('div');
+        section.className = 'debug-player-hand-section';
+        if (!isHistoryView && handIndex === this.blackjackGame.getActivePlayerHandIndex()) {
+            section.classList.add('active-hand');
+        }
+
         const headerEl = document.createElement('h4');
+        let title = `Player Hand ${handIndex}`;
+        if (playerHandInfo) {
+            const score = ScoreCalculator.calculateHandValue(playerHandInfo.cards);
+            title += ` (Bet: ${playerHandInfo.bet}, Score: ${score}, Result: ${GameResult[playerHandInfo.result]}, Resolved: ${playerHandInfo.isResolved})`;
+        }
         headerEl.textContent = title;
         headerEl.style.margin = '10px 0 5px 0';
         headerEl.style.borderBottom = '1px solid #999';
         headerEl.style.paddingBottom = '3px';
-        parentElement.appendChild(headerEl);
+        section.appendChild(headerEl);
 
         const container = document.createElement('div');
         container.style.display = 'flex';
         container.style.flexWrap = 'wrap';
         container.style.gap = '5px';
-        parentElement.appendChild(container);
+        section.appendChild(container);
+        parentElement.appendChild(section);
 
+        const currentCards = playerHandInfo.cards;
+        const lastCards = lastPlayerHandInfo ? lastPlayerHandInfo.cards : [];
         const currentCardIds = new Set(currentCards.map(c => c.getUniqueId()));
         const lastCardIds = new Set(lastCards.map(c => c.getUniqueId()));
 
@@ -885,27 +1015,29 @@ export class DebugManager {
         }
     }
 
+
     public updateDebugHandDisplay(): void {
         if (!this.isHandDisplayVisible || !this.debugHandDisplayElement) {
             return;
         }
 
         const isHistoryView = this.historyIndex > -1;
-        let playerHand: Card[], dealerHand: Card[];
+        let playerHands: PlayerHandInfo[];
+        let dealerHand: Card[];
         let titleText: string;
 
         if (isHistoryView) {
             const historicalState = this.handHistory[this.historyIndex];
-            playerHand = historicalState.player;
+            playerHands = historicalState.playerHands;
             dealerHand = historicalState.dealer;
             titleText = `History (${this.historyIndex + 1}/${this.handHistory.length})`;
         } else {
-            playerHand = this.blackjackGame.getPlayerHand();
+            playerHands = this.blackjackGame.getPlayerHands();
             dealerHand = this.blackjackGame.getDealerHand();
-            titleText = "Current Hand";
+            titleText = "Current Hands";
         }
 
-        this.debugHandDisplayElement.innerHTML = '';
+        this.debugHandDisplayElement.innerHTML = ''; // Clear previous content
 
         const headerDiv = document.createElement('div');
         headerDiv.className = 'debug-header';
@@ -927,21 +1059,21 @@ export class DebugManager {
             homeButton.onclick = () => { this.historyIndex = -1; this.updateDebugHandDisplay(); };
             navContainer.appendChild(homeButton);
         }
-        if (this.historyIndex > -1) {
+        if (this.historyIndex > -1) { // Next button (older history)
             const nextButton = document.createElement('button');
             nextButton.textContent = 'Next →';
             nextButton.disabled = this.historyIndex === 0;
             nextButton.onclick = () => { if (this.historyIndex > 0) this.historyIndex--; this.updateDebugHandDisplay(); };
             navContainer.appendChild(nextButton);
         }
-        if (this.historyIndex < this.handHistory.length - 1) {
+        if (this.historyIndex < this.handHistory.length - 1) { // Prev button (newer history)
             const prevButton = document.createElement('button');
             prevButton.textContent = '← Prev';
             prevButton.disabled = this.historyIndex === this.handHistory.length - 1 && this.historyIndex !== -1;
             prevButton.onclick = () => { if (this.historyIndex < this.handHistory.length - 1) this.historyIndex++; this.updateDebugHandDisplay(); };
             navContainer.appendChild(prevButton);
         }
-        if (this.handHistory.length > 0 && this.historyIndex === -1) {
+        if (this.handHistory.length > 0 && this.historyIndex === -1) { // Prev button from current to newest history
             const prevButton = document.createElement('button');
             prevButton.textContent = '← Prev';
             prevButton.onclick = () => { this.historyIndex = 0; this.updateDebugHandDisplay(); };
@@ -962,11 +1094,22 @@ export class DebugManager {
         headerDiv.appendChild(rightControls);
         this.debugHandDisplayElement.appendChild(headerDiv);
 
-        this.renderHandInContainer('Dealer', dealerHand, this.lastDealerHand, isHistoryView, this.debugHandDisplayElement);
-        this.renderHandInContainer('Player', playerHand, this.lastPlayerHand, isHistoryView, this.debugHandDisplayElement);
+        // Render Dealer Hand
+        const dealerSection = document.createElement('div');
+        this.renderHandInContainer('Dealer', dealerHand, this.lastDealerHand, isHistoryView, dealerSection);
+        this.debugHandDisplayElement.appendChild(dealerSection);
+
+
+        // Render Player Hands
+        playerHands.forEach((pHandInfo, index) => {
+            const lastPHandInfo = !isHistoryView ? this.lastPlayerHands.find(h => h.id === pHandInfo.id) : undefined;
+            this.renderPlayerHandInContainer(pHandInfo, lastPHandInfo, isHistoryView, this.debugHandDisplayElement, index);
+        });
+
 
         if (!isHistoryView) {
-            this.lastPlayerHand = [...playerHand];
+            // Deep clone for last state
+            this.lastPlayerHands = playerHands.map(h => ({ ...h, cards: [...h.cards] }));
             this.lastDealerHand = [...dealerHand];
         }
     }
@@ -983,24 +1126,41 @@ export class DebugManager {
     }
 
     private debugStartSplitHand(): void {
-        console.log("DEBUG: Starting Split Hand");
+        console.log("DEBUG: Starting Split Hand Scenario");
         this.resetGame();
 
-        this.blackjackGame.setCurrentBet(Constants.MIN_BET);
-        if (!this.blackjackGame.getPlayerFundsManager().deductFunds(this.blackjackGame.getCurrentBet())) {
-            console.error("DEBUG Split: Could not deduct bet. Player funds:", this.blackjackGame.getPlayerFunds());
+        const initialBet = Constants.MIN_BET;
+        this.blackjackGame.setCurrentBet(initialBet); // Set initial bet for GameActions
+
+        // Simulate placing the first bet
+        if (!this.blackjackGame.getPlayerFundsManager().deductFunds(initialBet)) {
+            console.error("DEBUG Split: Could not deduct initial bet. Player funds:", this.blackjackGame.getPlayerFunds());
             return;
         }
+
         this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
 
         const suits = Object.values(Suit);
-        let randomRankIndex = Math.floor(Math.random() * (Object.values(Rank).length - 1));
-        if (Object.values(Rank)[randomRankIndex] === Rank.Ace) randomRankIndex = 0;
-        const splitRank = Object.values(Rank)[randomRankIndex];
+        // Find a rank that is not Ace for simpler split testing first
+        let splitRank = Rank.Seven; // Example: Pair of 7s
+        const ranks = Object.values(Rank);
+        let randomRankIndex = Math.floor(Math.random() * ranks.length);
+        if (ranks[randomRankIndex] === Rank.Ace) { // Avoid Ace for initial split test if possible
+            randomRankIndex = (randomRankIndex + 1) % ranks.length;
+        }
+        splitRank = ranks[randomRankIndex];
+
 
         const playerCard1 = new Card(suits[0 % suits.length], splitRank); playerCard1.setFaceUp(true);
         const playerCard2 = new Card(suits[1 % suits.length], splitRank); playerCard2.setFaceUp(true);
-        this.blackjackGame.setPlayerHand([playerCard1, playerCard2]);
+
+        const initialPlayerHand: PlayerHandInfo = {
+            id: 'hand-0', cards: [playerCard1, playerCard2], bet: initialBet,
+            result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false
+        };
+        this.blackjackGame.setPlayerHands([initialPlayerHand]);
+        this.blackjackGame.setActivePlayerHandIndex(0);
+
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
 
@@ -1010,16 +1170,19 @@ export class DebugManager {
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
 
-        this.cardVisualizer.renderCards(true);
-        this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
+        this.cardVisualizer.renderCards(true); // Render initial state
+        this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true); // Move to player turn
+        this.updateUI();
+        console.log("DEBUG: Split hand scenario set up. Player has a pair. Try splitting.");
     }
 
     private debugStartInsuranceHand(): void {
         console.log("DEBUG: Starting Insurance Hand");
         this.resetGame();
+        const initialBet = Constants.MIN_BET;
+        this.blackjackGame.setCurrentBet(initialBet);
 
-        this.blackjackGame.setCurrentBet(Constants.MIN_BET);
-        if (!this.blackjackGame.getPlayerFundsManager().deductFunds(this.blackjackGame.getCurrentBet())) {
+        if (!this.blackjackGame.getPlayerFundsManager().deductFunds(initialBet)) {
             console.error("DEBUG Insurance: Could not deduct bet. Player funds:", this.blackjackGame.getPlayerFunds());
             return;
         }
@@ -1027,12 +1190,19 @@ export class DebugManager {
 
         const playerCard1 = this.dealRandomCard(true, true); playerCard1.setFaceUp(true);
         const playerCard2 = this.dealRandomCard(true, true); playerCard2.setFaceUp(true);
-        this.blackjackGame.setPlayerHand([playerCard1, playerCard2]);
+
+        const initialPlayerHand: PlayerHandInfo = {
+            id: 'hand-0', cards: [playerCard1, playerCard2], bet: initialBet,
+            result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false
+        };
+        this.blackjackGame.setPlayerHands([initialPlayerHand]);
+        this.blackjackGame.setActivePlayerHandIndex(0);
+
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
 
-        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false);
-        const dealerCard2 = new Card(Suit.Spades, Rank.Ace);
+        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false); // Hole card
+        const dealerCard2 = new Card(Suit.Spades, Rank.Ace); // Upcard is Ace
         dealerCard2.setFaceUp(true);
         this.blackjackGame.setDealerHand([dealerCard1, dealerCard2]);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
@@ -1040,6 +1210,8 @@ export class DebugManager {
 
         this.cardVisualizer.renderCards(true);
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
+        this.updateUI();
+        console.log("DEBUG: Insurance hand scenario set up. Dealer's upcard is Ace.");
     }
 
     public forceReshuffle(): void {
@@ -1049,49 +1221,97 @@ export class DebugManager {
         this.updateUI();
     }
 
-    private ensureBetActiveForForceOutcome(): void {
+    private ensureBetActiveForForceOutcome(handIndex?: number): PlayerHandInfo | null {
         const game = this.blackjackGame;
-        if (game.getCurrentBet() === 0) {
-            if (game.getPlayerFunds() >= Constants.MIN_BET) {
-                game.setCurrentBet(Constants.MIN_BET);
-                game.getPlayerFundsManager().deductFunds(Constants.MIN_BET);
-                console.log(`DEBUG: Auto-placed MIN_BET (${Constants.MIN_BET}) for forced outcome.`);
+        const targetHandIdx = handIndex ?? game.getActivePlayerHandIndex();
+        const playerHands = game.getPlayerHands();
+
+        if (targetHandIdx < 0 || targetHandIdx >= playerHands.length) {
+            // If no hands, try to set up a basic one for the outcome
+            if (playerHands.length === 0) {
+                if (game.getPlayerFunds() >= Constants.MIN_BET) {
+                    game.setCurrentBet(Constants.MIN_BET); // Sets initial bet for GameActions
+                    const newHand: PlayerHandInfo = {
+                        id: 'hand-0-debug', cards: [], bet: Constants.MIN_BET,
+                        result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false
+                    };
+                    game.setPlayerHands([newHand]);
+                    game.setActivePlayerHandIndex(0);
+                    game.getPlayerFundsManager().deductFunds(Constants.MIN_BET);
+                    console.log(`DEBUG: Auto-created hand 0 and placed MIN_BET (${Constants.MIN_BET}) for forced outcome.`);
+                    return newHand;
+                } else {
+                    console.warn("DEBUG: Cannot auto-place bet/create hand for forced outcome, insufficient funds.");
+                    return null;
+                }
             } else {
-                console.warn("DEBUG: Cannot auto-place bet for forced outcome, insufficient funds. Outcome may not have monetary effect.");
+                console.error(`DEBUG: Invalid handIndex ${targetHandIdx} for forced outcome.`);
+                return null;
             }
         }
+
+        const targetHand = playerHands[targetHandIdx];
+        if (targetHand.bet === 0) {
+            if (game.getPlayerFunds() >= Constants.MIN_BET) {
+                targetHand.bet = Constants.MIN_BET;
+                game.getPlayerFundsManager().deductFunds(Constants.MIN_BET);
+                console.log(`DEBUG: Auto-placed MIN_BET (${Constants.MIN_BET}) on Hand ${targetHandIdx} for forced outcome.`);
+            } else {
+                console.warn(`DEBUG: Cannot auto-place bet on Hand ${targetHandIdx} for forced outcome, insufficient funds. Outcome may not have monetary effect.`);
+            }
+        }
+
         if (game.getGameState() !== GameState.PlayerTurn && game.getGameState() !== GameState.DealerTurn && game.getGameState() !== GameState.Dealing) {
             game.getGameActions().setGameState(GameState.PlayerTurn, true, false);
         }
+        return targetHand;
     }
 
 
-    public forceWin(playerWins: boolean): void {
-        console.log(`DEBUG: Forcing ${playerWins ? 'Player Win' : 'Dealer Win'}`);
-        this.ensureBetActiveForForceOutcome();
+    public forceWin(playerWins: boolean, handIndex?: number): void {
+        const targetHand = this.ensureBetActiveForForceOutcome(handIndex);
+        if (!targetHand) {
+            console.error("DEBUG: Could not ensure active bet for forceWin."); return;
+        }
+        const targetHandIdx = this.blackjackGame.getPlayerHands().findIndex(h => h.id === targetHand.id);
+        console.log(`DEBUG: Forcing ${playerWins ? 'Player Win' : 'Dealer Win'} for Hand ${targetHandIdx}`);
+
         const game = this.blackjackGame;
         const gameActions = game.getGameActions();
 
         const dealerHand = game.getDealerHand();
         if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
+            // Don't use requestRevealDealerHoleCard as it has callbacks that might interfere
             dealerHand[0].setFaceUp(true);
-            this.cardVisualizer.updateCardVisual(dealerHand[0], true);
+            this.cardVisualizer.updateCardVisual(dealerHand[0], true); // Force immediate visual update
         }
-
 
         if (playerWins) {
-            gameActions.setGameResult(GameResult.PlayerWins, true);
-            game.getPlayerFundsManager().addFunds(game.getCurrentBet() * 2);
+            targetHand.result = GameResult.PlayerWins;
+            game.getPlayerFundsManager().addFunds(targetHand.bet * 2);
         } else {
-            gameActions.setGameResult(GameResult.DealerWins, true);
+            targetHand.result = GameResult.DealerWins;
+            // Player loses bet, already deducted or handled by ensureBetActive
         }
-        gameActions.resolveInsurance();
-        gameActions.setGameState(GameState.GameOver, true, true);
+        targetHand.isResolved = true;
+
+        // Check if all hands are resolved to end game
+        if (game.getPlayerHands().every(h => h.isResolved)) {
+            gameActions.resolveInsurance(); // Resolve insurance if all hands done
+            gameActions.setGameState(GameState.GameOver, true, true);
+        } else {
+            this.updateUI(); // Update UI if game not over
+        }
     }
 
-    public forcePush(): void {
-        console.log("DEBUG: Forcing Push");
-        this.ensureBetActiveForForceOutcome();
+    public forcePush(handIndex?: number): void {
+        const targetHand = this.ensureBetActiveForForceOutcome(handIndex);
+        if (!targetHand) {
+            console.error("DEBUG: Could not ensure active bet for forcePush."); return;
+        }
+        const targetHandIdx = this.blackjackGame.getPlayerHands().findIndex(h => h.id === targetHand.id);
+        console.log(`DEBUG: Forcing Push for Hand ${targetHandIdx}`);
+
         const game = this.blackjackGame;
         const gameActions = game.getGameActions();
 
@@ -1101,10 +1321,16 @@ export class DebugManager {
             this.cardVisualizer.updateCardVisual(dealerHand[0], true);
         }
 
-        gameActions.setGameResult(GameResult.Push, true);
-        game.getPlayerFundsManager().addFunds(game.getCurrentBet());
-        gameActions.resolveInsurance();
-        gameActions.setGameState(GameState.GameOver, true, true);
+        targetHand.result = GameResult.Push;
+        game.getPlayerFundsManager().addFunds(targetHand.bet); // Return bet
+        targetHand.isResolved = true;
+
+        if (game.getPlayerHands().every(h => h.isResolved)) {
+            gameActions.resolveInsurance();
+            gameActions.setGameState(GameState.GameOver, true, true);
+        } else {
+            this.updateUI();
+        }
     }
 
 
@@ -1140,7 +1366,7 @@ export class DebugManager {
         if (this.activeCustomPromptElement) {
             // Check if the click was on the overlay itself to close the prompt
             if (event.target === this.activeCustomPromptElement) { // activeCustomPromptElement is the overlay
-                 this.closeCustomPrompt(true); // true for cancel
+                this.closeCustomPrompt(true); // true for cancel
             }
             return;
         }
@@ -1301,16 +1527,16 @@ export class DebugManager {
         const dialog = document.createElement('div');
         dialog.className = 'debug-prompt-dialog';
         dialog.onclick = (e) => e.stopPropagation(); // Prevent overlay click when clicking dialog
-        
+
         // Add dialog header with title and close button
         const headerDiv = document.createElement('div');
         headerDiv.className = 'debug-header';
         headerDiv.style.marginTop = '0';
-        
+
         const titleSpan = document.createElement('span');
         titleSpan.className = 'debug-header-title';
         titleSpan.textContent = 'Set Player Funds';
-        
+
         const closeButton = document.createElement('button');
         closeButton.className = 'debug-close-button';
         closeButton.innerHTML = '&#x2715;';
@@ -1319,7 +1545,7 @@ export class DebugManager {
             e.stopPropagation();
             this.closeCustomPrompt(true);
         };
-        
+
         headerDiv.appendChild(titleSpan);
         headerDiv.appendChild(closeButton);
         dialog.appendChild(headerDiv);
@@ -1361,7 +1587,7 @@ export class DebugManager {
         dialog.appendChild(buttonsDiv);
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
+
         // Make the dialog draggable
         this.makeDraggable(dialog);
 
@@ -1383,41 +1609,41 @@ export class DebugManager {
             if (this.activeCustomPromptElement.onclick) {
                 (this.activeCustomPromptElement as HTMLElement).onclick = null;
             }
-            
+
             // Find and clean up the dialog element
             const dialogElement = this.activeCustomPromptElement.querySelector('.debug-prompt-dialog');
             if (dialogElement) {
                 (dialogElement as HTMLElement).onclick = null;
-                
+
                 // Clean up header buttons if present
                 const closeButton = dialogElement.querySelector('.debug-close-button');
                 if (closeButton) {
                     (closeButton as HTMLElement).onclick = null;
                 }
-                
+
                 // Clean up input event handlers
                 const input = dialogElement.querySelector('input');
                 if (input) {
                     (input as HTMLInputElement).onkeydown = null;
                 }
-                
+
                 // Clean up button click handlers
                 const buttons = dialogElement.querySelectorAll('button');
                 buttons.forEach(button => {
                     (button as HTMLButtonElement).onclick = null;
                 });
             }
-            
+
             document.body.removeChild(this.activeCustomPromptElement);
             this.activeCustomPromptElement = null;
         }
-        
+
         // Remove escape key listener
         if (this.customPromptEscapeListener) {
             document.removeEventListener('keydown', this.customPromptEscapeListener);
             this.customPromptEscapeListener = null;
         }
-        
+
         // Call the callback with result
         if (this.customPromptConfirmCallback) {
             this.customPromptConfirmCallback(isCancel ? null : (value ?? ''));
