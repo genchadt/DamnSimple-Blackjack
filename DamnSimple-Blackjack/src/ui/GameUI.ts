@@ -38,7 +38,7 @@ export class GameUI {
         this.navigationUI = new NavigationUI(
             scene, game,
             this.onSitDown.bind(this),
-            this.onLeaveTable.bind(this),
+            // this.onLeaveTable.bind(this), // Removed from NavigationUI
             this.onNewGameRequest.bind(this),
             this.onOpenSettings
         );
@@ -48,7 +48,8 @@ export class GameUI {
             scene,
             game,
             this.onNewGameRequest.bind(this),
-            () => this.update()
+            () => this.update(),
+            this.onLeaveTable.bind(this) // Added onLeaveTable callback
         );
 
         console.log("[GameUI] Initialized");

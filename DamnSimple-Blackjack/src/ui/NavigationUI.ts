@@ -8,13 +8,13 @@ import { GameState } from "../game/GameState";
 export class NavigationUI extends BaseUI {
     private game: BlackjackGame;
     private sitDownButton!: Button;
-    private leaveTableButton!: Button;
+    // private leaveTableButton!: Button; // Removed
     // private newGameButton!: Button; // Removed - New Game handled by GameActionUI
     private settingsButton!: Button;
 
     // Callbacks to GameUI/GameController
     private onSitDown: () => void;
-    private onLeaveTable: () => void;
+    // private onLeaveTable: () => void; // Removed
     private onNewGameRequest: () => void; // Kept for potential future use, but not linked currently
     private onOpenSettings: () => void;
 
@@ -22,14 +22,14 @@ export class NavigationUI extends BaseUI {
         scene: Scene,
         game: BlackjackGame,
         onSitDown: () => void,
-        onLeaveTable: () => void,
+        // onLeaveTable: () => void, // Removed
         onNewGameRequest: () => void, // Renamed parameter
         onOpenSettings: () => void
     ) {
         super(scene, "NavigationUI");
         this.game = game;
         this.onSitDown = onSitDown;
-        this.onLeaveTable = onLeaveTable;
+        // this.onLeaveTable = onLeaveTable; // Removed
         this.onNewGameRequest = onNewGameRequest; // Store callback
         this.onOpenSettings = onOpenSettings;
 
@@ -54,25 +54,25 @@ export class NavigationUI extends BaseUI {
         });
         this.guiTexture.addControl(this.sitDownButton);
 
-        // Leave Table Button (Bottom Left)
-        this.leaveTableButton = Button.CreateSimpleButton("leaveTableButton", "Leave Table");
-        this.leaveTableButton.width = "180px"; // Slightly smaller
-        this.leaveTableButton.height = "45px";
-        this.leaveTableButton.color = "white";
-        this.leaveTableButton.fontSize = 18;
-        this.leaveTableButton.background = "#B22222"; // Firebrick red
-        this.leaveTableButton.cornerRadius = 8;
-        this.leaveTableButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
-        this.leaveTableButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-        this.leaveTableButton.left = "15px";
-        this.leaveTableButton.top = "-15px";
-        this.leaveTableButton.isVisible = false; // Initially hidden
-        this.leaveTableButton.onPointerUpObservable.add(() => {
-            if (this.leaveTableButton.isEnabled) { // Check if enabled
-                this.onLeaveTable();
-            }
-        });
-        this.guiTexture.addControl(this.leaveTableButton);
+        // Leave Table Button (Bottom Left) - REMOVED
+        // this.leaveTableButton = Button.CreateSimpleButton("leaveTableButton", "Leave Table");
+        // this.leaveTableButton.width = "180px"; // Slightly smaller
+        // this.leaveTableButton.height = "45px";
+        // this.leaveTableButton.color = "white";
+        // this.leaveTableButton.fontSize = 18;
+        // this.leaveTableButton.background = "#B22222"; // Firebrick red
+        // this.leaveTableButton.cornerRadius = 8;
+        // this.leaveTableButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+        // this.leaveTableButton.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
+        // this.leaveTableButton.left = "15px";
+        // this.leaveTableButton.top = "-15px";
+        // this.leaveTableButton.isVisible = false; // Initially hidden
+        // this.leaveTableButton.onPointerUpObservable.add(() => {
+        //     if (this.leaveTableButton.isEnabled) { // Check if enabled
+        //         this.onLeaveTable();
+        //     }
+        // });
+        // this.guiTexture.addControl(this.leaveTableButton);
 
         // New Game Button - REMOVED (Handled by repurposed GameActionUI buttons)
 
@@ -104,13 +104,13 @@ export class NavigationUI extends BaseUI {
         // Sit Down button only visible in Initial state
         this.sitDownButton.isVisible = (gameState === GameState.Initial);
 
-        // Leave Table button visible unless in Initial state
-        this.leaveTableButton.isVisible = (gameState !== GameState.Initial);
+        // Leave Table button visible unless in Initial state - REMOVED
+        // this.leaveTableButton.isVisible = (gameState !== GameState.Initial);
 
-        // Enable/Disable Leave Table button
-        const canLeave = (gameState === GameState.Betting || gameState === GameState.GameOver);
-        this.leaveTableButton.isEnabled = canLeave;
-        this.leaveTableButton.alpha = canLeave ? 1.0 : 0.5; // Visual feedback
+        // Enable/Disable Leave Table button - REMOVED
+        // const canLeave = (gameState === GameState.Betting || gameState === GameState.GameOver);
+        // this.leaveTableButton.isEnabled = canLeave;
+        // this.leaveTableButton.alpha = canLeave ? 1.0 : 0.5; // Visual feedback
 
         // Settings button always visible/enabled (unless maybe during animation?)
         this.settingsButton.isVisible = true;
