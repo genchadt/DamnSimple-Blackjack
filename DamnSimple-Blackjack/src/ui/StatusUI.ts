@@ -1,11 +1,12 @@
 // src/ui/statusui-ts
 // Added debug log for dealer score calculation
+// Added insurance bet display
 import { Scene } from "@babylonjs/core";
 import { TextBlock, Control, Rectangle, StackPanel } from "@babylonjs/gui";
 import { BaseUI } from "./BaseUI";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameState, GameResult } from "../game/GameState";
-import { ScoreCalculator } from "../game/ScoreCalculator"; // Make sure this is imported
+import { ScoreCalculator } from "../game/ScoreCalculator";
 
 export class StatusUI extends BaseUI {
     private game: BlackjackGame;
@@ -14,6 +15,7 @@ export class StatusUI extends BaseUI {
     private gameStatusText!: TextBlock;
     private fundsText!: TextBlock;
     private betText!: TextBlock;
+    private insuranceBetText!: TextBlock; // Added for insurance bet
     private currencySign: string = "$";
 
     constructor(scene: Scene, game: BlackjackGame) {
@@ -29,9 +31,14 @@ export class StatusUI extends BaseUI {
             shadowColor: "#000000", shadowBlur: 2, shadowOffsetX: 1, shadowOffsetY: 1
         };
         const textOptions = {
-            color: "white", fontSize: 18, height: "28px",
+            color: "white", fontSize: 18, height: "28px", // Default height for funds/bet
             textHorizontalAlignment: Control.HORIZONTAL_ALIGNMENT_CENTER
         };
+        const smallTextOptions = { // For insurance bet, potentially smaller
+            color: "#FFD700", fontSize: 16, height: "24px", // Gold color, smaller font
+            textHorizontalAlignment: Control.HORIZONTAL_ALIGNMENT_CENTER
+        };
+
 
         // Player Score
         this.playerScoreText = new TextBlock("playerScore", "Player: 0");
@@ -39,7 +46,7 @@ export class StatusUI extends BaseUI {
         this.playerScoreText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.playerScoreText.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
         this.playerScoreText.verticalAlignment = Control.VERTICAL_ALIGNMENT_BOTTOM;
-        this.playerScoreText.left = "20px"; this.playerScoreText.top = "-80px"; // Adjusted slightly higher
+        this.playerScoreText.left = "20px"; this.playerScoreText.top = "-80px";
         this.guiTexture.addControl(this.playerScoreText);
 
         // Dealer Score
@@ -60,11 +67,13 @@ export class StatusUI extends BaseUI {
 
         // Funds Panel (Top Right)
         const fundsPanel = new Rectangle("fundsPanel");
-        fundsPanel.width = "220px"; fundsPanel.height = "70px"; fundsPanel.cornerRadius = 10;
+        fundsPanel.width = "220px";
+        fundsPanel.adaptHeightToChildren = true; // Adapt height
+        fundsPanel.cornerRadius = 10;
         fundsPanel.background = "rgba(0, 0, 0, 0.6)"; fundsPanel.thickness = 1; fundsPanel.color = "#888";
         fundsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_RIGHT;
         fundsPanel.verticalAlignment = Control.VERTICAL_ALIGNMENT_TOP;
-        fundsPanel.top = "15px"; fundsPanel.left = "-15px"; // Use left with negative for right alignment padding
+        fundsPanel.top = "15px"; fundsPanel.left = "-15px";
         this.guiTexture.addControl(fundsPanel);
 
         const fundsStack = new StackPanel("fundsStack");
@@ -78,71 +87,66 @@ export class StatusUI extends BaseUI {
         this.betText = new TextBlock("betText", `Bet: ${this.currencySign}0`);
         Object.assign(this.betText, textOptions);
         fundsStack.addControl(this.betText);
+
+        // Insurance Bet Text (added to fundsStack)
+        this.insuranceBetText = new TextBlock("insuranceBetText", "");
+        Object.assign(this.insuranceBetText, smallTextOptions);
+        this.insuranceBetText.isVisible = false; // Initially hidden
+        fundsStack.addControl(this.insuranceBetText);
     }
 
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
-        this.update(); // Update display immediately when sign changes
+        this.update();
     }
 
     public update(): void {
         const gameState = this.game.getGameState();
         const playerHand = this.game.getPlayerHand();
         const dealerHand = this.game.getDealerHand();
-        const playerScore = this.game.getPlayerScore(); // Calculate once
+        const playerScore = this.game.getPlayerScore();
 
-        // console.log(`[StatusUI] Update - State: ${GameState[gameState]}`); // Reduce log noise
-
-        // Update Player Score
         this.playerScoreText.text = `Player: ${playerScore > 0 ? playerScore : ""}`;
         if (gameState === GameState.Initial || playerHand.length === 0) {
-             this.playerScoreText.text = "Player: ";
+            this.playerScoreText.text = "Player: ";
         }
 
-        // --- Refined Dealer Score Logic ---
         let dealerScoreDisplay = "?";
-        // Use the dedicated getDealerScore method which handles state logic
-        const dealerVisibleScore = this.game.getDealerScore(); // Score based on visible cards (respects state)
-        const dealerFullScore = this.game.getDealerFullScore(); // Score based on all cards
-
-        // *** DEBUG LOG ADDED ***
-        // console.log(`[StatusUI] Dealer Score Calc - State: ${GameState[gameState]}, Visible Score: ${dealerVisibleScore}, Full Score: ${dealerFullScore}`);
+        const dealerVisibleScore = this.game.getDealerScore();
+        const dealerFullScore = this.game.getDealerFullScore();
 
         if (gameState === GameState.Initial || dealerHand.length === 0) {
             dealerScoreDisplay = "?";
-            // console.log(`[StatusUI]   -> Display: ? (Initial/No Cards)`);
         } else if (gameState === GameState.PlayerTurn || gameState === GameState.Betting) {
-            // getDealerScore() already returns the score of visible cards or 0 if none are visible
             if (dealerVisibleScore > 0) {
                 dealerScoreDisplay = `${dealerVisibleScore}`;
-                 // console.log(`[StatusUI]   -> Display: ${dealerScoreDisplay} (PlayerTurn/Betting - Visible)`);
             } else {
-                // This case means only the hole card is dealt (and face down), or dealer has no face up cards yet
                 dealerScoreDisplay = "?";
-                 // console.log(`[StatusUI]   -> Display: ? (PlayerTurn/Betting - No Visible Score)`);
             }
         } else if (gameState === GameState.DealerTurn || gameState === GameState.GameOver) {
-            // Show the full score in these states
             dealerScoreDisplay = `${dealerFullScore}`;
-             // console.log(`[StatusUI]   -> Display: ${dealerScoreDisplay} (DealerTurn/GameOver - Full)`);
         }
-        // Fallback just in case
         else {
-             dealerScoreDisplay = "?";
-             console.warn(`[StatusUI] Unexpected state (${GameState[gameState]}) for dealer score display.`);
+            dealerScoreDisplay = "?";
+            console.warn(`[StatusUI] Unexpected state (${GameState[gameState]}) for dealer score display.`);
         }
-
         this.dealerScoreText.text = `Dealer: ${dealerScoreDisplay}`;
-        // --- End Refined Dealer Score Logic ---
 
-        // Update funds and bet display
         this.fundsText.text = `Funds: ${this.currencySign}${this.game.getPlayerFunds()}`;
         const currentBet = this.game.getCurrentBet();
         this.betText.text = `Bet: ${currentBet > 0 ? this.currencySign + currentBet : "--"}`;
-        // Show bet amount only after betting is done and game is in progress/over
         this.betText.isVisible = (gameState !== GameState.Initial && gameState !== GameState.Betting);
 
-        // Update game status text and color
+        // Update Insurance Bet Text
+        const insuranceBet = this.game.insuranceBetPlaced;
+        if (insuranceBet > 0 && (gameState === GameState.PlayerTurn || gameState === GameState.DealerTurn || gameState === GameState.GameOver)) {
+            this.insuranceBetText.text = `Insurance: ${this.currencySign}${insuranceBet}`;
+            this.insuranceBetText.isVisible = true;
+        } else {
+            this.insuranceBetText.isVisible = false;
+        }
+
+
         let status = ""; let statusColor = "white";
         switch (gameState) {
             case GameState.Initial: status = "Sit Down to Play"; break;
@@ -150,21 +154,22 @@ export class StatusUI extends BaseUI {
             case GameState.PlayerTurn:
                 status = "Your Turn";
                 if (playerScore > 21) { status = "Bust!"; statusColor = "tomato"; }
-                // Check for Blackjack (2 cards totaling 21)
                 else if (playerScore === 21 && playerHand.length === 2) { status = "Blackjack!"; statusColor = "gold"; }
+                // Display insurance offer if available and not yet taken
+                else if (this.game.isInsuranceAvailable()) { status = "Insurance Available"; statusColor = "orange"; }
                 break;
             case GameState.DealerTurn: status = "Dealer's Turn"; break;
             case GameState.GameOver:
                 const gameResult = this.game.getGameResult();
-                const finalDealerScore = this.game.getDealerFullScore(); // Get final score for message
+                const finalDealerScore = this.game.getDealerFullScore();
                 switch (gameResult) {
                     case GameResult.PlayerWins: status = finalDealerScore > 21 ? "Dealer Bust! You Win!" : "You Win!"; statusColor = "lime"; break;
                     case GameResult.DealerWins: status = playerScore > 21 ? "Bust! Dealer Wins" : "Dealer Wins"; statusColor = "tomato"; break;
                     case GameResult.Push: status = "Push!"; statusColor = "yellow"; break;
                     case GameResult.PlayerBlackjack: status = "Blackjack!"; statusColor = "gold"; break;
-                    default: status = "Game Over"; break; // Fallback
+                    default: status = "Game Over"; break;
                 } break;
-            default: status = ""; break; // Should not happen
+            default: status = ""; break;
         }
         this.gameStatusText.text = status; this.gameStatusText.color = statusColor;
     }

@@ -1,11 +1,13 @@
 // src/blackjackgame-ts
 // Added onHandModified callback for granular updates
-import { Card } from "./Card";
+// Added insurance properties and methods
+import { Card, Rank } from "./Card"; // Import Rank
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
 import { ScoreCalculator } from "./ScoreCalculator";
 import { GameActions } from "./GameActions";
+import { Constants } from "../Constants"; // Import Constants
 
 /** Defines the structure for hand modification updates. */
 export interface HandModificationUpdate {
@@ -21,6 +23,11 @@ export class BlackjackGame {
 
     private playerHand: Card[] = [];
     private dealerHand: Card[] = [];
+
+    // Insurance related properties - managed by GameActions, reflected here for UI/availability checks
+    public insuranceTakenThisRound: boolean = false;
+    public insuranceBetPlaced: number = 0;
+
 
     private animationCompleteCallback: (() => void) | null = null;
     /** NEW: Callback function set by GameController to trigger when a hand is modified. */
@@ -38,15 +45,18 @@ export class BlackjackGame {
         this.playerFunds = new PlayerFunds();
         this.gameActions = new GameActions(this, this.handManager, this.playerFunds);
 
-        const restored = this.gameActions.loadGameState();
+        const restored = this.gameActions.loadGameState(); // This will also load/set insurance state on BlackjackGame
         if (!restored) {
             this.playerHand = [];
             this.dealerHand = [];
+            this.insuranceTakenThisRound = false;
+            this.insuranceBetPlaced = 0;
             this.gameActions.setGameState(GameState.Initial, true);
         }
         console.log("[BlackjackGame] Initialized. State:", GameState[this.getGameState()]);
         console.log("[BlackjackGame] Initial Player Hand:", this.playerHand.map(c => c.toString()));
         console.log("[BlackjackGame] Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
+        console.log(`[BlackjackGame] Initial Insurance: Taken=${this.insuranceTakenThisRound}, Bet=${this.insuranceBetPlaced}`);
     }
 
     /**
@@ -98,6 +108,32 @@ export class BlackjackGame {
     public doubleDown(): boolean {
         return this.gameActions.doubleDown();
     }
+
+    /** Initiates the player 'take insurance' action. */
+    public playerTakeInsurance(): void {
+        this.gameActions.playerTakeInsurance();
+    }
+
+    /**
+     * Checks if insurance is currently available to the player.
+     * Conditions: Player's turn, player has 2 cards, dealer's upcard is Ace,
+     * insurance not yet taken/declined, player has sufficient funds.
+     */
+    public isInsuranceAvailable(): boolean {
+        if (this.getGameState() !== GameState.PlayerTurn) return false;
+        if (this.playerHand.length !== 2) return false; // Only on first two cards
+        if (this.dealerHand.length !== 2) return false; // Dealer must have initial hand
+        if (this.insuranceTakenThisRound) return false; // Insurance decision already made
+
+        const dealerUpCard = this.dealerHand.find(card => card.isFaceUp());
+        if (!dealerUpCard || dealerUpCard.getRank() !== Rank.Ace) return false;
+
+        const insuranceCost = this.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
+        if (this.getPlayerFunds() < insuranceCost) return false;
+
+        return true;
+    }
+
 
     // --- Game State Mgmt ---
     /** Gets the current state of the game (e.g., Betting, PlayerTurn). */
@@ -197,7 +233,7 @@ export class BlackjackGame {
     /** Resets the player's funds to the default amount and saves the state. */
     public resetFunds(): void {
         this.playerFunds.resetFunds();
-        this.gameActions.saveGameState();
+        this.gameActions.saveGameState(); // Save after funds reset
     }
 
     // --- Accessors ---

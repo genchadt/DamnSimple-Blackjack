@@ -35,6 +35,8 @@ const DEFAULT_BET = MIN_BET; // Default bet is the minimum bet
 const BET_INCREMENT = 10;
 const MIN_CARDS_BEFORE_SHUFFLE = 15; // Deck reshuffle threshold
 const DEALER_STAND_SCORE = 17; // Dealer must stand on 17 or higher
+const INSURANCE_BET_RATIO = 0.5; // Insurance bet is 50% of the original bet
+const INSURANCE_PAYOUT_RATIO = 2; // Insurance pays 2:1
 
 // --- Layout Positions (Z-axis is depth from camera) ---
 const PLAYER_HAND_Z = 2.2;
@@ -95,6 +97,8 @@ export const Constants = {
     BET_INCREMENT,
     MIN_CARDS_BEFORE_SHUFFLE,
     DEALER_STAND_SCORE,
+    INSURANCE_BET_RATIO,
+    INSURANCE_PAYOUT_RATIO,
 
     // Layout
     PLAYER_HAND_Z,
