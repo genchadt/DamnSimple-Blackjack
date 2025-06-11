@@ -29,9 +29,9 @@ export class CardVisualizer {
     private static readonly MATIDX_SIDE = 2;
 
     // Face Up: Rotate the box so its original -Z face (where face texture is applied) points towards world +Y
-    private static readonly FACE_UP_FLAT_QUAT = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
+    private static readonly FACE_UP_FLAT_QUAT = Quaternion.RotationAxis(Vector3.RightReadOnly, Math.PI / 2);
     // Face Down: Rotate the box so its original +Z face (where back texture is applied) points towards world +Y
-    private static readonly FACE_DOWN_FLAT_QUAT = Quaternion.RotationAxis(Vector3.Right(), -Math.PI / 2);
+    private static readonly FACE_DOWN_FLAT_QUAT = Quaternion.RotationAxis(Vector3.RightReadOnly, -Math.PI / 2);
     private static readonly QUATERNION_EPSILON = 0.001;
 
     // --- Material & Texture Cache / Singletons ---
@@ -338,74 +338,73 @@ export class CardVisualizer {
         // console.log(`%c[CardViz] createCardMesh called for ${card.toString()} to ${targetDesc}. IndexInHand: ${indexInHand}, FaceUp (target): ${faceUp}`, 'color: #20B2AA');
 
         const cardId = card.getUniqueId();
-        if (this.cardMeshes.has(cardId)) {
-            console.warn(`[CardViz] Card mesh ${cardId} already exists. Disposing and recreating.`);
-            this.disposeCardMesh(cardId);
+        let cardMesh = this.cardMeshes.get(cardId);
+
+        const isHoleCardCandidateOnCreate = !isPlayer && indexInHand === 0;
+        if (isHoleCardCandidateOnCreate) {
+            console.log(`%c[CardViz HOLE_DEBUG] createCardMesh for HOLE CARD ${card.toString()} (ID: ${cardId}). Mesh exists: ${!!cardMesh}. Target FaceUp: ${faceUp}`, 'color: red;');
         }
 
-        const backUV = new Vector4(0, 0, 1, 1);
-        const faceUV = new Vector4(0, 0, 1, 1);
-        const sideUV = new Vector4(0, 0, 0.01, 0.01);
-        const boxFaceUVs = [backUV, faceUV, sideUV, sideUV, sideUV, sideUV];
 
-        // console.log(`%c[CardViz]   -> Creating BOX mesh.`, 'color: green;');
-        const cardMesh = MeshBuilder.CreateBox(
-            `card_${cardId}`, {
-                width: Constants.CARD_WIDTH, height: Constants.CARD_HEIGHT, depth: Constants.CARD_DEPTH,
-                faceUV: boxFaceUVs
-            }, this.scene
-        );
+        if (cardMesh) { // Mesh already exists
+            // console.log(`%c[CardViz] createCardMesh: Reusing existing mesh for ${card.toString()}`, 'color: #20B2AA');
+            // Its current position is its start position for animateCardDealing.
+        } else { // Mesh does not exist, create it
+            // console.log(`%c[CardViz]   -> Creating NEW BOX mesh for ${card.toString()}.`, 'color: green;');
+            const backUV = new Vector4(0, 0, 1, 1);
+            const faceUV = new Vector4(0, 0, 1, 1);
+            const sideUV = new Vector4(0, 0, 0.01, 0.01); // Small UV area for solid color
+            const boxFaceUVs: Vector4[] = [];
+            boxFaceUVs[CardVisualizer.SUBMESH_MINUS_Z] = faceUV; // Face texture on -Z
+            boxFaceUVs[CardVisualizer.SUBMESH_PLUS_Z] = backUV;  // Back texture on +Z
+            for (let i = 2; i < 6; i++) boxFaceUVs[i] = sideUV; // Sides
 
-        cardMesh.position = this.animationOriginPosition.clone();
-        cardMesh.rotationQuaternion = Quaternion.Identity(); // Start flat or as per animation start
-        // console.log(`%c[CardViz]   -> Mesh created at animation origin: ${cardMesh.position.toString()}. Initial rotationQuaternion: ${cardMesh.rotationQuaternion.toString()}`, 'color: #FF4500; font-weight: bold;');
+            cardMesh = MeshBuilder.CreateBox(
+                `card_${cardId}`, {
+                    width: Constants.CARD_WIDTH, height: Constants.CARD_HEIGHT, depth: Constants.CARD_DEPTH,
+                    faceUV: boxFaceUVs,
+                    wrap: false // Important for correct UV mapping on box faces if faceUV is used this way
+                }, this.scene
+            );
+            cardMesh.position = this.animationOriginPosition.clone(); // New cards start at deck
+            cardMesh.rotationQuaternion = Quaternion.Identity(); // Default orientation for new cards from deck
+            this.cardMeshes.set(cardId, cardMesh);
 
-        this.cardMeshes.set(cardId, cardMesh); // Store mesh immediately
+            const multiMat = new MultiMaterial(`multiMat_${cardId}`, this.scene);
+            multiMat.subMaterials[CardVisualizer.MATIDX_BACK] = this.getCardBackMaterial();
+            multiMat.subMaterials[CardVisualizer.MATIDX_SIDE] = this.getCardSideMaterial();
 
-        // --- Apply MultiMaterial Asynchronously ---
-        const multiMat = new MultiMaterial(`multiMat_${cardId}`, this.scene);
-        multiMat.subMaterials.push(null); // Placeholder for face [0]
-        multiMat.subMaterials.push(this.getCardBackMaterial()); // Back [1]
-        multiMat.subMaterials.push(this.getCardSideMaterial()); // Side [2]
-        cardMesh.material = multiMat;
-
-        // console.log(`%c[CardViz]   -> Applying SubMesh assignments (Face[${CardVisualizer.MATIDX_FACE}] on -Z, Back[${CardVisualizer.MATIDX_BACK}] on +Z).`, 'color: green; font-weight: bold;');
-        cardMesh.subMeshes = [];
-        const verticesCount = cardMesh.getTotalVertices();
-        new SubMesh(CardVisualizer.MATIDX_BACK, 0, verticesCount, 0, 6, cardMesh);  // Index 0 -> Material 1 (Back)
-        new SubMesh(CardVisualizer.MATIDX_FACE, 0, verticesCount, 6, 6, cardMesh);  // Index 1 -> Material 0 (Face)
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 12, 6, cardMesh); // Index 2 -> Material 2 (Side)
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 18, 6, cardMesh); // Index 3 -> Material 2 (Side)
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh); // Index 4 -> Material 2 (Side)
-        new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh); // Index 5 -> Material 2 (Side)
-
-
-        // Asynchronously load and assign the face material
-        this.getCardFaceMaterial(card).then(faceMaterial => {
-            if (multiMat.subMaterials && multiMat.subMaterials.length > CardVisualizer.MATIDX_FACE) {
-                multiMat.subMaterials[CardVisualizer.MATIDX_FACE] = faceMaterial;
-                // console.log(`%c[CardViz]   -> Assigned loaded face material for ${card.getCid()} to subMaterial index ${CardVisualizer.MATIDX_FACE}`, 'color: green');
-            } else {
-                // console.warn(`[CardViz] MultiMaterial for ${card.getCid()} was disposed or invalid before face material loaded.`);
-            }
-        }).catch(err => {
-            console.error(`[CardViz] Error setting face material for ${card.getCid()} in createCardMesh:`, err);
-            if (multiMat.subMaterials && multiMat.subMaterials.length > CardVisualizer.MATIDX_FACE) {
-                const errorMaterialCacheKey = `errorMat_face_${card.getCid()}`;
+            try {
+                multiMat.subMaterials[CardVisualizer.MATIDX_FACE] = await this.getCardFaceMaterial(card);
+            } catch (err) {
+                console.error(`[CardViz] Error getting face material for ${card.getCid()} in createCardMesh:`, err);
+                // Fallback to an error material if needed, but ensure it's not null
+                const errorMaterialCacheKey = `errorMat_face_runtime_${card.getCid()}`;
                 let errorMaterial = this.scene.getMaterialByName(errorMaterialCacheKey) as StandardMaterial;
                 if (!errorMaterial) {
                     errorMaterial = new StandardMaterial(errorMaterialCacheKey, this.scene);
-                    errorMaterial.diffuseColor = new Color3(0, 0, 1);
-                    errorMaterial.emissiveColor = new Color3(0, 0.5, 0);
+                    errorMaterial.diffuseColor = new Color3(1, 0, 1); // Magenta for runtime error
+                    errorMaterial.emissiveColor = new Color3(0.5, 0, 0.5);
                     errorMaterial.backFaceCulling = false;
                 }
                 multiMat.subMaterials[CardVisualizer.MATIDX_FACE] = errorMaterial;
-                // console.warn(`%c[CardViz]   -> Assigned BLUE error material for face of ${card.getCid()}`, 'color: blue; font-weight: bold;');
             }
-        });
+
+            cardMesh.material = multiMat;
+
+            cardMesh.subMeshes = [];
+            const verticesCount = cardMesh.getTotalVertices();
+            new SubMesh(CardVisualizer.MATIDX_BACK, 0, verticesCount, 0, 6, cardMesh);  // +Z face of box -> Back Material
+            new SubMesh(CardVisualizer.MATIDX_FACE, 0, verticesCount, 6, 6, cardMesh);  // -Z face of box -> Face Material
+            new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 12, 6, cardMesh); // +X face
+            new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 18, 6, cardMesh); // -X face
+            new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh); // +Y face
+            new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh); // -Y face
+        }
+
 
         // console.log(`%c[CardViz]   -> Mesh added to cardMeshes map. Starting deal animation...`, 'color: #20B2AA');
-        this.animateCardDealing(cardMesh, indexInHand, isPlayer, handDisplayIndex, faceUp, card);
+        this.animateCardDealing(cardMesh!, indexInHand, isPlayer, handDisplayIndex, faceUp, card);
     }
 
     /** Creates a card mesh instantly at its final position/rotation. Used for restoring state. */
@@ -417,12 +416,17 @@ export class CardVisualizer {
         const backUV = new Vector4(0, 0, 1, 1);
         const faceUV = new Vector4(0, 0, 1, 1);
         const sideUV = new Vector4(0, 0, 0.01, 0.01);
-        const boxFaceUVs = [backUV, faceUV, sideUV, sideUV, sideUV, sideUV];
+        const boxFaceUVs: Vector4[] = [];
+        boxFaceUVs[CardVisualizer.SUBMESH_MINUS_Z] = faceUV; // Face texture on -Z
+        boxFaceUVs[CardVisualizer.SUBMESH_PLUS_Z] = backUV;  // Back texture on +Z
+        for (let i = 2; i < 6; i++) boxFaceUVs[i] = sideUV; // Sides
+
 
         const cardMesh = MeshBuilder.CreateBox(
             `card_${cardId}`, {
                 width: Constants.CARD_WIDTH, height: Constants.CARD_HEIGHT, depth: Constants.CARD_DEPTH,
-                faceUV: boxFaceUVs
+                faceUV: boxFaceUVs,
+                wrap: false
             }, this.scene
         );
 
@@ -442,9 +446,9 @@ export class CardVisualizer {
 
 
         const multiMat = new MultiMaterial(`multiMat_${cardId}_instant`, this.scene);
-        multiMat.subMaterials.push(null);
-        multiMat.subMaterials.push(this.getCardBackMaterial());
-        multiMat.subMaterials.push(this.getCardSideMaterial());
+        multiMat.subMaterials[CardVisualizer.MATIDX_FACE] = null;
+        multiMat.subMaterials[CardVisualizer.MATIDX_BACK] = this.getCardBackMaterial();
+        multiMat.subMaterials[CardVisualizer.MATIDX_SIDE] = this.getCardSideMaterial();
         cardMesh.material = multiMat;
 
         // console.log(`%c[CardViz]   -> Applying SubMesh assignments (Instant).`, 'color: green; font-weight: bold;');
@@ -457,33 +461,34 @@ export class CardVisualizer {
         new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 24, 6, cardMesh);
         new SubMesh(CardVisualizer.MATIDX_SIDE, 0, verticesCount, 30, 6, cardMesh);
 
-        this.getCardFaceMaterial(card).then(faceMaterial => {
+        try {
+            const faceMaterial = await this.getCardFaceMaterial(card); // Await the material loading
             if (multiMat.subMaterials && multiMat.subMaterials.length > CardVisualizer.MATIDX_FACE) {
                 multiMat.subMaterials[CardVisualizer.MATIDX_FACE] = faceMaterial;
             }
-        }).catch(err => {
+        } catch (err) {
             console.error(`[CardViz] Error setting face material for instant card ${card.getCid()}:`, err);
             if (multiMat.subMaterials && multiMat.subMaterials.length > CardVisualizer.MATIDX_FACE) {
                 const errorMaterialCacheKey = `errorMat_face_instant_${card.getCid()}`;
                 let errorMaterial = this.scene.getMaterialByName(errorMaterialCacheKey) as StandardMaterial;
                 if (!errorMaterial) {
                     errorMaterial = new StandardMaterial(errorMaterialCacheKey, this.scene);
-                    errorMaterial.diffuseColor = new Color3(0, 0.5, 1);
+                    errorMaterial.diffuseColor = new Color3(0, 0.5, 1); // Light blue for error
                     errorMaterial.emissiveColor = new Color3(0, 0.2, 0.5);
                     errorMaterial.backFaceCulling = false;
                 }
                 multiMat.subMaterials[CardVisualizer.MATIDX_FACE] = errorMaterial;
-                // console.warn(`%c[CardViz]   -> Assigned LIGHT BLUE error material for face of instant ${card.getCid()}`, 'color: blue; font-weight: bold;');
             }
-        });
+        }
     }
 
     public renderCards(isRestoring: boolean = false): void {
         // console.log(`%c[CardViz] renderCards called. IsRestoring: ${isRestoring}`, 'color: #4682B4');
         const playerHands = this.blackjackGame.getPlayerHands();
-        const dealerHandCards = this.blackjackGame.getDealerHand();
+        const dealerHandFromGame = this.blackjackGame.getDealerHand(); // Get a stable reference
         const allVisibleCardIds = new Set<string>();
         const creationPromises: Promise<void>[] = [];
+        const animationPromises: Promise<void>[] = []; // For animations triggered by renderCards
 
         // Render Player Hands
         playerHands.forEach((handInfo, handDisplayIndex) => {
@@ -493,65 +498,96 @@ export class CardVisualizer {
                 let cardMesh = this.cardMeshes.get(cardId);
 
                 if (!cardMesh) {
-                    // console.log(`%c[CardViz]   -> Mesh for player card ${card.toString()} (Hand ${handDisplayIndex}) not found. Creating instant.`, 'color: #4682B4');
-                    creationPromises.push(this.createCardMeshInstant(card, indexInHand, true, handInfo, handDisplayIndex));
+                    if (isRestoring) {
+                        creationPromises.push(this.createCardMeshInstant(card, indexInHand, true, handInfo, handDisplayIndex));
+                    } else {
+                        console.warn(`[CardViz] renderCards: Mesh for player card ${card.toString()} (Hand ${handDisplayIndex}) not found and not restoring. Creating instant.`);
+                        creationPromises.push(this.createCardMeshInstant(card, indexInHand, true, handInfo, handDisplayIndex));
+                    }
                 } else {
                     const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
                         card, indexInHand, true, handInfo, handDisplayIndex, handInfo.cards.length
                     );
-                    if (!cardMesh.position.equalsWithEpsilon(position)) cardMesh.position = position;
-                    if (!cardMesh.rotationQuaternion) cardMesh.rotationQuaternion = Quaternion.Identity();
-                    if (!cardMesh.rotationQuaternion.equalsWithEpsilon(rotationQuaternion, CardVisualizer.QUATERNION_EPSILON)) {
-                        cardMesh.rotationQuaternion = rotationQuaternion.clone();
+
+                    let needsChange = !cardMesh.position.equalsWithEpsilon(position, 0.01) ||
+                        !(cardMesh.rotationQuaternion && cardMesh.rotationQuaternion.equalsWithEpsilon(rotationQuaternion, CardVisualizer.QUATERNION_EPSILON)) ||
+                        !cardMesh.scaling.equalsWithEpsilon(scaling, 0.01);
+                    if (!cardMesh.rotationQuaternion && rotationQuaternion) needsChange = true;
+
+
+                    if (!isRestoring && needsChange) {
+                        animationPromises.push(this.animateMeshToTransform(cardMesh, position, rotationQuaternion, scaling, Constants.SPLIT_CARD_ANIM_DURATION_MS, false)); // isPrimaryAnimation = false
+                    } else if (needsChange) { // Instant update if restoring or no animation needed
+                        cardMesh.position = position;
+                        if (!cardMesh.rotationQuaternion) cardMesh.rotationQuaternion = Quaternion.Identity();
+                        cardMesh.rotationQuaternion.copyFrom(rotationQuaternion);
+                        cardMesh.scaling = scaling;
                     }
-                    if (!cardMesh.scaling.equalsWithEpsilon(scaling)) cardMesh.scaling = scaling;
                     this.applyVisualTreatment(cardMesh, handInfo, handDisplayIndex);
                 }
             });
         });
 
         // Render Dealer Hand
-        dealerHandCards.forEach((card, indexInHand) => {
+        dealerHandFromGame.forEach((card, indexInHand) => {
             const cardId = card.getUniqueId();
             allVisibleCardIds.add(cardId);
             let cardMesh = this.cardMeshes.get(cardId);
-            // For dealer, handInfo and handDisplayIndex are simpler as there's only one dealer hand.
-            const dummyDealerHandInfo: PlayerHandInfo = { id: "dealer", cards: dealerHandCards, bet: 0, result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false };
+            const dummyDealerHandInfo: PlayerHandInfo = { id: "dealer", cards: dealerHandFromGame, bet: 0, result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false };
+
+            if (indexInHand === 0) { // This is the hole card candidate
+                console.log(`%c[CardViz HOLE_DEBUG] renderCards: Processing dealer card 0 (HOLE): ${card.toString()} (ID: ${cardId}). Mesh found: ${!!cardMesh}. FaceUp: ${card.isFaceUp()}`, 'color: red;');
+            }
 
             if (!cardMesh) {
-                // console.log(`%c[CardViz]   -> Mesh for dealer card ${card.toString()} not found. Creating instant.`, 'color: #4682B4');
-                creationPromises.push(this.createCardMeshInstant(card, indexInHand, false, dummyDealerHandInfo, 0));
+                if (indexInHand === 0) console.error(`%c[CardViz HOLE_DEBUG] renderCards: HOLE CARD ${card.toString()} MESH NOT FOUND. Creating instant.`, 'color: red; font-weight: bold;');
+                if (isRestoring) {
+                    creationPromises.push(this.createCardMeshInstant(card, indexInHand, false, dummyDealerHandInfo, 0));
+                } else {
+                    console.warn(`[CardViz] renderCards: Mesh for dealer card ${card.toString()} not found and not restoring. Creating instant.`);
+                    creationPromises.push(this.createCardMeshInstant(card, indexInHand, false, dummyDealerHandInfo, 0));
+                }
             } else {
                 const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
-                    card, indexInHand, false, dummyDealerHandInfo, 0, dealerHandCards.length
+                    card, indexInHand, false, dummyDealerHandInfo, 0, dealerHandFromGame.length
                 );
-                if (!cardMesh.position.equalsWithEpsilon(position)) cardMesh.position = position;
-                if (!cardMesh.rotationQuaternion) cardMesh.rotationQuaternion = Quaternion.Identity();
-                if (!cardMesh.rotationQuaternion.equalsWithEpsilon(rotationQuaternion, CardVisualizer.QUATERNION_EPSILON)) {
-                    cardMesh.rotationQuaternion = rotationQuaternion.clone();
+                let needsChange = !cardMesh.position.equalsWithEpsilon(position, 0.01) ||
+                    !(cardMesh.rotationQuaternion && cardMesh.rotationQuaternion.equalsWithEpsilon(rotationQuaternion, CardVisualizer.QUATERNION_EPSILON)) ||
+                    !cardMesh.scaling.equalsWithEpsilon(scaling, 0.01);
+                if (!cardMesh.rotationQuaternion && rotationQuaternion) needsChange = true;
+
+                if (needsChange) { // Dealer cards usually update instantly from renderCards unless it's a flip
+                    cardMesh.position = position;
+                    if (!cardMesh.rotationQuaternion) cardMesh.rotationQuaternion = Quaternion.Identity();
+                    cardMesh.rotationQuaternion.copyFrom(rotationQuaternion);
+                    cardMesh.scaling = scaling;
                 }
-                if (!cardMesh.scaling.equalsWithEpsilon(scaling)) cardMesh.scaling = scaling;
-                // No special visual treatment for dealer cards beyond face up/down.
                 this.removeVisualTreatmentOverlay(cardMesh);
             }
         });
 
 
-        Promise.all(creationPromises).then(() => {
-            this.cardMeshes.forEach((mesh, cardId) => {
-                if (!allVisibleCardIds.has(cardId)) {
-                    // console.log(`%c[CardViz]   -> Disposing mesh for removed card: ${cardId}`, 'color: #4682B4');
-                    this.disposeCardMesh(cardId);
+        Promise.all([...creationPromises, ...animationPromises]).then(() => {
+            this.cardMeshes.forEach((mesh, id) => {
+                if (!allVisibleCardIds.has(id)) {
+                    const isDisposingHoleCard = dealerHandFromGame.length > 0 && dealerHandFromGame[0].getUniqueId() === id;
+                    if (isDisposingHoleCard) {
+                        console.error(`%c[CardViz HOLE_DEBUG] renderCards: DISPOSING MESH FOR HOLE CARD! ID: ${id}`, 'color: red; font-weight: bold; text-decoration: underline;');
+                    }
+                    // console.log(`%c[CardViz]   -> Disposing mesh for removed card: ${id}`, 'color: #4682B4');
+                    this.disposeCardMesh(id);
                 }
             });
             // console.log(`%c[CardViz] renderCards finished processing.`, 'color: #4682B4');
             if (isRestoring && this.onAnimationCompleteCallback) {
-                // If restoring, no animations are run, so manually trigger completion if needed
-                // This helps if game logic is waiting for an "animation complete" after restore.
-                // setTimeout(() => this.onAnimationCompleteCallback!(), 0);
+                setTimeout(() => {
+                    if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                        this.onAnimationCompleteCallback!();
+                    }
+                }, 10);
             }
         }).catch(error => {
-            console.error("[CardViz] Error during async mesh creation in renderCards:", error);
+            console.error("[CardViz] Error during async mesh creation/animation in renderCards:", error);
         });
     }
 
@@ -584,35 +620,9 @@ export class CardVisualizer {
                 );
                 // console.log(`%c[CardViz]   -> Repositioning ${card.toString()} (Index ${indexInHand}) to ${newPosition.toString()}`, 'color: #FFA500');
 
-                let animationsToRun: Animation[] = [];
-                if (!cardMesh.position.equalsWithEpsilon(newPosition, 0.01)) {
-                    const posAnim = new Animation("rePosAnim", "position", Constants.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
-                    posAnim.setKeys([{ frame: 0, value: cardMesh.position.clone() }, { frame: Constants.REPOSITION_DURATION_MS / 1000 * Constants.FPS, value: newPosition }]);
-                    animationsToRun.push(posAnim);
-                }
-                if (cardMesh.rotationQuaternion && !cardMesh.rotationQuaternion.equalsWithEpsilon(newRotation, CardVisualizer.QUATERNION_EPSILON)) {
-                    const rotAnim = new Animation("reRotAnim", "rotationQuaternion", Constants.FPS, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CONSTANT);
-                    rotAnim.setKeys([{ frame: 0, value: cardMesh.rotationQuaternion.clone() }, { frame: Constants.REPOSITION_DURATION_MS / 1000 * Constants.FPS, value: newRotation }]);
-                    animationsToRun.push(rotAnim);
-                }
-                if (!cardMesh.scaling.equalsWithEpsilon(newScaling, 0.01)) {
-                    const scaleAnim = new Animation("reScaleAnim", "scaling", Constants.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
-                    scaleAnim.setKeys([{ frame: 0, value: cardMesh.scaling.clone() }, { frame: Constants.REPOSITION_DURATION_MS / 1000 * Constants.FPS, value: newScaling }]);
-                    animationsToRun.push(scaleAnim);
-                }
+                // Use the new animateMeshToTransform for consistency, but ensure it doesn't call the global callback.
+                this.animateMeshToTransform(cardMesh, newPosition, newRotation, newScaling, Constants.REPOSITION_DURATION_MS, false); // isPrimaryAnimation = false
 
-
-                if (animationsToRun.length > 0) {
-                    const ease = new QuadraticEase(); ease.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
-                    animationsToRun.forEach(anim => anim.setEasingFunction(ease));
-
-                    this.scene.beginDirectAnimation(cardMesh, animationsToRun, 0, Constants.REPOSITION_DURATION_MS / 1000 * Constants.FPS, false, 1, () => {
-                        cardMesh.position = newPosition;
-                        if (cardMesh.rotationQuaternion) cardMesh.rotationQuaternion = newRotation.clone();
-                        cardMesh.scaling = newScaling;
-                        if (isPlayer && handInfo) this.applyVisualTreatment(cardMesh, handInfo, handDisplayIndex);
-                    });
-                }
             } else if (!cardMesh && indexInHand < newHandSize - 1) {
                 // console.warn(`[CardViz] Cannot reposition existing card ${card.toString()}, mesh not found in map during repositioning.`);
             }
@@ -638,34 +648,79 @@ export class CardVisualizer {
         handSize: number
     ): { position: Vector3, rotationQuaternion: Quaternion, scaling: Vector3 } {
         let xPos: number, yPos: number, zPos: number;
-        let currentScaling = Vector3.One();
+        let currentScaling = Vector3.One(); // Default to normal scale
         const activePlayerHandIndex = this.blackjackGame.getActivePlayerHandIndex();
+        const gameState = this.blackjackGame.getGameState();
 
         if (isPlayer) {
-            if (handDisplayIndex === activePlayerHandIndex || this.blackjackGame.getGameState() === GameState.GameOver) { // Active Player Hand or GameOver (show all hands normally)
+            const isThisHandActive = handDisplayIndex === activePlayerHandIndex;
+            // Show normally if this hand is active, or if game is over (all hands shown normally),
+            // or if it's not player's turn (e.g. dealer's turn, all player hands are effectively "waiting" but shown normally).
+            const showNormally = isThisHandActive || gameState === GameState.GameOver || (gameState !== GameState.PlayerTurn && gameState !== GameState.Dealing);
+
+
+            if (showNormally) {
+                // Active Player Hand or GameOver or DealerTurn: Position hands normally, potentially spread out
                 zPos = Constants.PLAYER_HAND_Z;
-                // Spread out multiple player hands horizontally if game is over or more than one hand exists
                 const numPlayerHands = this.blackjackGame.getPlayerHands().length;
-                let handGroupOffsetX = 0;
+                let handGroupCenterX = 0; // Center X for this specific hand's group
+
                 if (numPlayerHands > 1) {
-                    const totalHandGroupWidth = (numPlayerHands - 1) * (Constants.CARD_WIDTH * 2.5); // Approximate width for a group of hands
-                    const startXForHands = -totalHandGroupWidth / 2;
-                    handGroupOffsetX = startXForHands + handDisplayIndex * (Constants.CARD_WIDTH * 2.5);
+                    // Spread out multiple player hands horizontally
+                    // Estimate width of a hand: card width + overlaps for a few cards. Max 4-5 cards visible in stack.
+                    const singleHandVisualWidth = Constants.CARD_WIDTH + (Math.min(handSize, 4) * Constants.PLAYER_CARD_STACK_X_OFFSET);
+                    const groupSpacing = Constants.CARD_WIDTH * 0.4; // Space between hand groups
+                    const totalCombinedWidthOfAllHandGroups = (numPlayerHands * singleHandVisualWidth) + Math.max(0, (numPlayerHands - 1) * groupSpacing);
+                    const firstHandGroupTheoreticalCenterX = -totalCombinedWidthOfAllHandGroups / 2 + singleHandVisualWidth / 2;
+                    handGroupCenterX = firstHandGroupTheoreticalCenterX + handDisplayIndex * (singleHandVisualWidth + groupSpacing);
                 }
+                // If numPlayerHands is 1, handGroupCenterX remains 0, centering the single hand.
 
                 const stackXOffset = Constants.PLAYER_CARD_STACK_X_OFFSET;
                 const stackYOffset = Constants.PLAYER_CARD_STACK_Y_OFFSET;
-                const effectiveHandSize = Math.max(1, handSize);
-                const firstCardCenterX = ((effectiveHandSize - 1) * stackXOffset) / 2;
 
-                xPos = handGroupOffsetX + (firstCardCenterX - (indexInHand * stackXOffset));
+                // Calculate the offset from the handGroupCenterX to the center of card 0 of the current hand.
+                // This ensures the stack of cards for *this* hand is centered around handGroupCenterX.
+                const centerOfStackOffset = ((handSize - 1) * stackXOffset) / 2;
+
+                xPos = handGroupCenterX + centerOfStackOffset - (indexInHand * stackXOffset);
                 yPos = Constants.CARD_Y_POS + (indexInHand * stackYOffset);
+                // Scaling remains Vector3.One()
 
-            } else { // Waiting Player Hand (Split)
-                xPos = Constants.SPLIT_WAITING_HAND_X + (handDisplayIndex * (Constants.CARD_WIDTH * Constants.SPLIT_WAITING_HAND_SCALE * 1.2)); // Offset multiple waiting hands
-                yPos = Constants.SPLIT_WAITING_HAND_Y + (indexInHand * Constants.PLAYER_CARD_STACK_Y_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.5);
+            } else { // Waiting (Inactive) Player Hand during PlayerTurn (and Dealing if applicable)
                 zPos = Constants.SPLIT_WAITING_HAND_Z;
                 currentScaling = new Vector3(Constants.SPLIT_WAITING_HAND_SCALE, Constants.SPLIT_WAITING_HAND_SCALE, Constants.SPLIT_WAITING_HAND_SCALE);
+
+                // Position waiting hands stacked to the bottom right.
+                let waitingHandOrder = 0; // Order among the waiting hands (0 for the first waiting hand encountered)
+                let nonActiveHandsCounted = 0;
+                for(let i=0; i < this.blackjackGame.getPlayerHands().length; i++) {
+                    if (i !== activePlayerHandIndex) { // Count only non-active hands
+                        if (i === handDisplayIndex) {
+                            waitingHandOrder = nonActiveHandsCounted;
+                            break;
+                        }
+                        nonActiveHandsCounted++;
+                    }
+                }
+
+                const waitingHandGroupBaseX = Constants.SPLIT_WAITING_HAND_X; // Anchor for the rightmost waiting hand
+                const waitingHandGroupBaseY = Constants.SPLIT_WAITING_HAND_Y;
+                // Width of a scaled card stack + spacing
+                const scaledCardWidth = Constants.CARD_WIDTH * Constants.SPLIT_WAITING_HAND_SCALE;
+                const groupOffsetIncrement = scaledCardWidth + (Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * Math.min(handSize,3)) + 0.15;
+
+
+                // Base X for the group of waiting hands, then offset by order
+                // waitingHandOrder = 0 is the rightmost, so subtract for subsequent ones to move left
+                xPos = waitingHandGroupBaseX - (waitingHandOrder * groupOffsetIncrement);
+
+                const stackXOffsetMini = Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.8; // Reduced overlap for mini cards
+                const stackYOffsetMini = Constants.PLAYER_CARD_STACK_Y_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.6; // Reduced vertical lift
+
+                const centerOfMiniStackOffset = ((handSize - 1) * stackXOffsetMini) / 2;
+                xPos = xPos + centerOfMiniStackOffset - (indexInHand * stackXOffsetMini); // Cards stack leftwards from the hand's center
+                yPos = waitingHandGroupBaseY + (indexInHand * stackYOffsetMini);
             }
         } else { // Dealer cards
             zPos = Constants.DEALER_HAND_Z;
@@ -673,9 +728,10 @@ export class CardVisualizer {
             const startXDealer = -(totalWidth / 2);
             xPos = startXDealer + (indexInHand * Constants.CARD_SPACING);
             yPos = Constants.CARD_Y_POS;
+            // Scaling remains Vector3.One()
         }
 
-        const targetQuaternion = card.isFaceUp() ? CardVisualizer.FACE_UP_FLAT_QUAT : CardVisualizer.FACE_DOWN_FLAT_QUAT;
+        const targetQuaternion = card.isFaceUp() ? CardVisualizer.FACE_UP_FLAT_QUAT.clone() : CardVisualizer.FACE_DOWN_FLAT_QUAT.clone();
         return { position: new Vector3(xPos, yPos, zPos), rotationQuaternion: targetQuaternion, scaling: currentScaling };
     }
 
@@ -684,16 +740,23 @@ export class CardVisualizer {
         const isActiveHand = handDisplayIndex === this.blackjackGame.getActivePlayerHandIndex();
         const isBusted = handInfo.result === GameResult.DealerWins && ScoreCalculator.calculateHandValue(handInfo.cards) > 21;
 
-        this.removeVisualTreatmentOverlay(mesh);
+        this.removeVisualTreatmentOverlay(mesh); // Remove any existing overlay first
 
         let overlayMaterial: StandardMaterial | null = null;
-        // Apply treatment only if the game is in PlayerTurn state
-        if (this.blackjackGame.getGameState() === GameState.PlayerTurn) {
-            if (!isActiveHand && isBusted) {
-                overlayMaterial = this.getBustedMaterial();
-            } else if (!isActiveHand) {
-                overlayMaterial = this.getDimmedMaterial();
+
+        // Apply treatment if the game is in PlayerTurn state and there are multiple hands
+        if (this.blackjackGame.getGameState() === GameState.PlayerTurn && this.blackjackGame.getPlayerHands().length > 1) {
+            if (!isActiveHand) { // If the hand is not the active one
+                if (isBusted && handInfo.isResolved) { // And it's busted and resolved (player can't act on it)
+                    overlayMaterial = this.getBustedMaterial();
+                } else { // Not active, not busted (just waiting) or busted but not yet resolved from player perspective
+                    overlayMaterial = this.getDimmedMaterial();
+                }
             }
+            // Active hand gets no overlay from here during PlayerTurn.
+        } else if (isBusted && handInfo.isResolved && this.blackjackGame.getGameState() !== GameState.GameOver) {
+            // If a hand busts (even if it's the only one), and is resolved, show busted overlay until game over
+            overlayMaterial = this.getBustedMaterial();
         }
 
 
@@ -708,7 +771,7 @@ export class CardVisualizer {
                 overlayMesh.isPickable = false;
             }
             overlayMesh.material = overlayMaterial;
-            overlayMesh.position = new Vector3(0, 0, -(Constants.CARD_DEPTH / 2 + 0.001));
+            overlayMesh.position = new Vector3(0, 0, -0.001);
             overlayMesh.rotationQuaternion = Quaternion.Identity();
             overlayMesh.isVisible = true;
         }
@@ -726,7 +789,18 @@ export class CardVisualizer {
         const cardId = card.getUniqueId();
         const cardMesh = this.cardMeshes.get(cardId);
 
-        if (!cardMesh) { /* console.warn(`[CardViz] Cannot update visual for card ${card.toString()}, mesh not found.`); */ return; }
+        const isHoleCardCandidate = this.blackjackGame.getDealerHand().length > 0 && this.blackjackGame.getDealerHand()[0].getUniqueId() === cardId;
+        if (isHoleCardCandidate) {
+            console.log(`%c[CardViz HOLE_DEBUG] updateCardVisual for HOLE CARD ${card.toString()} (ID: ${cardId}). Mesh found: ${!!cardMesh}. Logical faceUp=${card.isFaceUp()}`, 'color: red; font-weight: bold;');
+        }
+
+
+        if (!cardMesh) {
+            if (isHoleCardCandidate) {
+                console.error(`%c[CardViz HOLE_DEBUG] HOLE CARD ${card.toString()} MESH NOT FOUND in updateCardVisual!`, 'color: red; font-weight: bold;');
+            }
+            return;
+        }
 
         let ownerHandInfo: PlayerHandInfo | null = null;
         let ownerHandDisplayIndex: number = -1;
@@ -750,7 +824,7 @@ export class CardVisualizer {
             const dealerCards = this.blackjackGame.getDealerHand();
             const cardIdx = dealerCards.findIndex(c => c.getUniqueId() === cardId);
             if (cardIdx !== -1) {
-                ownerHandInfo = { id: "dealer", cards: dealerCards, bet: 0, result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false};
+                ownerHandInfo = { id: "dealer", cards: dealerCards, bet: 0, result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false}; // Dummy for dealer
                 ownerHandDisplayIndex = 0;
                 indexInOwnerHand = cardIdx;
                 handSize = dealerCards.length;
@@ -781,13 +855,13 @@ export class CardVisualizer {
 
         if (needsRotation && !forceImmediate) {
             // console.log(`%c[CardViz]   -> Calling animateFlip to target Quaternion.`, 'color: #BA55D3; font-weight: bold;');
-            this.animateFlip(cardMesh, targetQuat);
+            this.animateFlip(cardMesh, targetQuat.clone());
         } else if (needsRotation && forceImmediate) {
             // console.log(`%c[CardViz]   -> Setting rotationQuaternion directly (forceImmediate).`, 'color: #BA55D3; font-weight: bold;');
             cardMesh.rotationQuaternion = targetQuat.clone();
         } else {
             // console.log(`%c[CardViz]   -> No rotation needed. Visual state matches logical state.`, 'color: #BA55D3');
-            if (!currentQuaternion.equals(targetQuat)) { // Ensure exact match if no animation
+            if (currentQuaternion && !currentQuaternion.equals(targetQuat)) { // Ensure exact match if no animation
                 cardMesh.rotationQuaternion = targetQuat.clone();
             }
         }
@@ -804,6 +878,29 @@ export class CardVisualizer {
             this.disposeCardMesh(cardId);
         });
         this.cardMeshes.clear();
+
+        // Clear material and texture caches
+        this.svgTextureCache.clear();
+        this.cardFaceMaterials.clear();
+
+        // Dispose and nullify shared materials so they are recreated
+        if (this.cardBackMaterial) {
+            this.cardBackMaterial.dispose();
+            this.cardBackMaterial = null;
+        }
+        if (this.cardSideMaterial) {
+            this.cardSideMaterial.dispose();
+            this.cardSideMaterial = null;
+        }
+        if (this.dimmedMaterial) {
+            this.dimmedMaterial.dispose();
+            this.dimmedMaterial = null;
+        }
+        if (this.bustedMaterial) {
+            this.bustedMaterial.dispose();
+            this.bustedMaterial = null;
+        }
+        console.log("[CardViz] Cleared table visuals and caches.");
     }
 
 
@@ -824,25 +921,16 @@ export class CardVisualizer {
         const cardId = card.getUniqueId();
         const targetOwnerDesc = isPlayer ? `Player Hand ${handDisplayIndex}` : 'Dealer';
 
-        // Determine target hand info
         const handInfo = isPlayer ? this.blackjackGame.getPlayerHands()[handDisplayIndex] : { id: "dealer", cards: this.blackjackGame.getDealerHand(), bet: 0, result: GameResult.InProgress, isResolved: false, canHit: true, isBlackjack: false, isSplitAces: false};
-        const finalHandSize = handInfo.cards.length; // Size of hand *after* this card is logically added
-
-        // console.log(`%c[CardViz] >>> animateCardDealing START for ${card.toString()} (Mesh: ${mesh.name}) to ${targetOwnerDesc}`, 'color: #1E90FF');
-        // console.log(`%c[CardViz]     Target IndexInHand: ${indexInHand}, Final Hand Size: ${finalHandSize}, Target FaceUp: ${faceUp}`, 'color: #1E90FF');
+        const finalHandSize = handInfo.cards.length;
 
         const { position: targetPos, rotationQuaternion: targetQuat, scaling: targetScaling } = this.calculateCardTransform(
             card, indexInHand, isPlayer, handInfo, handDisplayIndex, finalHandSize
         );
 
-        // console.log(`%c[CardViz]     Target Pos (New Card): ${targetPos.toString()}`, 'color: #1E90FF');
-        // console.log(`%c[CardViz]     Target Quat (New Card): ${targetQuat.toString()}`, 'color: #1E90FF; font-weight: bold;');
-        // console.log(`%c[CardViz]     Target Scale (New Card): ${targetScaling.toString()}`, 'color: #1E90FF');
-
-
-        this.animationInProgress = true; // Global flag for this deal sequence
+        this.animationInProgress = true;
         const slideFrames = Constants.DEAL_SLIDE_DURATION_MS / 1000 * Constants.FPS;
-        const rotationFrames = Constants.DEAL_ROTATION_DURATION_MS / 1000 * Constants.FPS; // Scale animation can use this too
+        const rotationFrames = Constants.DEAL_ROTATION_DURATION_MS / 1000 * Constants.FPS;
 
         const slideEase = new CubicEase(); slideEase.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
         const rotationEase = new QuadraticEase(); rotationEase.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
@@ -851,154 +939,138 @@ export class CardVisualizer {
         if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone();
         const startScaling = mesh.scaling ? mesh.scaling.clone() : Vector3.One();
 
-
-        // console.log(`%c[CardViz]     Start Quat (New Card): ${startQuat.toString()}`, 'color: #FF4500; font-weight: bold;');
-        // console.log(`%c[CardViz]     Start Scale (New Card): ${startScaling.toString()}`, 'color: #FF4500');
-
-
-        // Reposition existing cards in the hand *before* animating the new card
-        // console.log(`%c[CardViz]     Calling repositionHandCards for ${targetOwnerDesc} BEFORE starting new card animation.`, 'color: #FFA500; font-weight: bold;');
         this.repositionHandCards(isPlayer, handDisplayIndex, finalHandSize);
 
-        // Animations for the new card
         const posAnim = new Animation("dealPosAnim", "position", Constants.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
         posAnim.setKeys([{ frame: 0, value: mesh.position.clone() }, { frame: slideFrames, value: targetPos }]);
         posAnim.setEasingFunction(slideEase);
 
         const rotQuatAnim = new Animation("dealRotQuatAnim", "rotationQuaternion", Constants.FPS, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CONSTANT);
-        rotQuatAnim.setKeys([{ frame: 0, value: startQuat }, { frame: rotationFrames, value: targetQuat }]);
+        rotQuatAnim.setKeys([{ frame: 0, value: startQuat }, { frame: rotationFrames, value: targetQuat.clone() }]);
         rotQuatAnim.setEasingFunction(rotationEase);
 
         const scaleAnim = new Animation("dealScaleAnim", "scaling", Constants.FPS, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
-        scaleAnim.setKeys([{ frame: 0, value: startScaling }, { frame: rotationFrames, value: targetScaling }]); // Use rotationFrames for scale anim too
+        scaleAnim.setKeys([{ frame: 0, value: startScaling }, { frame: rotationFrames, value: targetScaling }]);
         scaleAnim.setEasingFunction(rotationEase);
 
-
         const overallFrames = Math.max(slideFrames, rotationFrames);
-        // console.log(`%c[CardViz]     Starting Babylon direct animation (Pos, Quat, Scale) for NEW CARD (${mesh.name}) for ${overallFrames.toFixed(0)} frames.`, 'color: #1E90FF');
 
         this.scene.beginDirectAnimation(mesh, [posAnim, rotQuatAnim, scaleAnim], 0, overallFrames, false, 1,
             () => {
-                // console.log(`%c[CardViz] <<< Deal Animation CALLBACK START for ${card.toString()} (Mesh: ${mesh.name})`, 'color: #1E90FF; font-weight: bold;');
-
-                // Ensure final state is set precisely
                 mesh.position = targetPos;
                 mesh.rotationQuaternion = targetQuat.clone();
                 mesh.scaling = targetScaling.clone();
                 if (isPlayer) this.applyVisualTreatment(mesh, handInfo, handDisplayIndex);
 
-
-                // Verify final rotation matches logical card state
                 const logicalCardData = isPlayer
                     ? this.blackjackGame.getPlayerHands()[handDisplayIndex]?.cards[indexInHand]
                     : this.blackjackGame.getDealerHand()[indexInHand];
 
                 if (logicalCardData && mesh.rotationQuaternion) {
-                    const expectedQuatAfterAnim = logicalCardData.isFaceUp() ? CardVisualizer.FACE_UP_FLAT_QUAT : CardVisualizer.FACE_DOWN_FLAT_QUAT;
+                    const expectedQuatAfterAnim = logicalCardData.isFaceUp() ? CardVisualizer.FACE_UP_FLAT_QUAT.clone() : CardVisualizer.FACE_DOWN_FLAT_QUAT.clone();
                     if (!mesh.rotationQuaternion.equalsWithEpsilon(expectedQuatAfterAnim, CardVisualizer.QUATERNION_EPSILON)) {
-                        // console.warn(`%c[CardViz]       POST-ANIMATION ROTATION MISMATCH! Mesh Quat ${mesh.rotationQuaternion.toString()} vs expected ${expectedQuatAfterAnim.toString()} for logical FaceUp=${logicalCardData.isFaceUp()}. Forcing correction.`, 'color: red; font-weight: bold;');
                         mesh.rotationQuaternion = expectedQuatAfterAnim.clone();
                     }
-                } else {
-                    // console.warn(`[CardViz] Could not find logical card ${cardId} or mesh quaternion after deal animation to verify final rotation.`);
                 }
 
-                this.animationInProgress = false; // Mark this specific animation sequence as complete
+                this.animationInProgress = false;
 
                 if (this.onAnimationCompleteCallback) {
-                    setTimeout(() => {
-                        if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
-                            this.onAnimationCompleteCallback();
-                        } else {
-                            // console.warn(`[CardViz] Deal Callback: Another animation still in progress or callback became null. Master callback NOT called yet.`);
-                        }
-                    }, 10); // Small delay to ensure other repositioning animations might finish
+                    // console.log(`%c[CardViz] Deal Animation for ${card.toString()} finished. Calling master onAnimationCompleteCallback.`, 'color: #1E90FF');
+                    this.onAnimationCompleteCallback();
                 } else {
                     // console.warn("[CardViz] Deal animation finished, but no onAnimationCompleteCallback set.");
                 }
-                // console.log(`%c[CardViz] <<< Deal Animation CALLBACK END for ${card.toString()} (Mesh: ${mesh.name})`, 'color: #1E90FF; font-weight: bold;');
             }
         );
     }
 
     private animateFlip(mesh: Mesh, targetQuat: Quaternion): void {
-        // console.log(`%c[CardViz] >>> animateFlip START for mesh ${mesh.name}. Target Quat=${targetQuat.toString()}`, 'color: orange');
         this.animationInProgress = true;
         const durationFrames = Constants.FLIP_DURATION_MS / 1000 * Constants.FPS;
         const easing = new QuadraticEase(); easing.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
 
-        const startQuat = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : CardVisualizer.FACE_UP_FLAT_QUAT; // Default to a known state if null
-        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone(); // Initialize if null
+        const startQuat = mesh.rotationQuaternion ? mesh.rotationQuaternion.clone() : CardVisualizer.FACE_UP_FLAT_QUAT.clone();
+        if (!mesh.rotationQuaternion) mesh.rotationQuaternion = startQuat.clone();
 
         const rotQuatAnim = new Animation("flipRotQuatAnim", "rotationQuaternion", Constants.FPS, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CONSTANT);
-        rotQuatAnim.setKeys([{ frame: 0, value: startQuat }, { frame: durationFrames, value: targetQuat }]);
+        rotQuatAnim.setKeys([{ frame: 0, value: startQuat }, { frame: durationFrames, value: targetQuat.clone() }]);
         rotQuatAnim.setEasingFunction(easing);
 
         this.scene.beginDirectAnimation(mesh, [rotQuatAnim], 0, durationFrames, false, 1, () => {
-            // console.log(`%c[CardViz] <<< Flip Animation CALLBACK START for mesh ${mesh.name}`, 'color: orange; font-weight: bold;');
-
-            mesh.rotationQuaternion = targetQuat.clone(); // Ensure final state
-
-            this.animationInProgress = false; // Mark this specific animation as complete
+            mesh.rotationQuaternion = targetQuat.clone();
+            this.animationInProgress = false;
 
             if (this.onAnimationCompleteCallback) {
-                setTimeout(() => {
-                    if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
-                        this.onAnimationCompleteCallback();
-                    } else {
-                        // console.warn(`[CardViz] Flip Callback: Another animation still in progress or callback became null. Master callback NOT called yet.`);
-                    }
-                }, 10);
+                // console.log(`%c[CardViz] Flip Animation for ${mesh.name} finished. Calling master onAnimationCompleteCallback.`, 'color: orange');
+                this.onAnimationCompleteCallback();
             } else {
                 // console.warn("[CardViz] Flip animation finished, but no onAnimationCompleteCallback set.");
             }
-            // console.log(`%c[CardViz] <<< Flip Animation CALLBACK END for mesh ${mesh.name}`, 'color: orange; font-weight: bold;');
         });
     }
 
-    // animateVector3 is simplified as repositionHandCards now handles its own animation.
-    // Kept for potential future use or other simple vector animations.
-    private animateVector3(mesh: Mesh, property: "position" | "scaling", targetValue: Vector3, durationMs: number, easing?: EasingFunction, triggerCompletionCallback: boolean = true): void {
-        const durationFrames = durationMs / 1000 * Constants.FPS;
-        const effectiveEasing = easing ?? new CubicEase();
-        if (!easing) effectiveEasing.setEasingMode(EasingFunction.EASINGMODE_EASEOUT);
+    private animateMeshToTransform(mesh: Mesh, targetPos: Vector3, targetQuat: Quaternion, targetScaling: Vector3, durationMs: number, isPrimaryAnimation: boolean): Promise<void> {
+        return new Promise<void>((resolve) => {
+            if (isPrimaryAnimation) {
+                this.animationInProgress = true;
+            }
 
-        const anim = new Animation(
-            `${property}Anim_${mesh.name}_${Date.now()}`,
-            property,
-            Constants.FPS,
-            Animation.ANIMATIONTYPE_VECTOR3,
-            Animation.ANIMATIONLOOPMODE_CONSTANT
-        );
+            const anims: Animation[] = [];
+            const frameRate = Constants.FPS;
+            const totalFrames = durationMs / 1000 * frameRate;
+            const ease = new QuadraticEase();
+            ease.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
 
-        let startValue: Vector3;
-        if (property === "position") startValue = mesh.position.clone();
-        else if (property === "scaling") startValue = mesh.scaling.clone();
-        else {
-            console.error(`[CardViz] animateVector3: Unsupported property ${property}`); return;
-        }
+            if (!mesh.position.equalsWithEpsilon(targetPos)) {
+                const posAnim = new Animation(`${mesh.id}_pos_trans`, "position", frameRate, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                posAnim.setKeys([{ frame: 0, value: mesh.position.clone() }, { frame: totalFrames, value: targetPos }]);
+                posAnim.setEasingFunction(ease);
+                anims.push(posAnim);
+            }
 
+            const currentQuat = mesh.rotationQuaternion || Quaternion.Identity();
+            if (!currentQuat.equalsWithEpsilon(targetQuat, CardVisualizer.QUATERNION_EPSILON)) {
+                const rotAnim = new Animation(`${mesh.id}_rot_trans`, "rotationQuaternion", frameRate, Animation.ANIMATIONTYPE_QUATERNION, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                rotAnim.setKeys([{ frame: 0, value: currentQuat.clone() }, { frame: totalFrames, value: targetQuat.clone() }]);
+                rotAnim.setEasingFunction(ease);
+                anims.push(rotAnim);
+            }
 
-        if (startValue.equalsWithEpsilon(targetValue, 0.001)) {
-            return; // No animation needed
-        }
+            if (!mesh.scaling.equalsWithEpsilon(targetScaling)) {
+                const scaleAnim = new Animation(`${mesh.id}_scale_trans`, "scaling", frameRate, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                scaleAnim.setKeys([{ frame: 0, value: mesh.scaling.clone() }, { frame: totalFrames, value: targetScaling }]);
+                scaleAnim.setEasingFunction(ease);
+                anims.push(scaleAnim);
+            }
 
-        anim.setKeys([{ frame: 0, value: startValue }, { frame: durationFrames, value: targetValue }]);
-        anim.setEasingFunction(effectiveEasing);
+            if (anims.length > 0) {
+                this.scene.beginDirectAnimation(mesh, anims, 0, totalFrames, false, 1.0, () => {
+                    mesh.position.copyFrom(targetPos);
+                    if(mesh.rotationQuaternion) mesh.rotationQuaternion.copyFrom(targetQuat); else mesh.rotationQuaternion = targetQuat.clone();
+                    mesh.scaling.copyFrom(targetScaling);
 
-        this.scene.beginDirectAnimation(mesh, [anim], 0, durationFrames, false, 1.0, () => {
-            if (property === "position") mesh.position = targetValue;
-            else if (property === "scaling") mesh.scaling = targetValue;
-
-            if (triggerCompletionCallback) {
-                this.animationInProgress = false;
-                if(this.onAnimationCompleteCallback) {
-                    setTimeout(() => {
-                        if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                    if (isPrimaryAnimation) {
+                        this.animationInProgress = false;
+                        if(this.onAnimationCompleteCallback) {
+                            // console.log(`%c[CardViz] animateMeshToTransform (Primary) for ${mesh.id} finished. Calling master onAnimationCompleteCallback.`, 'color: purple');
                             this.onAnimationCompleteCallback();
                         }
-                    }, 0);
+                    }
+                    resolve();
+                });
+            } else {
+                if (isPrimaryAnimation) {
+                    this.animationInProgress = false;
+                    if(this.onAnimationCompleteCallback) {
+                        setTimeout(() => { // Ensure it's async if no actual animation ran
+                            if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                                this.onAnimationCompleteCallback();
+                            }
+                        }, 0);
+                    }
                 }
+                resolve();
             }
         });
     }
@@ -1049,39 +1121,35 @@ export class CardVisualizer {
             ctx.strokeStyle = patternLineColor;
             ctx.lineWidth = patternLineWidth;
 
-            // Clip to the rounded rectangle path before drawing pattern
-            // (The path is already defined and filled, so we can reuse it for clipping)
-            ctx.clip(); // Apply the existing path as a clipping region
+            ctx.save();
+            ctx.clip();
 
-            // Draw diagonal lines (/)
             for (let i = -height; i < width; i += patternSpacing) {
                 ctx.beginPath();
                 ctx.moveTo(i, 0);
                 ctx.lineTo(i + height, height);
                 ctx.stroke();
             }
-            // Draw anti-diagonal lines (\)
             for (let i = 0; i < width + height; i += patternSpacing) {
                 ctx.beginPath();
                 ctx.moveTo(i, 0);
                 ctx.lineTo(i - height, height);
                 ctx.stroke();
             }
+            ctx.restore();
 
-            (ctx as any).imageSmoothingEnabled = true; // Enable smoothing for better quality
-            texture.update(false); // Update texture, don't invert Y for canvas2D
+            (ctx as any).imageSmoothingEnabled = true;
+            texture.update(false);
 
             material.diffuseTexture = texture;
-            material.useAlphaFromDiffuseTexture = true; // Use alpha from texture
-            material.transparencyMode = Material.MATERIAL_ALPHABLEND; // Enable alpha blending
+            material.useAlphaFromDiffuseTexture = true;
+            material.transparencyMode = Material.MATERIAL_ALPHABLEND;
 
-            // console.log("[CardViz] Dynamic back texture created and assigned.");
             this.cardBackMaterial = material;
 
         } catch (error) {
             console.error("[CardViz] CRITICAL error during dynamic back material creation:", error);
-            // Fallback color if texture fails
-            material.diffuseColor = new Color3(1.0, 0.6, 0.6); // Light red error color
+            material.diffuseColor = new Color3(1.0, 0.6, 0.6);
         }
         return material;
     }

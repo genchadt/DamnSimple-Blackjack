@@ -157,9 +157,13 @@ export class StatusUI extends BaseUI {
         } else if (activeHandInfo) {
             currentBetDisplay = activeHandInfo.bet;
             this.betText.text = `Bet: ${currentBetDisplay > 0 ? this.currencySign + currentBetDisplay : "--"}`;
-        } else {
-            this.betText.text = `Bet: ${this.game.getCurrentBet() > 0 ? this.currencySign + this.game.getCurrentBet() : "--"}`; // Initial bet before hands dealt
+        } else if (gameState === GameState.Betting || gameState === GameState.Initial) { // Show the bet being configured
+            this.betText.text = `Bet: ${this.game.getCurrentBet() > 0 ? this.currencySign + this.game.getCurrentBet() : "--"}`;
+        } else { // Fallback for other states if no active hand (e.g., dealing)
+            this.betText.text = `Bet: ${this.game.getCurrentBet() > 0 ? this.currencySign + this.game.getCurrentBet() : "--"}`;
         }
+
+        // Visibility of bet text (always show if not initial, betting UI handles its own bet display)
         this.betText.isVisible = (gameState !== GameState.Initial && gameState !== GameState.Betting);
 
 
@@ -176,12 +180,13 @@ export class StatusUI extends BaseUI {
         switch (gameState) {
             case GameState.Initial: status = "Sit Down to Play"; break;
             case GameState.Betting: status = "Place Your Bet"; break;
-            case GameState.Dealing: status = "Dealing Cards..."; statusColor = "#ADD8E6"; break;
+            case GameState.Dealing: status = "Dealing Cards..."; statusColor = "#ADD8E6"; break; // LightBlue
             case GameState.PlayerTurn:
                 status = "Your Turn";
                 if (activeHandInfo) {
-                    if (playerScore > 21) { status = `Hand ${this.game.getActivePlayerHandIndex() + 1} Bust!`; statusColor = "tomato"; }
-                    else if (playerScore === 21 && activeHandInfo.cards.length === 2 && !activeHandInfo.isSplitAces) { // Natural BJ only on non-split
+                    if (playerScore > 21) {
+                        status = `Hand ${this.game.getActivePlayerHandIndex() + 1} Bust!`; statusColor = "tomato";
+                    } else if (activeHandInfo.isBlackjack) { // Check the flag set by GameActions
                         status = `Hand ${this.game.getActivePlayerHandIndex() + 1} Blackjack!`; statusColor = "gold";
                     } else if (playerScore === 21) {
                         status = `Hand ${this.game.getActivePlayerHandIndex() + 1} is 21!`; statusColor = "lime";
@@ -191,23 +196,39 @@ export class StatusUI extends BaseUI {
                 break;
             case GameState.DealerTurn: status = "Dealer's Turn"; break;
             case GameState.GameOver:
-                // For GameOver, we might show a summary or results of each hand if multiple.
-                // For now, a generic message or result of the first/primary hand.
-                // This part needs more thought for multi-hand display.
-                // We'll use the overall gameResult set by GameActions.
-                const overallResult = this.game.getGameResult();
-                switch (overallResult) {
-                    case GameResult.PlayerWins: status = "You Win!"; statusColor = "lime"; break;
-                    case GameResult.DealerWins: status = "Dealer Wins"; statusColor = "tomato"; break;
-                    case GameResult.Push: status = "Push!"; statusColor = "yellow"; break;
-                    case GameResult.PlayerBlackjack: status = "Blackjack!"; statusColor = "gold"; break;
-                    default: status = "Round Over"; break;
-                }
-                // If all hands busted, override
-                if (playerHands.length > 0 && playerHands.every(h => ScoreCalculator.calculateHandValue(h.cards) > 21)) {
-                    status = "All Hands Bust!"; statusColor = "tomato";
-                }
+                // For GameOver, summarize results based on all player hands
+                if (playerHands.length > 0) {
+                    let allPlayerBust = true;
+                    let anyPlayerWinsOrBlackjack = false;
+                    let anyPush = false;
+                    let hasBlackjack = false;
 
+                    playerHands.forEach(hand => {
+                        if (!hand.isResolved || (hand.result !== GameResult.DealerWins && ScoreCalculator.calculateHandValue(hand.cards) <= 21)) {
+                            allPlayerBust = false; // If any hand is not a resolved bust or dealer win
+                        }
+                        if (hand.result === GameResult.PlayerWins) anyPlayerWinsOrBlackjack = true;
+                        if (hand.result === GameResult.PlayerBlackjack) {
+                            anyPlayerWinsOrBlackjack = true;
+                            hasBlackjack = true;
+                        }
+                        if (hand.result === GameResult.Push) anyPush = true;
+                    });
+
+                    if (playerHands.every(h => ScoreCalculator.calculateHandValue(h.cards) > 21 && h.result === GameResult.DealerWins)) {
+                        status = "All Hands Bust!"; statusColor = "tomato";
+                    } else if (hasBlackjack) {
+                        status = "Blackjack!"; statusColor = "gold";
+                    } else if (anyPlayerWinsOrBlackjack) {
+                        status = "You Win!"; statusColor = "lime";
+                    } else if (anyPush && playerHands.every(h => h.result === GameResult.Push || h.result === GameResult.DealerWins)) {
+                        status = "Push!"; statusColor = "yellow";
+                    } else { // Default to dealer wins if no other positive outcome for player
+                        status = "Dealer Wins"; statusColor = "tomato";
+                    }
+                } else { // Should not happen if game was played
+                    status = "Round Over";
+                }
                 break;
             default: status = ""; break;
         }

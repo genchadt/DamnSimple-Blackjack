@@ -67,11 +67,11 @@ const PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3; // Horizontal overlap, show
 const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 0.75;  // Slight vertical lift for each card in player's hand for stacking.
 
 // --- Split Hand Visuals ---
-const SPLIT_WAITING_HAND_X = 3.5; // X position for the waiting split hand (bottom-right)
-const SPLIT_WAITING_HAND_Y = -1.5; // Y position (relative to table, may need adjustment)
+const SPLIT_WAITING_HAND_X = 3.5; // X position for the rightmost waiting split hand (anchor point)
+const SPLIT_WAITING_HAND_Y = -1.5; // Y position for waiting split hands (bottom area)
 const SPLIT_WAITING_HAND_Z = PLAYER_HAND_Z + 0.5; // Slightly behind player's main hand Z
-const SPLIT_WAITING_HAND_SCALE = 0.65; // 75% size as requested, but 0.65 might look better with perspective
-const SPLIT_CARD_ANIM_DURATION_MS = 300;
+const SPLIT_WAITING_HAND_SCALE = 0.65; // Scale factor for miniaturized waiting hands
+const SPLIT_CARD_ANIM_DURATION_MS = 300; // Animation duration for cards moving during split/rearrange
 
 
 // --- Animation ---

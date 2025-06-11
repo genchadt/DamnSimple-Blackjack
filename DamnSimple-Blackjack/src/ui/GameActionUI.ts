@@ -287,9 +287,9 @@ export class GameActionUI extends BaseUI {
         this.hitButton.isEnabled = enableActions && showHit && (activeHandInfo ? activeHandInfo.canHit : true); // Latter true for GameOver
         this.standButton.isEnabled = enableActions && showStand && (activeHandInfo ? activeHandInfo.canHit : true); // Latter true for GameOver
 
-        this.doubleButton.isEnabled = enableActions && showDouble && activeHandInfo && activeHandInfo.cards.length === 2 &&
-            this.game.getPlayerFunds() >= activeHandInfo.bet && activeHandInfo.canHit;
-        this.splitButton.isEnabled = enableActions && showSplit && this.game.canSplit() && activeHandInfo && activeHandInfo.canHit; // canSplit already checks funds
+        this.doubleButton.isEnabled = !!(enableActions && showDouble && activeHandInfo && activeHandInfo.cards.length === 2 &&
+            this.game.getPlayerFunds() >= activeHandInfo.bet && activeHandInfo.canHit);
+        this.splitButton.isEnabled = !!(enableActions && showSplit && this.game.canSplit() && activeHandInfo && activeHandInfo.canHit); // canSplit already checks funds
 
         const insuranceCost = activeHandInfo ? activeHandInfo.bet * Constants.INSURANCE_BET_RATIO : this.game.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
         this.insuranceButton.isEnabled = enableActions && showInsurance && this.game.isInsuranceAvailable() &&

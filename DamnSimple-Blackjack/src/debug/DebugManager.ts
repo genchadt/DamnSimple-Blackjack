@@ -1,6 +1,4 @@
 // src/debug/DebugManager.ts
-// src/debug/debugmanager-ts
-import { Scene, Vector3 } from "@babylonjs/core";
 import { BlackjackGame, PlayerHandInfo } from "../game/BlackjackGame"; // Import PlayerHandInfo
 import { GameState, GameResult } from "../game/GameState";
 import { Card, Suit, Rank } from "../game/Card";
@@ -9,6 +7,7 @@ import { CardVisualizer } from "../scenes/components/CardVisualizer";
 import { GameUI } from "../ui/GameUI";
 import { Constants } from "../Constants";
 import { ScoreCalculator } from "../game/ScoreCalculator"; // Import ScoreCalculator
+import { GameStorage } from "../game/GameStorage"; // Import GameStorage
 
 export class DebugManager {
     private gameScene: GameScene;
@@ -143,13 +142,23 @@ export class DebugManager {
 
     public resetGame(): void {
         this.cardVisualizer.clearTable();
-        this.blackjackGame.getGameActions().setGameState(GameState.Initial, true, true);
-        this.blackjackGame.getGameActions().setGameResult(GameResult.InProgress, true);
+        this.blackjackGame.getGameActions().resetInternalState(); // Reset actions state first
+
+        // Clear game storage to ensure a completely fresh start when game reloads/reinitializes
+        GameStorage.clearAllGameData(); // Assuming GameStorage has or can have this method.
+                                     // If not, GameStorage.clearSavedHands() is an alternative,
+                                     // but clearAllGameState() would be more robust for a full reset.
+                                     // For now, let's assume clearSavedHands is the primary way to clear persistent hand data.
+        GameStorage.clearSavedHands();
+
+
+        this.blackjackGame.getGameActions().setGameState(GameState.Initial, false, false); // No need to forceSave if storage cleared, no notify yet
+        this.blackjackGame.getGameActions().setGameResult(GameResult.InProgress, false); // No need to forceSave
         this.blackjackGame.setPlayerHands([]); // Clear all player hands
-        this.blackjackGame.setActivePlayerHandIndex(0);
+        this.blackjackGame.setActivePlayerHandIndex(0); // Reset active hand index
         this.blackjackGame.setDealerHand([]);
         this.blackjackGame.setCurrentBet(0); // Resets initial bet for GameActions
-        this.blackjackGame.resetFunds();
+        this.blackjackGame.resetFunds(); // This will save funds, which is fine.
         this.blackjackGame.insuranceTakenThisRound = false;
         this.blackjackGame.insuranceBetPlaced = 0;
 
@@ -158,8 +167,10 @@ export class DebugManager {
         this.lastPlayerHands = [];
         this.lastDealerHand = [];
 
-        console.log("Game reset to initial state, debug history cleared.");
+        console.log("Game reset to initial state, storage cleared, debug history cleared.");
         this.updateDebugHandDisplay();
+        // Explicitly update UI after a full reset
+        this.updateUI();
     }
 
     public startNewGame(bet: number = Constants.MIN_BET): void {
@@ -957,6 +968,60 @@ export class DebugManager {
         return container;
     }
 
+    // *** ADDED METHOD ***
+    private renderHandInContainer(
+        title: string,
+        currentHand: Card[],
+        lastHand: Card[],
+        isHistoryView: boolean,
+        parentElement: HTMLElement
+    ): void {
+        const section = document.createElement('div');
+        // No special class for dealer hand section
+
+        const headerEl = document.createElement('h4');
+        let headerText = title;
+        if (currentHand) {
+            const score = ScoreCalculator.calculateHandValue(currentHand);
+            headerText += ` (Score: ${score})`;
+        }
+        headerEl.textContent = headerText;
+        headerEl.style.margin = '10px 0 5px 0';
+        headerEl.style.borderBottom = '1px solid #999';
+        headerEl.style.paddingBottom = '3px';
+        section.appendChild(headerEl);
+
+        const container = document.createElement('div');
+        container.style.display = 'flex';
+        container.style.flexWrap = 'wrap';
+        container.style.gap = '5px';
+        section.appendChild(container);
+        parentElement.appendChild(section);
+
+        const currentCardIds = new Set(currentHand.map(c => c.getUniqueId()));
+        const lastCardIds = new Set(lastHand.map(c => c.getUniqueId()));
+
+        if (!isHistoryView) {
+            [...lastHand].reverse().forEach(card => {
+                if (!currentCardIds.has(card.getUniqueId())) {
+                    const discardedEl = this.createCardElement(card, false);
+                    discardedEl.classList.add('card-discarded');
+                    container.appendChild(discardedEl);
+                    setTimeout(() => discardedEl.remove(), 500);
+                }
+            });
+        }
+
+        [...currentHand].reverse().forEach(card => {
+            const isNew = !isHistoryView && !lastCardIds.has(card.getUniqueId());
+            container.appendChild(this.createCardElement(card, isNew));
+        });
+
+        if (currentHand.length === 0 && (isHistoryView || lastHand.length === 0)) {
+            container.textContent = 'No cards';
+        }
+    }
+
     private renderPlayerHandInContainer(
         playerHandInfo: PlayerHandInfo,
         lastPlayerHandInfo: PlayerHandInfo | undefined,
@@ -1103,7 +1168,7 @@ export class DebugManager {
         // Render Player Hands
         playerHands.forEach((pHandInfo, index) => {
             const lastPHandInfo = !isHistoryView ? this.lastPlayerHands.find(h => h.id === pHandInfo.id) : undefined;
-            this.renderPlayerHandInContainer(pHandInfo, lastPHandInfo, isHistoryView, this.debugHandDisplayElement, index);
+            this.renderPlayerHandInContainer(pHandInfo, lastPHandInfo, isHistoryView, this.debugHandDisplayElement!, index);
         });
 
 

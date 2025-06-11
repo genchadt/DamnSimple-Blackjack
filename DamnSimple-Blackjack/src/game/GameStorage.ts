@@ -38,7 +38,7 @@ export interface LoadedGameState {
     dealerHand: SerializedCard[] | null;
     insuranceTakenThisRound?: boolean;
     insuranceBetPlaced?: number;
-    playerHand_legacy?: SerializedCard[]; // For backward compatibility if old save exists
+    playerHand_legacy?: SerializedCard[] | null; // *** FIXED: For backward compatibility if old save exists
 }
 
 

@@ -36,7 +36,7 @@ export class BlackjackGame {
     private gameActions: GameActions;
 
     private playerHands: PlayerHandInfo[] = [];
-    private activePlayerHandIndex: number = 0;
+    private activePlayerHandIndex: number = -1; // Initialize to -1
     private dealerHand: Card[] = [];
 
     // Insurance related properties - managed by GameActions, reflected here for UI/availability checks
@@ -237,13 +237,24 @@ export class BlackjackGame {
     }
 
     public setActivePlayerHandIndex(index: number): void {
+        // Allow setting to 0 if hands are currently empty (e.g., during reset, before first hand is dealt)
+        // startNewGame will populate playerHands and this index will become valid.
+        if (this.playerHands.length === 0 && index === 0) {
+            this.activePlayerHandIndex = 0;
+            // No onHandModified call here, as there's no actual hand to change focus on yet.
+            // The UI will update when hands are actually populated.
+            return;
+        }
+
         if (index >= 0 && index < this.playerHands.length) {
-            this.activePlayerHandIndex = index;
-            if (this.onHandModified) { // Notify that the active hand changed
-                this.onHandModified({ isPlayer: true, handIndex: index, type: 'set' }); // 'set' can indicate focus change
+            if (this.activePlayerHandIndex !== index) {
+                this.activePlayerHandIndex = index;
+                if (this.onHandModified) { // Notify that the active hand changed
+                    this.onHandModified({ isPlayer: true, handIndex: index, type: 'set' }); // 'set' can indicate focus change
+                }
             }
         } else {
-            console.error(`[BlackjackGame] Invalid active hand index: ${index}`);
+            console.error(`[BlackjackGame] Invalid active hand index: ${index}. Hands count: ${this.playerHands.length}`);
         }
     }
 

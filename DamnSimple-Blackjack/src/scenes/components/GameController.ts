@@ -119,6 +119,7 @@ export class GameController {
         this.isProcessingVisualComplete = true;
         console.log("[Controller]     Processing: Notifying game logic (GameActions.onAnimationComplete)...");
 
+        // This is the primary path for GameActions to process the end of a visual animation
         this.blackjackGame.getGameActions().onAnimationComplete();
 
         this.isProcessingVisualComplete = false;
@@ -159,38 +160,42 @@ export class GameController {
             return;
         }
         this.isProcessingGameActionComplete = true;
-        console.log("[Controller]     Processing: Updating UI and then notifying GameActions to finalize its state...");
+        console.log("[Controller]     Processing: Updating UI and debug displays...");
 
         this.update(); // Update UI
         this.debugManager.updateDebugHandDisplay(); // Update debug display
 
-        // Notify GameActions that its initiated logical step (or the aftermath of a visual one)
-        // has had its UI consequences processed by the controller.
-        // This allows GameActions.onAnimationComplete() to run and reset its internal state (e.g., lastAction).
-        // This call was previously here, but GameActions.onAnimationComplete is now the central point.
-        // The flow is: Visual Anim -> onVisualAnimationComplete -> GA.onAnimationComplete
-        // OR Logical Action -> BlackjackGame.notifyAnimationComplete -> this.onGameActionComplete -> UI Update -> GA.onAnimationComplete (if needed)
+        // DO NOT call this.blackjackGame.getGameActions().onAnimationComplete(); here.
+        // GameActions.onAnimationComplete() is primarily triggered by onVisualAnimationComplete
+        // or by GameActions itself if it needs to signal a purely logical state finalization.
+        // If GameActions initiated this onGameActionComplete (e.g. after a non-visual logical step),
+        // it means GameActions has already run its onAnimationComplete or equivalent logic for that step.
 
-        // If the game action itself didn't have a visual that calls GA.onAnimationComplete,
-        // then GA.onAnimationComplete needs to be called here to finalize the action.
-        // However, GA.onAnimationComplete is now the primary entry point from visual completion.
-        // For purely logical steps in GA that call BlackjackGame.notifyAnimationComplete(),
-        // GA should reset its own lastAction *before* calling notifyAnimationComplete if no visual is pending.
-        // This simplifies the Controller.
+        const currentGameState = this.blackjackGame.getGameState();
+        // If we've entered a state where cards should definitely be laid out and stable:
+        if (currentGameState === GameState.PlayerTurn ||
+            currentGameState === GameState.DealerTurn ||
+            currentGameState === GameState.GameOver) {
 
-        // Let's refine: GameActions.onAnimationComplete() is the main handler.
-        // If a logical step in GameActions completes and needs UI update without a visual,
-        // it calls blackjackGame.notifyAnimationComplete().
-        // This (onGameActionComplete) updates UI.
-        // Then, if GameActions still has a pending `lastAction` that *wasn't* cleared by a visual animation callback,
-        // it should be cleared now. This is tricky.
-        // The new model is that GA.onAnimationComplete is called by onVisualAnimationComplete.
-        // If an action in GA *doesn't* lead to a visual that calls GA.onAnimationComplete,
-        // then GA itself should call its onAnimationComplete after notifying the controller.
+            // Check if CardVisualizer thinks an animation is running.
+            if (!this.cardVisualizer.isAnimationInProgress()) {
+                console.log(`%c[Controller] onGameActionComplete: Requesting renderCards for state ${GameState[currentGameState]} as no major animation is in progress.`, 'color: purple');
+                this.cardVisualizer.renderCards(false); // false = not restoring from save
+            } else {
+                console.log(`%c[Controller] onGameActionComplete: Skipping renderCards for state ${GameState[currentGameState]} due to CardVisualizer.isAnimationInProgress() being true. Will attempt after a short delay.`, 'color: purple');
+                // If an animation is still flagged, it might be the very tail end of the last deal animation.
+                // A small delay can help ensure it's truly finished before re-rendering.
+                setTimeout(() => {
+                    if (!this.cardVisualizer.isAnimationInProgress()) {
+                        console.log(`%c[Controller] onGameActionComplete (delayed): Requesting renderCards for state ${GameState[currentGameState]}.`, 'color: purple');
+                        this.cardVisualizer.renderCards(false);
+                    } else {
+                        console.warn(`%c[Controller] onGameActionComplete (delayed): renderCards still skipped for state ${GameState[currentGameState]} as animation is STILL in progress.`, 'color: orange');
+                    }
+                }, 100); // 100ms delay, adjust if needed
+            }
+        }
 
-        // For now, let's assume GameActions manages its lastAction state correctly based on whether
-        // it expects a visual animation to complete or if it's a self-contained logical step.
-        // This method (onGameActionComplete) is primarily for UI refresh after a logical step.
 
         this.isProcessingGameActionComplete = false;
         console.log("[Controller]     Processing finished. isProcessingGameActionComplete = false.");
