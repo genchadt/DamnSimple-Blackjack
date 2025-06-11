@@ -8,14 +8,22 @@ import { Card, Rank } from "./Card"; // Import Rank
 // Introduced GameState.Dealing
 // Made resolveInsurance public for debug purposes
 import { Card, Rank } from "./Card";
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
 >>>>>>> ef0a855 (Updated JSDocs)
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
 import { GameStorage } from "./GameStorage";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { BlackjackGame, PlayerHandInfo } from "./BlackjackGame"; // Import PlayerHandInfo
 import { Constants } from "../Constants"; // Import Constants
+=======
+import { BlackjackGame } from "./BlackjackGame";
+import { Constants } from "../Constants";
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
 import { BlackjackGame } from "./BlackjackGame";
 import { Constants } from "../Constants";
@@ -60,6 +68,7 @@ export class GameActions {
     // State for managing the last animated action
     private lastAction: LastAnimatedAction = LastAnimatedAction.None;
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Queue for the initial 4-card deal sequence. */
     private dealQueue: { isPlayer: boolean, handDisplayIndex: number, faceUp: boolean }[] = [];
     /** Flag indicating if the initial 4-card deal animation sequence is currently active. */
@@ -77,6 +86,18 @@ export class GameActions {
     /** Stores a callback for after a split-related animation (like moving a card). */
     private _postSplitAnimationCallback: (() => void) | null = null;
 
+=======
+
+    // Queue for the initial deal sequence
+    private dealQueue: { hand: Card[], faceUp: boolean, isPlayer: boolean }[] = [];
+
+    // State to track if we are currently dealing the initial sequence
+    private isDealingInitialSequence: boolean = false;
+
+    // Callback to execute after revealing the dealer's hole card
+    private _postRevealCallback: (() => void) | null = null;
+
+>>>>>>> ef0a855 (Updated JSDocs)
     /**
      * Constructs a GameActions instance.
      * @param blackjackGame
@@ -153,8 +174,11 @@ export class GameActions {
 
     // --- Bet ---
 <<<<<<< HEAD
+<<<<<<< HEAD
     public getCurrentBet(): number { return this.currentBet; } // This is the primary bet for the round
 =======
+=======
+>>>>>>> ef0a855 (Updated JSDocs)
 
     /**
      * Gets the current bet amount.
@@ -167,6 +191,9 @@ export class GameActions {
      * This is used to retrieve the bet amount from the previous round.
      * @return The last bet amount.
      */
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
 >>>>>>> ef0a855 (Updated JSDocs)
     public getLastBet(): number { return this.lastBet; }
 
@@ -329,7 +356,13 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Initiates the player 'hit' action if conditions are met for the active hand. */
+=======
+    /**
+     * Logic executed when the player 'hit' action is initiated.
+     */
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
     /**
      * Logic executed when the player 'hit' action is initiated.
@@ -352,7 +385,13 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Logic executed after the player 'hit' animation completes. Checks for bust on the active hand. */
+=======
+    /**
+     * Completes the player 'hit' action after the card deal animation.
+     */
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
     /**
      * Completes the player 'hit' action after the card deal animation.
@@ -387,12 +426,18 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Initiates the player 'stand' action if conditions are met for the active hand. */
 =======
+=======
+>>>>>>> ef0a855 (Updated JSDocs)
     /**
      * Logic executed when the player 'stand' action is initiated.
      * Reveals the dealer's hole card and proceeds to the dealer's turn.
      */
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
 >>>>>>> ef0a855 (Updated JSDocs)
     public playerStand(): void {
         if (this.gameState !== GameState.PlayerTurn) { console.warn("[GameActions] Cannot stand outside of PlayerTurn"); return; }
@@ -448,7 +493,13 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Logic executed after the double down card deal animation completes. Checks for bust, then proceeds. */
+=======
+    /**
+     * Logic executed after th 'double down' animation completes.
+     */
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
     /**
      * Logic executed after th 'double down' animation completes.
@@ -473,8 +524,14 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
     /** Handles the player's decision to take insurance. */
+=======
+    /**
+     * Logic executed when the player takes insurance.
+     */
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
     /**
      * Logic executed when the player takes insurance.
@@ -534,6 +591,7 @@ export class GameActions {
         }
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     /**
      * Handles the player's decision to split a hand.
@@ -612,6 +670,8 @@ export class GameActions {
     }
 
 
+=======
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
 >>>>>>> ef0a855 (Updated JSDocs)
     // --- Dealer Logic ---
@@ -717,7 +777,13 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Logic executed when the dealer stands. Determines the winner for each player hand. */
+=======
+    /**
+     * Logic executed when the dealer stands. Determines the winner based on scores.
+     */
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
     /**
      * Logic executed when the dealer stands. Determines the winner based on scores.
@@ -786,10 +852,13 @@ export class GameActions {
 
     // --- Card Dealing ---
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Adds a card deal instruction to the initial deal queue. */
     private queueDeal(isPlayer: boolean, handDisplayIndex: number, faceUp: boolean): void {
         this.dealQueue.push({ isPlayer, handDisplayIndex, faceUp });
 =======
+=======
+>>>>>>> ef0a855 (Updated JSDocs)
 
     /**
      * Queues a card deal for the initial deal sequence.
@@ -871,6 +940,7 @@ export class GameActions {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Deals a single card directly to a hand (used for Hit, Double Down, Dealer Hit, Split Hand).
      * @param targetHandIndex For player, the index of the hand in playerHands. For dealer, pass -1.
      * @param faceUp Whether the card should be dealt face up.
@@ -881,6 +951,8 @@ export class GameActions {
         console.log(`%c[GameActions] dealCardToHand called for ${handDesc}. FaceUp: ${faceUp}, isDealingInitial: ${this.isDealingInitialSequence}`, 'color: cyan');
 
 =======
+=======
+>>>>>>> ef0a855 (Updated JSDocs)
     /**
      * Deals a single card to the specified hand.
      * This method is used for player hits, dealer hits, and double downs.
@@ -1251,6 +1323,7 @@ export class GameActions {
         this.roundInsuranceBetAmount = this.blackjackGame.insuranceBetPlaced;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         if (loadedData.playerHands && Array.isArray(loadedData.playerHands)) {
             const restoredPlayerHands: PlayerHandInfo[] = loadedData.playerHands.map((handData, idx) => {
                 const cards = handData.cards.map(cardInfo => {
@@ -1295,6 +1368,8 @@ export class GameActions {
         }
 
 =======
+=======
+>>>>>>> ef0a855 (Updated JSDocs)
         /**
          * Restores the player hand(s) from the saved state.
          */

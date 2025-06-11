@@ -2,11 +2,17 @@
 // No changes needed here for the core issue, but included for completeness.
 // Updated to save/load insurance state
 <<<<<<< HEAD
+<<<<<<< HEAD
 // Updated to save/load multiple player hands and active hand index
 import { Card, Suit, Rank } from "./Card"; // Import enums too
 import { GameState, GameResult } from "./GameState";
 import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL, Constants } from "../Constants";
 import { PlayerHandInfo } from "./BlackjackGame"; // Import PlayerHandInfo
+=======
+import { Card, Suit, Rank } from "./Card";
+import { GameState, GameResult } from "./GameState";
+import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL } from "../Constants";
+>>>>>>> ef0a855 (Updated JSDocs)
 =======
 import { Card, Suit, Rank } from "./Card";
 import { GameState, GameResult } from "./GameState";
@@ -23,6 +29,7 @@ interface SerializedCard {
     // uniqueId is not saved/needed for restoration logic itself
 }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 // Interface for serialized player hand info
 interface SerializedPlayerHandInfo {
@@ -56,6 +63,22 @@ export interface LoadedGameState {
     playerHand_legacy?: SerializedCard[] | null; // *** FIXED: For backward compatibility if old save exists
 }
 
+=======
+/**
+ * Interface for the loaded game state.
+ * Includes all necessary data to restore the game.
+ */
+export interface LoadedGameState {
+    gameState: GameState | null;
+    currentBet: number | null;
+    gameResult: GameResult | null;
+    playerHand: SerializedCard[] | null;
+    dealerHand: SerializedCard[] | null;
+    insuranceTakenThisRound?: boolean; // Added
+    insuranceBetPlaced?: number;      // Added
+}
+
+>>>>>>> ef0a855 (Updated JSDocs)
 /**
  * Class for managing game state storage.
  */
