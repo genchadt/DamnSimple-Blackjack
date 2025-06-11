@@ -162,7 +162,20 @@ export class GameController {
         this.isProcessingGameActionComplete = true;
         console.log("[Controller]     Processing: Updating UI and debug displays...");
 
-        this.update(); // Update UI
+        const currentGameState = this.blackjackGame.getGameState();
+        const cardVisualizerAnimating = this.cardVisualizer.isAnimationInProgress(); // Get this value once
+        let uiShouldConsiderAnimating = cardVisualizerAnimating;
+
+        console.debug(`%c[Controller DEBUG] onGameActionComplete: currentGameState = ${GameState[currentGameState]}`, 'background-color: lightblue; color: black');
+        console.debug(`%c[Controller DEBUG] onGameActionComplete: cardVisualizer.isAnimationInProgress() = ${cardVisualizerAnimating}`, 'background-color: lightblue; color: black');
+
+        if (currentGameState === GameState.GameOver) {
+            console.debug(`%c[Controller DEBUG] onGameActionComplete: GameState is GameOver. Forcing uiShouldConsiderAnimating to false. (was ${uiShouldConsiderAnimating})`, 'background-color: yellow; color: black');
+            uiShouldConsiderAnimating = false;
+        }
+
+        console.debug(`%c[Controller DEBUG] onGameActionComplete: Calling gameUI.update with uiShouldConsiderAnimating = ${uiShouldConsiderAnimating}`, 'background-color: lightgreen; color: black; font-weight: bold;');
+        this.gameUI.update(uiShouldConsiderAnimating);
         this.debugManager.updateDebugHandDisplay(); // Update debug display
 
         // DO NOT call this.blackjackGame.getGameActions().onAnimationComplete(); here.
@@ -171,26 +184,26 @@ export class GameController {
         // If GameActions initiated this onGameActionComplete (e.g. after a non-visual logical step),
         // it means GameActions has already run its onAnimationComplete or equivalent logic for that step.
 
-        const currentGameState = this.blackjackGame.getGameState();
+        const currentGameStateForRender = this.blackjackGame.getGameState(); // Re-fetch in case it changed
         // If we've entered a state where cards should definitely be laid out and stable:
-        if (currentGameState === GameState.PlayerTurn ||
-            currentGameState === GameState.DealerTurn ||
-            currentGameState === GameState.GameOver) {
+        if (currentGameStateForRender === GameState.PlayerTurn ||
+            currentGameStateForRender === GameState.DealerTurn ||
+            currentGameStateForRender === GameState.GameOver) {
 
             // Check if CardVisualizer thinks an animation is running.
             if (!this.cardVisualizer.isAnimationInProgress()) {
-                console.log(`%c[Controller] onGameActionComplete: Requesting renderCards for state ${GameState[currentGameState]} as no major animation is in progress.`, 'color: purple');
+                console.log(`%c[Controller] onGameActionComplete: Requesting renderCards for state ${GameState[currentGameStateForRender]} as no major animation is in progress.`, 'color: purple');
                 this.cardVisualizer.renderCards(false); // false = not restoring from save
             } else {
-                console.log(`%c[Controller] onGameActionComplete: Skipping renderCards for state ${GameState[currentGameState]} due to CardVisualizer.isAnimationInProgress() being true. Will attempt after a short delay.`, 'color: purple');
+                console.log(`%c[Controller] onGameActionComplete: Skipping renderCards for state ${GameState[currentGameStateForRender]} due to CardVisualizer.isAnimationInProgress() being true. Will attempt after a short delay.`, 'color: purple');
                 // If an animation is still flagged, it might be the very tail end of the last deal animation.
                 // A small delay can help ensure it's truly finished before re-rendering.
                 setTimeout(() => {
                     if (!this.cardVisualizer.isAnimationInProgress()) {
-                        console.log(`%c[Controller] onGameActionComplete (delayed): Requesting renderCards for state ${GameState[currentGameState]}.`, 'color: purple');
+                        console.log(`%c[Controller] onGameActionComplete (delayed): Requesting renderCards for state ${GameState[currentGameStateForRender]}.`, 'color: purple');
                         this.cardVisualizer.renderCards(false);
                     } else {
-                        console.warn(`%c[Controller] onGameActionComplete (delayed): renderCards still skipped for state ${GameState[currentGameState]} as animation is STILL in progress.`, 'color: orange');
+                        console.warn(`%c[Controller] onGameActionComplete (delayed): renderCards still skipped for state ${GameState[currentGameStateForRender]} as animation is STILL in progress.`, 'color: orange');
                     }
                 }, 100); // 100ms delay, adjust if needed
             }
@@ -207,7 +220,15 @@ export class GameController {
     }
 
     public update(): void {
-        const animating = this.isAnimating();
+        let animating = this.isAnimating(); // Checks cardVisualizer.isAnimationInProgress()
+        const currentGameState = this.blackjackGame.getGameState();
+
+        if (currentGameState === GameState.GameOver) {
+            // Ensure UI is not considered animating if the game is over,
+            // regardless of minor visual clean-up animations.
+            console.debug(`%c[Controller DEBUG] update: GameState is GameOver. Forcing animating to false for UI. (was ${animating})`, 'background-color: yellow; color: black');
+            animating = false;
+        }
         this.gameUI.update(animating);
     }
 

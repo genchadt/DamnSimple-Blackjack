@@ -284,17 +284,38 @@ export class GameActionUI extends BaseUI {
 
         const enableActions = (!isAnimating || gameState === GameState.GameOver) && (gameState === GameState.PlayerTurn || gameState === GameState.GameOver);
 
-        this.hitButton.isEnabled = enableActions && showHit && (activeHandInfo ? activeHandInfo.canHit : true); // Latter true for GameOver
-        this.standButton.isEnabled = enableActions && showStand && (activeHandInfo ? activeHandInfo.canHit : true); // Latter true for GameOver
+        if (gameState === GameState.PlayerTurn) {
+            this.hitButton.isEnabled = enableActions && showHit && !!activeHandInfo && activeHandInfo.canHit;
+            // If showStand is true, it implies activeHandInfo exists and the hand is in a standable state.
+            this.standButton.isEnabled = enableActions && showStand; 
 
-        this.doubleButton.isEnabled = !!(enableActions && showDouble && activeHandInfo && activeHandInfo.cards.length === 2 &&
-            this.game.getPlayerFunds() >= activeHandInfo.bet && activeHandInfo.canHit);
-        this.splitButton.isEnabled = !!(enableActions && showSplit && this.game.canSplit() && activeHandInfo && activeHandInfo.canHit); // canSplit already checks funds
+            this.doubleButton.isEnabled = !!(enableActions && showDouble && activeHandInfo && activeHandInfo.cards.length === 2 &&
+                this.game.getPlayerFunds() >= activeHandInfo.bet && activeHandInfo.canHit);
+            this.splitButton.isEnabled = !!(enableActions && showSplit && this.game.canSplit() && activeHandInfo && activeHandInfo.canHit); 
 
-        const insuranceCost = activeHandInfo ? activeHandInfo.bet * Constants.INSURANCE_BET_RATIO : this.game.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
-        this.insuranceButton.isEnabled = enableActions && showInsurance && this.game.isInsuranceAvailable() &&
-            this.game.getPlayerFunds() >= insuranceCost;
+            const insuranceCost = activeHandInfo ? activeHandInfo.bet * Constants.INSURANCE_BET_RATIO : this.game.getCurrentBet() * Constants.INSURANCE_BET_RATIO;
+            this.insuranceButton.isEnabled = enableActions && showInsurance && this.game.isInsuranceAvailable() &&
+                this.game.getPlayerFunds() >= insuranceCost;
+        } else if (gameState === GameState.GameOver) {
+            // For "Same Bet" and "Change Bet", enabled state depends only on enableActions and visibility.
+            this.hitButton.isEnabled = enableActions && showHit;
+            this.standButton.isEnabled = enableActions && showStand;
 
+            // Other action buttons are not applicable in GameOver.
+            this.doubleButton.isEnabled = false;
+            this.splitButton.isEnabled = false;
+            this.insuranceButton.isEnabled = false;
+        } else {
+            // Betting, Initial, Dealing states - primary action buttons are disabled.
+            this.hitButton.isEnabled = false;
+            this.standButton.isEnabled = false;
+            this.doubleButton.isEnabled = false;
+            this.splitButton.isEnabled = false;
+            this.insuranceButton.isEnabled = false;
+        }
+        
+        // LeaveTableButton logic is consistent across relevant states.
+        // It's enabled if shown and (not animating OR game is over).
         const canLeave = showLeave && (gameState === GameState.Betting || gameState === GameState.GameOver || gameState === GameState.Initial || gameState === GameState.PlayerTurn);
         this.leaveTableButton.isEnabled = (!isAnimating || gameState === GameState.GameOver) && canLeave;
 

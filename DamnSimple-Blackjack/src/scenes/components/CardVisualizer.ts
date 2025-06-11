@@ -348,7 +348,9 @@ export class CardVisualizer {
 
         if (cardMesh) { // Mesh already exists
             // console.log(`%c[CardViz] createCardMesh: Reusing existing mesh for ${card.toString()}`, 'color: #20B2AA');
-            // Its current position is its start position for animateCardDealing.
+            // If reusing for a new deal animation, ensure it starts from the deck.
+            cardMesh.position = this.animationOriginPosition.clone();
+            cardMesh.rotationQuaternion = Quaternion.Identity(); // Default orientation for new animation from deck
         } else { // Mesh does not exist, create it
             // console.log(`%c[CardViz]   -> Creating NEW BOX mesh for ${card.toString()}.`, 'color: green;');
             const backUV = new Vector4(0, 0, 1, 1);
@@ -489,6 +491,7 @@ export class CardVisualizer {
         const allVisibleCardIds = new Set<string>();
         const creationPromises: Promise<void>[] = [];
         const animationPromises: Promise<void>[] = []; // For animations triggered by renderCards
+        const currentGameState = this.blackjackGame.getGameState(); // Get state once
 
         // Render Player Hands
         playerHands.forEach((handInfo, handDisplayIndex) => {
@@ -500,9 +503,16 @@ export class CardVisualizer {
                 if (!cardMesh) {
                     if (isRestoring) {
                         creationPromises.push(this.createCardMeshInstant(card, indexInHand, true, handInfo, handDisplayIndex));
-                    } else {
-                        console.warn(`[CardViz] renderCards: Mesh for player card ${card.toString()} (Hand ${handDisplayIndex}) not found and not restoring. Creating instant.`);
+                    } else if (currentGameState !== GameState.Dealing) {
+                        // Only create instantly if NOT in Dealing state and not restoring.
+                        // During Dealing, createCardMesh (via notifyCardDealt) is responsible.
+                        const targetDesc = `Player Hand ${handDisplayIndex}`;
+                        console.warn(`[CardViz] renderCards: Mesh for player card ${card.toString()} (Hand ${handDisplayIndex}) not found. State: ${GameState[currentGameState]}. Creating instant as fallback.`);
                         creationPromises.push(this.createCardMeshInstant(card, indexInHand, true, handInfo, handDisplayIndex));
+                    } else {
+                        // In Dealing state and mesh not found: do nothing here.
+                        // The animated createCardMesh path is expected to handle it.
+                        // console.log(`[CardViz] renderCards: Mesh for player card ${card.toString()} (Hand ${handDisplayIndex}) not found. State is Dealing. Expecting animated path.`);
                     }
                 } else {
                     const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
@@ -540,12 +550,21 @@ export class CardVisualizer {
             }
 
             if (!cardMesh) {
-                if (indexInHand === 0) console.error(`%c[CardViz HOLE_DEBUG] renderCards: HOLE CARD ${card.toString()} MESH NOT FOUND. Creating instant.`, 'color: red; font-weight: bold;');
                 if (isRestoring) {
                     creationPromises.push(this.createCardMeshInstant(card, indexInHand, false, dummyDealerHandInfo, 0));
-                } else {
-                    console.warn(`[CardViz] renderCards: Mesh for dealer card ${card.toString()} not found and not restoring. Creating instant.`);
+                } else if (currentGameState !== GameState.Dealing) {
+                    // Only create instantly if NOT in Dealing state and not restoring.
+                    // During Dealing, createCardMesh (via notifyCardDealt) is responsible.
+                    console.warn(`[CardViz] renderCards: Mesh for dealer card ${card.toString()} not found. State: ${GameState[currentGameState]}. Creating instant as fallback.`);
                     creationPromises.push(this.createCardMeshInstant(card, indexInHand, false, dummyDealerHandInfo, 0));
+                } else {
+                    // In Dealing state and mesh not found: do nothing here.
+                    // The animated createCardMesh path is expected to handle it for the hole card or any other dealer card during initial deal.
+                    if (indexInHand === 0 && !card.isFaceUp()) { // Specifically for the hole card during dealing
+                        console.log(`%c[CardViz HOLE_DEBUG] renderCards: HOLE CARD ${card.toString()} mesh not found during Dealing state. Expecting animated path.`, 'color: red;');
+                    } else {
+                        // console.log(`[CardViz] renderCards: Mesh for dealer card ${card.toString()} not found. State is Dealing. Expecting animated path.`);
+                    }
                 }
             } else {
                 const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
@@ -568,6 +587,26 @@ export class CardVisualizer {
 
 
         Promise.all([...creationPromises, ...animationPromises]).then(() => {
+            // If the game is currently in the Dealing state and not restoring, skip cleanup.
+            // Meshes are actively being created and animated in.
+            // A renderCards call during Dealing (e.g., from an onHandModified event)
+            // should not prematurely clean up meshes that are part of the ongoing deal sequence.
+            if (currentGameState === GameState.Dealing && !isRestoring) {
+                // console.log(`%c[CardViz] renderCards cleanup SKIPPED. State: Dealing, Not Restoring.`, 'color: #4682B4; font-style: italic;');
+                // If restoring, and we skipped cleanup due to Dealing state (which shouldn't happen if logic is right),
+                // we might still need to signal completion if this was the only path.
+                // However, the primary path for restore completion is if creationPromises were run.
+                // This specific early exit is for non-restoring "Dealing" state.
+                if (isRestoring && this.onAnimationCompleteCallback) { // This condition is unlikely to be met if currentGameState is Dealing
+                     setTimeout(() => {
+                        if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
+                            this.onAnimationCompleteCallback!();
+                        }
+                    }, 10);
+                }
+                return; // Exit the .then() callback early, preventing cleanup
+            }
+
             this.cardMeshes.forEach((mesh, id) => {
                 if (!allVisibleCardIds.has(id)) {
                     const isDisposingHoleCard = dealerHandFromGame.length > 0 && dealerHandFromGame[0].getUniqueId() === id;

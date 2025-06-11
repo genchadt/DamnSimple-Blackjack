@@ -72,6 +72,9 @@ export class GameActions {
         const stateChanged = this.gameState !== state;
         if (stateChanged || forceSave) {
             console.log(`%c[GameActions] State Changing: ${GameState[this.gameState]} -> ${GameState[state]}`, 'color: orange; font-weight: bold;');
+            if (state === GameState.GameOver) {
+                console.debug(`%c[GameActions] DEBUG: Setting GameState to GameOver. Current lastAction: ${LastAnimatedAction[this.lastAction]}. Notifying controller: ${notifyController}`, 'background-color: yellow; color: black');
+            }
             this.gameState = state;
             this.saveGameState();
         }
@@ -129,22 +132,46 @@ export class GameActions {
             console.error("[GameActions] Cannot start new game from state:", GameState[this.gameState]);
             return false;
         }
-        if (this.isDealingInitialSequence || this.lastAction !== LastAnimatedAction.None) {
-            console.warn("[GameActions] Cannot start new game while an action/animation is in progress.");
+        // Check for ongoing actions BEFORE resetting internal state, as reset might clear lastAction.
+        if (this.isDealingInitialSequence || (this.lastAction !== LastAnimatedAction.None && this.lastAction !== LastAnimatedAction.RevealDealerHole)) { // Allow reveal to be in progress if game over led here
+            console.warn(`[GameActions] Cannot start new game while an action/animation (${LastAnimatedAction[this.lastAction]}) is in progress or initial deal active.`);
             return false;
         }
+
         const playerFunds = this.playerFunds.getFunds();
         const validBet = Math.max(Constants.MIN_BET, Math.min(bet, playerFunds));
         if (playerFunds < validBet || validBet < Constants.MIN_BET) {
             console.error(`[GameActions] Cannot start game. Insufficient funds (${playerFunds}) for bet (${validBet}) or bet too low.`);
-            this.setGameState(GameState.Betting, false, true);
+            this.setGameState(GameState.Betting, false, true); // Go back to betting
             return false;
         }
 
+        // Reset internal flags for a new deal sequence
+        this.lastAction = LastAnimatedAction.None;
+        this.isDealingInitialSequence = false; // Will be set true later when queue processing starts
+        this.dealQueue = [];
+        this._postRevealCallback = null;
+        this._postSplitAnimationCallback = null;
+        // Reset round-specific insurance state
+        this.roundInsuranceBetAmount = 0;
+        this.roundInsuranceTaken = false;
+        this.blackjackGame.insuranceTakenThisRound = false; // Also on BlackjackGame instance
+        this.blackjackGame.insuranceBetPlaced = 0;       // Also on BlackjackGame instance
 
-        this.currentBet = validBet; // This is the bet for the first hand
+        this.setGameResult(GameResult.InProgress); // Overall game result
+        this.handManager.refreshDeckIfNeeded();
+
+        // SET STATE TO DEALING *BEFORE* HAND MODIFICATIONS that trigger renderCards
+        // This ensures renderCards calls during setup see GameState.Dealing and skip cleanup/instant creation.
+        this.setGameState(GameState.Dealing, true, true);
+
+        this.currentBet = validBet;
         this.lastBet = validBet;
-        // Create the first player hand
+
+        // Clear dealer's hand first. If onHandModified triggers renderCards, it will see 'Dealing' state.
+        this.blackjackGame.setDealerHand([]);
+
+        // Create the first player hand. If onHandModified triggers renderCards, it will see 'Dealing' state.
         const initialPlayerHand: PlayerHandInfo = {
             id: `hand-0`,
             cards: [],
@@ -161,22 +188,12 @@ export class GameActions {
         if (!this.playerFunds.deductFunds(this.currentBet)) { // Deduct bet for the first hand
             console.error("[GameActions] Fund deduction failed unexpectedly for initial hand.");
             this.blackjackGame.setPlayerHands([]);
-            this.setGameState(GameState.Betting, false, true);
+            this.blackjackGame.setDealerHand([]);
+            this.setGameState(GameState.Betting, false, true); // Revert to betting on failure
             return false;
         }
 
-        this.blackjackGame.setDealerHand([]);
-        this.blackjackGame.insuranceTakenThisRound = false;
-        this.blackjackGame.insuranceBetPlaced = 0;
-        this.roundInsuranceBetAmount = 0;
-        this.roundInsuranceTaken = false;
-
-        this.setGameResult(GameResult.InProgress); // Overall game result
-        this.handManager.refreshDeckIfNeeded();
-
-        this.setGameState(GameState.Dealing, true, true);
-
-        this.dealQueue = [];
+        // Queuing deals
         console.log(`%c[GameActions] Queuing 1st card: Dealer, faceUp=false`, 'color: #008080');
         this.queueDeal(false, 0, false); // Dealer hand (display index 0 for dealer)
         console.log(`%c[GameActions] Queuing 2nd card: Player Hand 0, faceUp=true`, 'color: #008080');
@@ -187,8 +204,8 @@ export class GameActions {
         this.queueDeal(true, 0, true);  // Player hand 0
         console.log(`%c[GameActions] Deal Queue:`, 'color: #008080', this.dealQueue.map(d => `Player=${d.isPlayer}, HandIdx=${d.handDisplayIndex}, FaceUp=${d.faceUp}`));
 
-        this.lastAction = LastAnimatedAction.InitialDeal;
-        this.isDealingInitialSequence = true;
+        // this.lastAction = LastAnimatedAction.InitialDeal; // This will be set inside processDealQueue
+        this.isDealingInitialSequence = true; // Set this flag before starting the queue
 
         console.log(`%c[GameActions] Initiating first deal from queue...`, 'color: #008080');
         this.processDealQueue();
@@ -282,7 +299,7 @@ export class GameActions {
             this.proceedToNextActionOrEndGame();
         } else {
             console.log(`%c[GameActions] Player Hit OK for Hand ${this.blackjackGame.getActivePlayerHandIndex()}. Player turn continues for this hand.`, 'color: #DAA520');
-            // lastAction will be reset by onAnimationComplete
+            this.lastAction = LastAnimatedAction.None; // Player can act again
             this.saveGameState();
             this.blackjackGame.notifyAnimationComplete();
         }
@@ -389,7 +406,8 @@ export class GameActions {
 
         this.lastAction = LastAnimatedAction.InsuranceTaken;
         this.saveGameState();
-        this.blackjackGame.notifyAnimationComplete();
+        this.blackjackGame.notifyAnimationComplete(); // For UI update
+        this.onAnimationComplete(); // Process logical completion of InsuranceTaken
     }
 
     /**
@@ -577,6 +595,7 @@ export class GameActions {
             this.resolveInsurance();
             this.setGameResult(GameResult.PlayerWins);
             this.lastAction = LastAnimatedAction.None; // Ensure lastAction is None before GameOver
+            console.debug(`%c[GameActions] DEBUG: Dealer Busted. Calling setGameState(GameOver).`, 'background-color: yellow; color: black');
             this.setGameState(GameState.GameOver, true, true);
         } else {
             console.log(`%c[GameActions] Dealer Hit OK. Continuing dealer turn...`, 'color: #DAA520');
@@ -644,6 +663,7 @@ export class GameActions {
         // If "New Hand" / "Change Bet" buttons are still greyed out after this,
         // the issue is likely in GameUI.ts's handling of the GameState.GameOver,
         // as GameActions has correctly set the state.
+        console.debug(`%c[GameActions] DEBUG: Dealer Stands. Calling setGameState(GameOver).`, 'background-color: yellow; color: black');
         this.setGameState(GameState.GameOver, true, true);
     }
 
@@ -812,24 +832,21 @@ export class GameActions {
         const postSplitAnimCb = this._postSplitAnimationCallback;
         this._postSplitAnimationCallback = null;
 
-        // IMPORTANT: Reset lastAction AFTER the switch statement or specific logic for the action has run,
-        // UNLESS the action itself (like RevealDealerHole) resets it before its callback.
-        // For InitialDeal, lastAction is reset inside its specific logic if the queue is empty.
+        // IMPORTANT: lastAction is managed by each case or the methods they call.
+        // No general fallback reset at the end of this method anymore.
 
         if (actionJustCompleted === LastAnimatedAction.InitialDeal) {
             if (this.dealQueue.length > 0) {
                 console.log(`%c[GameActions]   -> InitialDeal completed, ${this.dealQueue.length} cards left in queue. Processing next...`, 'color: orange');
                 this.processDealQueue(); // This will keep lastAction as InitialDeal if more cards
-                // Do not reset lastAction here, processDealQueue or the end of sequence will handle it.
                 console.log(`%c[GameActions] <<< onAnimationComplete finished processing for ${LastAnimatedAction[actionJustCompleted]} (InitialDeal Queue Continues) >>>`, 'color: orange; font-weight: bold');
                 return; 
             } else {
                 console.log(`%c[GameActions]   -> InitialDeal completed, queue empty. Sequence finished.`, 'color: orange');
                 this.isDealingInitialSequence = false;
-                // lastAction is reset here as sequence is done, before checkInitialBlackjack
                 this.lastAction = LastAnimatedAction.None; 
                 console.log(`%c[GameActions]   -> Checking for initial Blackjack...`, 'color: orange');
-                this.checkInitialBlackjack(); // This might change state and notify controller
+                this.checkInitialBlackjack(); 
                 console.log(`%c[GameActions] <<< onAnimationComplete finished processing for ${LastAnimatedAction[actionJustCompleted]} (InitialDeal Sequence End) >>>`, 'color: orange; font-weight: bold');
                 return;
             }
@@ -840,42 +857,44 @@ export class GameActions {
             case LastAnimatedAction.PlayerHit:
                 console.log(`%c[GameActions]   -> Calling completePlayerHit()`, 'color: orange');
                 this.completePlayerHit();
+                // completePlayerHit now sets lastAction to None if player can act again or proceeds.
                 break;
             case LastAnimatedAction.DealerHit:
                 console.log(`%c[GameActions]   -> Calling completeDealerHit()`, 'color: orange');
-                // completeDealerHit now resets lastAction if it calls executeDealerTurn,
-                // or if it sets GameOver. If it sets GameOver, lastAction is also reset there.
-                // The key is that lastAction is None before executeDealerTurn is called again.
                 this.completeDealerHit();
+                // completeDealerHit sets lastAction to None before calling executeDealerTurn (which might set a new DealerHit) or GameOver.
                 break;
             case LastAnimatedAction.DoubleDownHit:
                 console.log(`%c[GameActions]   -> Calling completeDoubleDown()`, 'color: orange');
                 this.completeDoubleDown();
+                // completeDoubleDown sets lastAction to None.
                 break;
             case LastAnimatedAction.RevealDealerHole:
                 console.log(`%c[GameActions]   -> RevealDealerHole animation complete.`, 'color: orange');
                 this.lastAction = LastAnimatedAction.None; // Reset before callback
                 if (postRevealCb) {
                     console.log(`%c[GameActions]   -> Executing post-reveal callback. lastAction is now ${LastAnimatedAction[this.lastAction]}`, 'color: orange');
-                    postRevealCb(); // This callback might change state and notify controller
+                    postRevealCb(); 
                 } else {
                     console.warn("[GameActions] RevealDealerHole completed but no callback was set. This might be an issue if a dependent action was expected.");
-                    this.blackjackGame.notifyAnimationComplete(); // Notify controller for UI update
+                    this.blackjackGame.notifyAnimationComplete(); 
                 }
                 break;
             case LastAnimatedAction.InsuranceTaken:
                 console.log(`%c[GameActions]   -> InsuranceTaken action complete. UI already updated by setGameState or direct notify.`, 'color: orange');
-                // Typically, taking insurance is a quick logical step. If it involved an animation that calls this,
-                // we might just need to notify the controller for a final UI sync if not already done.
-                this.blackjackGame.notifyAnimationComplete();
+                this.lastAction = LastAnimatedAction.None;
+                // playerTakeInsurance calls notifyAnimationComplete for UI and then this.onAnimationComplete.
+                // No further notification needed from here.
                 break;
             case LastAnimatedAction.SplitCardMove:
                 console.log(`%c[GameActions]   -> SplitCardMove animation complete.`, 'color: orange');
+                // lastAction is NOT set to None here. postSplitAnimCb will set it to DealToSplitHand.
                 if (postSplitAnimCb) {
                     console.log(`%c[GameActions]   -> Executing post-split animation callback.`, 'color: orange');
-                    postSplitAnimCb(); // This will likely set lastAction for DealToSplitHand and deal a card
+                    postSplitAnimCb(); 
                 } else {
                     console.error("[GameActions] SplitCardMove completed but no callback to deal card!");
+                    this.lastAction = LastAnimatedAction.None; // Fallback if no callback
                     this.blackjackGame.notifyAnimationComplete();
                 }
                 break;
@@ -889,45 +908,56 @@ export class GameActions {
                         activeHand.isResolved = true;
                         activeHand.canHit = false;
                         console.log(`%c[GameActions]     -> Hand ${this.blackjackGame.getActivePlayerHandIndex()} BUSTED after split deal. Score: ${score}`, 'color: red');
+                        this.lastAction = LastAnimatedAction.None; // Reset before proceeding
                         this.proceedToNextActionOrEndGame();
-                    } else if (score === 21 || (activeHand.isSplitAces && activeHand.cards.length === 2)) { // Aces get only one card
+                    } else if (score === 21 || (activeHand.isSplitAces && activeHand.cards.length === 2)) { 
                         activeHand.isResolved = true;
                         activeHand.canHit = false;
                         console.log(`%c[GameActions]     -> Hand ${this.blackjackGame.getActivePlayerHandIndex()} reached 21 or is split Aces (and got 2nd card). Auto-standing. Score: ${score}`, 'color: orange');
+                        this.lastAction = LastAnimatedAction.None; // Reset before proceeding
                         this.proceedToNextActionOrEndGame();
                     } else {
                         console.log(`%c[GameActions]     -> Player turn continues for split Hand ${this.blackjackGame.getActivePlayerHandIndex()}. Score: ${score}`, 'color: orange');
-                        this.blackjackGame.notifyAnimationComplete(); // Notify for UI update, player can act
+                        this.lastAction = LastAnimatedAction.None; // Player can act again
+                        this.blackjackGame.notifyAnimationComplete(); 
                     }
                 } else {
                     console.error("[GameActions] DealToSplitHand complete, but no active hand info.");
+                    this.lastAction = LastAnimatedAction.None; // Fallback
                     this.blackjackGame.notifyAnimationComplete();
                 }
                 break;
             case LastAnimatedAction.None:
-                // This case can be hit if notifyAnimationComplete is called when no visual action was pending,
-                // e.g. after a purely logical state change or a reset.
                 console.log("[GameActions] Animation finished for None action. UI should be up-to-date via controller.");
-                // No further game logic progression here, the controller handles UI.
-                // Ensure lastAction remains None.
-                this.lastAction = LastAnimatedAction.None;
+                this.lastAction = LastAnimatedAction.None; // Ensure it remains None
+                // If this was triggered by blackjackGame.notifyAnimationComplete() without a pending visual,
+                // it means the controller should just update the UI, which it does.
+                // No further game logic progression from here unless a previous action set it up.
                 break;
             default:
                 console.warn(`[GameActions] Unhandled animation completion for action: ${LastAnimatedAction[actionJustCompleted]}`);
-                this.blackjackGame.notifyAnimationComplete(); // Ensure controller updates UI
+                this.lastAction = LastAnimatedAction.None; // Fallback for unhandled cases
+                this.blackjackGame.notifyAnimationComplete(); 
                 break;
         }
 
-        // Reset lastAction to None if it was the one that just completed and wasn't reset by specific logic.
-        // This is a fallback. Most specific handlers (or the start of new actions) should manage lastAction.
-        if (this.lastAction === actionJustCompleted && actionJustCompleted !== LastAnimatedAction.None) {
-            console.log(`%c[GameActions]   -> Fallback: Resetting lastAction from ${LastAnimatedAction[this.lastAction]} to None (end of onAnimationComplete).`, 'color: orange');
-            this.lastAction = LastAnimatedAction.None;
-        } else if (actionJustCompleted !== LastAnimatedAction.None && this.lastAction !== LastAnimatedAction.None) {
-            // If lastAction was changed by one of the handlers (e.g. to start a new chained action)
-            // or already reset, this log indicates that.
-            console.log(`%c[GameActions]   -> lastAction was changed or reset during onAnimationComplete. Current: ${LastAnimatedAction[this.lastAction]} (was ${LastAnimatedAction[actionJustCompleted]})`, 'color: orange');
+        // REMOVED FALLBACK RESET LOGIC:
+        // if (this.lastAction === actionJustCompleted && actionJustCompleted !== LastAnimatedAction.None) {
+        //     console.log(`%c[GameActions]   -> Fallback: Resetting lastAction from ${LastAnimatedAction[this.lastAction]} to None (end of onAnimationComplete).`, 'color: orange');
+        //     this.lastAction = LastAnimatedAction.None;
+        // } else if (actionJustCompleted !== LastAnimatedAction.None && this.lastAction !== LastAnimatedAction.None) {
+        //     console.log(`%c[GameActions]   -> lastAction was changed or reset during onAnimationComplete. Current: ${LastAnimatedAction[this.lastAction]} (was ${LastAnimatedAction[actionJustCompleted]})`, 'color: orange');
+        // }
+        
+        // Log the state of lastAction after the specific handler has run.
+        if (actionJustCompleted !== LastAnimatedAction.None) { // Avoid logging for "None" completing "None"
+            if (this.lastAction !== actionJustCompleted && this.lastAction !== LastAnimatedAction.None) {
+                console.log(`%c[GameActions]   -> lastAction is now ${LastAnimatedAction[this.lastAction]} (changed from ${LastAnimatedAction[actionJustCompleted]} by handler).`, 'color: orange');
+            } else if (this.lastAction === LastAnimatedAction.None) {
+                console.log(`%c[GameActions]   -> lastAction is now None (set by handler for ${LastAnimatedAction[actionJustCompleted]}).`, 'color: orange');
+            }
         }
+
         console.log(`%c[GameActions] <<< onAnimationComplete finished processing for ${LastAnimatedAction[actionJustCompleted]} >>>`, 'color: orange; font-weight: bold');
     }
 

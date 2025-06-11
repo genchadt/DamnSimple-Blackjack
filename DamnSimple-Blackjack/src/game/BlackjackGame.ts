@@ -50,8 +50,7 @@ export class BlackjackGame {
 
     /** Callback function set by GameController to trigger card deal animations. */
     public notifyCardDealt: (card: Card, indexInHand: number, isPlayer: boolean, handDisplayIndex: number, faceUp: boolean) => void = (card, indexInHand, isPlayer, handDisplayIndex, faceUp) => {
-        // *** DEBUG LOG ADDED ***
-        console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, IndexInHand=${indexInHand}, IsPlayer=${isPlayer}, HandDisplayIndex=${handDisplayIndex}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
+        console.debug(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, IndexInHand=${indexInHand}, IsPlayer=${isPlayer}, HandDisplayIndex=${handDisplayIndex}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
     };
 
 
@@ -69,16 +68,16 @@ export class BlackjackGame {
             this.insuranceBetPlaced = 0;
             this.gameActions.setGameState(GameState.Initial, true);
         }
-        console.log("[BlackjackGame] Initialized. State:", GameState[this.getGameState()]);
+        console.info("[BlackjackGame] Initialized. State:", GameState[this.getGameState()]);
         if (this.playerHands.length > 0) {
             this.playerHands.forEach((hand, idx) => {
-                console.log(`[BlackjackGame] Initial Player Hand ${idx}:`, hand.cards.map(c => c.toString()));
+                console.info(`[BlackjackGame] Initial Player Hand ${idx}:`, hand.cards.map(c => c.toString()));
             });
         } else {
-            console.log("[BlackjackGame] Initial Player Hand: Empty");
+            console.info("[BlackjackGame] Initial Player Hand: Empty");
         }
-        console.log("[BlackjackGame] Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
-        console.log(`[BlackjackGame] Initial Insurance: Taken=${this.insuranceTakenThisRound}, Bet=${this.insuranceBetPlaced}`);
+        console.info("[BlackjackGame] Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
+        console.info(`[BlackjackGame] Initial Insurance: Taken=${this.insuranceTakenThisRound}, Bet=${this.insuranceBetPlaced}`);
     }
 
     /**
@@ -95,11 +94,11 @@ export class BlackjackGame {
      * This, in turn, invokes the callback set by the GameController.
      */
     public notifyAnimationComplete(): void {
-        // console.log("[BlackjackGame] Animation complete notification received"); // Reduce log noise
+        // console.info("[BlackjackGame] Animation complete notification received"); // Reduce log noise
         if (this.animationCompleteCallback) {
             this.animationCompleteCallback();
         } else {
-            console.log("[BlackjackGame] No animation complete callback registered");
+            console.info("[BlackjackGame] No animation complete callback registered");
         }
     }
 
