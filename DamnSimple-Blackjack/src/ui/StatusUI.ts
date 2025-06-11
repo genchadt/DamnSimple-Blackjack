@@ -215,8 +215,15 @@ export class StatusUI extends BaseUI {
                         if (hand.result === GameResult.Push) anyPush = true;
                     });
 
-                    if (playerHands.every(h => ScoreCalculator.calculateHandValue(h.cards) > 21 && h.result === GameResult.DealerWins)) {
-                        status = "All Hands Bust!"; statusColor = "tomato";
+                    const allHandsEffectivelyBusted = playerHands.every(h => ScoreCalculator.calculateHandValue(h.cards) > 21 && h.result === GameResult.DealerWins);
+
+                    if (allHandsEffectivelyBusted) {
+                        if (playerHands.length > 1) {
+                            status = "Bust - All Hands!";
+                        } else {
+                            status = "Bust!";
+                        }
+                        statusColor = "tomato";
                     } else if (hasBlackjack) {
                         status = "Blackjack!"; statusColor = "gold";
                     } else if (anyPlayerWinsOrBlackjack) {
