@@ -1,11 +1,13 @@
 // src/game/gamestorage-ts
 // No changes needed here for the core issue, but included for completeness.
 // Updated to save/load insurance state
-import { Card, Suit, Rank } from "./Card"; // Import enums too
+import { Card, Suit, Rank } from "./Card";
 import { GameState, GameResult } from "./GameState";
-import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL, Constants } from "../Constants";
+import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL } from "../Constants";
 
-// Interface for the serialized card data
+/**
+ * Interface for serialized card data.
+ */
 interface SerializedCard {
     suit: Suit;
     rank: Rank;
@@ -13,7 +15,10 @@ interface SerializedCard {
     // uniqueId is not saved/needed for restoration logic itself
 }
 
-// Interface for the loaded game state structure
+/**
+ * Interface for the loaded game state.
+ * Includes all necessary data to restore the game.
+ */
 export interface LoadedGameState {
     gameState: GameState | null;
     currentBet: number | null;
@@ -24,7 +29,9 @@ export interface LoadedGameState {
     insuranceBetPlaced?: number;      // Added
 }
 
-
+/**
+ * Class for managing game state storage.
+ */
 export class GameStorage {
     private static readonly STORAGE_KEY_STATE = "damnSimpleBlackjack_gameState";
     private static readonly STORAGE_KEY_PLAYER_HAND = "damnSimpleBlackjack_playerHand";
@@ -39,6 +46,19 @@ export class GameStorage {
 
     /**
      * Saves the current game state to local storage.
+     * @param gameState The current game state.
+     * @param currentBet The current bet amount.
+     * @param gameResult The result of the current game.
+     * @param playerHand The player's hand as an array of Card objects.
+     * @param dealerHand The dealer's hand as an array of Card objects.
+     * @param insuranceTaken Indicates if insurance was taken this round.
+     * @param insuranceBet The amount of the insurance bet placed.
+     * @throws Will log an error if saving fails.
+     * @remarks
+     * This method serializes the game state, player hand, dealer hand,
+     * and insurance state to local storage.
+     * If the game state is `GameState.Initial`, it clears the hands and insurance data.
+     * If the game state is not `GameState.Initial`, it saves the hands and insurance state.
      */
     public static saveGameState(
         gameState: GameState,
@@ -205,6 +225,11 @@ export class GameStorage {
     }
 
     // --- Funds Save/Load (Moved from PlayerFunds for consistency) ---
+
+    /**
+     * Saves the player's funds to local storage.
+     * @param funds
+     */
     public static saveFunds(funds: number): void {
         try {
             localStorage.setItem(this.STORAGE_KEY_FUNDS, funds.toString());
@@ -213,6 +238,11 @@ export class GameStorage {
         }
     }
 
+    /**
+     * Loads the player's funds from local storage.
+     * @param defaultFunds The default funds to return if no funds are saved.
+     * @returns The loaded funds or the default value if not found or invalid.
+     */
     public static loadFunds(defaultFunds: number): number {
         try {
             const storedFunds = localStorage.getItem(this.STORAGE_KEY_FUNDS);
@@ -228,6 +258,11 @@ export class GameStorage {
     }
 
     // --- Quality Settings Save/Load ---
+
+    /**
+     * Saves the quality level to local storage.
+     * @param level The quality level to save.
+     */
     public static saveQualityLevel(level: QualityLevel): void {
         try {
             localStorage.setItem(this.STORAGE_KEY_QUALITY, level);
@@ -236,6 +271,10 @@ export class GameStorage {
         }
     }
 
+    /**
+     * Loads the quality level from local storage.
+     * @returns The loaded quality level or the default if not found or invalid.
+     */
     public static loadQualityLevel(): QualityLevel {
         try {
             const storedLevel = localStorage.getItem(this.STORAGE_KEY_QUALITY) as QualityLevel;
@@ -250,6 +289,11 @@ export class GameStorage {
     }
 
     // --- UI Scale Settings Save/Load ---
+
+    /**
+     * Saves the UI scale level to local storage.
+     * @param level The UI scale level to save.
+     */
     public static saveUIScaleLevel(level: UIScaleLevel): void {
         try {
             localStorage.setItem(this.STORAGE_KEY_UI_SCALE, level);
@@ -258,6 +302,10 @@ export class GameStorage {
         }
     }
 
+    /**
+     * Loads the UI scale level from local storage.
+     * @returns The loaded UI scale level or the default if not found or invalid.
+     */
     public static loadUIScaleLevel(): UIScaleLevel {
         try {
             const storedLevel = localStorage.getItem(this.STORAGE_KEY_UI_SCALE) as UIScaleLevel;
@@ -273,6 +321,11 @@ export class GameStorage {
 
 
     // --- Utility to clear all game data ---
+
+    /**
+     * Clears all saved game data from local storage.
+     * This includes game state, bets, results, hands, funds, quality settings, and UI scale.
+     */
     public static clearAllGameData(): void {
         try {
             localStorage.removeItem(this.STORAGE_KEY_STATE);

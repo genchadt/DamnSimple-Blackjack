@@ -17,7 +17,6 @@ export class DebugManager {
     private debugHandDisplayElement: HTMLElement | null = null;
     private isHandDisplayVisible: boolean = false;
 
-    // --- New properties for debug menu ---
     private debugMenuElement: HTMLElement | null = null;
     private isDebugMenuVisible: boolean = false;
     private openSubMenu: HTMLElement | null = null;
@@ -27,25 +26,25 @@ export class DebugManager {
     private customPromptEscapeListener: ((event: KeyboardEvent) => void) | null = null;
     private boundHandleSubMenuAccessKeys = this.handleSubMenuAccessKeys.bind(this);
 
-
-    // --- Properties for dragging ---
     private dragOffsetX: number = 0;
     private dragOffsetY: number = 0;
     private isDragging: boolean = false;
     private draggedElement: HTMLElement | null = null;
 
-
-    // --- New properties for advanced debug display ---
     private handHistory: { player: Card[], dealer: Card[] }[] = [];
     private readonly MAX_HISTORY_ENTRIES = 10;
     private historyIndex: number = -1; // -1 means current hand, 0 is most recent history, etc.
 
-    // Store last known hands to detect changes (deal/discard)
     private lastPlayerHand: Card[] = [];
     private lastDealerHand: Card[] = [];
 
+
     /**
-     * Initializes a new instance of the DebugManager class.
+     * DebugManager constructor.
+     *
+     * @param gameScene The game scene object.
+     * @param cardVisualizer The card visualizer object.
+     * @param blackjackGame The BlackjackGame object.
      */
     constructor(gameScene: GameScene, cardVisualizer: CardVisualizer, blackjackGame: BlackjackGame) {
         this.gameScene = gameScene;
@@ -107,6 +106,11 @@ export class DebugManager {
         console.log("  debug.dealRandomCard(false, false) - Deal random card to dealer face down");
     }
 
+    /**
+     * Sets the game state to the specified numerical value.
+     * @param state Numerical value of the GameState enum. E.g., 0 for Initial, 1 for Betting, etc.
+     * @throws Error if the state is invalid (less than 0 or greater than or equal to the number of GameState enum values.
+     */
     public setGameState(state: number): void {
         if (state < 0 || state >= Object.keys(GameState).length / 2) {
             console.error("Invalid game state. Use 0-" + (Object.keys(GameState).length / 2 - 1));
@@ -119,6 +123,11 @@ export class DebugManager {
         console.log(`Game state set to ${GameState[state]}`);
     }
 
+    /**
+     * Sets the game result to the specified numerical value.
+     * @param result Numerical value of the GameResult enum. E.g., 0 for PlayerWins, 1 for DealerWins, etc.
+     * @throws Error if the result is invalid (less than 0 or greater than or equal to the number of GameResult enum values.
+     */
     public setGameResult(result: number): void {
         if (result < 0 || result > 4) {
             console.error("Invalid game result. Use 0-4.");
@@ -129,6 +138,9 @@ export class DebugManager {
         console.log(`Game result set to ${GameResult[result]}`);
     }
 
+    /**
+     * Resets the game to its initial state and clears the debug history.
+     */
     public resetGame(): void {
         this.cardVisualizer.clearTable();
         this.blackjackGame.getGameActions().setGameState(GameState.Initial, true, true);
@@ -148,6 +160,13 @@ export class DebugManager {
         console.log("Game reset to initial state, debug history cleared.");
     }
 
+    /**
+     * Starts a new game round, resetting the game state and clearing the debug history
+     * if necessary. If the current game state is not Initial, Betting, or GameOver,
+     * the game is forced to the Initial state before attempting to start the new game.
+     * @param bet The amount to bet. Defaults to Constants.MIN_BET if not provided.
+     * @throws Error if the game fails to start (e.g., insufficient funds).
+     */
     public startNewGame(bet: number = Constants.MIN_BET): void {
         const currentState = this.blackjackGame.getGameState();
         if (currentState !== GameState.Initial &&
@@ -165,6 +184,11 @@ export class DebugManager {
         setTimeout(() => this.updateDebugHandDisplay(), 100);
     }
 
+    /**
+     * Logs the current game state information to the console, including game state, result,
+     * player and dealer scores, player funds, current bet, and the hands of both the player
+     * and the dealer. Also updates the debug hand display.
+     */
     public getState(): void {
         const gameState = this.blackjackGame.getGameState();
         const gameResult = this.blackjackGame.getGameResult();
@@ -193,6 +217,14 @@ export class DebugManager {
         this.updateDebugHandDisplay();
     }
 
+    /**
+     * Adds a card to either the player's or dealer's hand.
+     * @param isPlayer True to add to the player's hand, false to add to the dealer's hand.
+     * @param suit The suit of the card to add. Must be one of Hearts, Diamonds, Clubs, or Spades.
+     * @param rank The rank of the card to add. Must be one of 2-10, J, Q, K, or A.
+     * @param faceUp Whether the card should be face up or face down. Defaults to true (face up).
+     * @throws Error if the suit or rank is invalid.
+     */
     public addCard(isPlayer: boolean, suit: string, rank: string, faceUp: boolean = true): void {
         if (!Object.values(Suit).includes(suit as Suit)) {
             console.error(`Invalid suit: ${suit}. Use Hearts, Diamonds, Clubs, or Spades.`);
@@ -219,6 +251,10 @@ export class DebugManager {
         console.log(`Added ${card.toString()} to ${isPlayer ? 'player' : 'dealer'}'s hand (${faceUp ? 'face up' : 'face down'})`);
     }
 
+    /**
+     * Clears the hand of the player or dealer, depending on the isPlayer parameter.
+     * @param isPlayer If true, clears the player's hand. If false, clears the dealer's hand.
+     */
     public clearCards(isPlayer: boolean): void {
         if (isPlayer) {
             this.blackjackGame.setPlayerHand([]);
@@ -230,6 +266,15 @@ export class DebugManager {
         console.log(`Cleared ${isPlayer ? 'player' : 'dealer'}'s hand`);
     }
 
+    /**
+     * Flips a card at the specified index in the player's or dealer's hand.
+     *
+     * @param isPlayer - True if the card belongs to the player's hand, false for the dealer's hand.
+     * @param index - The index of the card to flip within the hand.
+     *
+     * Logs an error if the specified index is out of bounds. Updates the debug hand display
+     * and logs the action to the console.
+     */
     public flipCard(isPlayer: boolean, index: number): void {
         const hand = isPlayer ? this.blackjackGame.getPlayerHand() : this.blackjackGame.getDealerHand();
         if (index < 0 || index >= hand.length) {
@@ -241,6 +286,13 @@ export class DebugManager {
         console.log(`Flipped ${isPlayer ? 'player' : 'dealer'}'s card at index ${index}`);
     }
 
+    /**
+     * Reveals the dealer's hole card by flipping it face up.
+     * If the dealer's hole card is already face up or if the dealer has no cards,
+     * logs a message to the console indicating that the dealer hole card is already revealed
+     * or no cards have been dealt.
+     * Updates the debug hand display.
+     */
     public revealDealerHole(): void {
         const dealerHand = this.blackjackGame.getDealerHand();
         if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
@@ -252,6 +304,15 @@ export class DebugManager {
         this.updateDebugHandDisplay();
     }
 
+    /**
+     * Returns a randomly generated Card, with suit and rank determined randomly.
+     * The card is set to the specified faceUp state.
+     * @param isPlayer If true, the generated card is intended for the player's hand,
+     *                 otherwise it is intended for the dealer's hand.
+     * @param faceUp If true, the generated card is face up, otherwise face down.
+     *               Defaults to true.
+     * @returns A randomly generated Card.
+     */
     public dealRandomCard(isPlayer: boolean, faceUp: boolean = true): Card {
         const suits = Object.values(Suit);
         const ranks = Object.values(Rank);
@@ -262,12 +323,23 @@ export class DebugManager {
         return card;
     }
 
+    /**
+     * Requests the CardVisualizer to re-render all cards, including the player's and dealer's hands.
+     * Also updates the debug hand display. Logs a message to the console indicating that cards
+     * have been re-rendered.
+     */
     public renderCards(): void {
         this.cardVisualizer.renderCards();
         this.updateDebugHandDisplay();
         console.log("Cards re-rendered (Babylon visuals and debug display)");
     }
 
+    /**
+     * Sets the player's funds. If no amount is provided, a custom prompt will be shown to the user
+     * to enter the new amount. If the entered amount is invalid (negative or not a number), the
+     * custom prompt will be shown again until a valid amount is entered.
+     * @param amount If provided, the new amount will be set directly. If not, a custom prompt will be shown.
+     */
     public setFunds(amount?: number): void {
         let finalAmount: number;
         if (amount !== undefined) {
@@ -315,12 +387,21 @@ export class DebugManager {
         );
     }
 
+    /**
+     * Resets the player's funds to the default amount and updates the UI.
+     * This operation will save the new funds state.
+     */
     public resetFunds(): void {
         this.blackjackGame.resetFunds();
         this.updateUI();
         console.log(`Player funds reset to ${this.blackjackGame.getPlayerFunds()}.`);
     }
 
+    /**
+     * Sets the current bet amount for the game. Updates the UI to reflect the new bet.
+     * @param amount The amount to set as the current bet. Must be non-negative.
+     * Logs an error if the bet is negative and does not proceed with setting the bet.
+     */
     public setBet(amount: number): void {
         if (amount < 0) {
             console.error("Bet cannot be negative");
@@ -331,11 +412,22 @@ export class DebugManager {
         console.log(`Current bet set to ${amount}`);
     }
 
+    /**
+     * Updates the main Game UI (bet buttons, result display) to reflect the current state of the game,
+     * and also updates the debug hand display.
+     * @remarks
+     * Also takes into account whether a visual animation is currently in progress.
+     */
     public updateUI(): void {
         this.gameUI.update(this.cardVisualizer.isAnimationInProgress());
         this.updateDebugHandDisplay();
     }
 
+    /**
+     * Toggles the visibility of the BabylonJS Inspector.
+     * If the inspector is currently visible, it will be hidden.
+     * If the inspector is currently hidden, it will be shown.
+     */
     public toggleInspector(): void {
         const scene = this.gameScene.getScene();
         if (scene.debugLayer.isVisible()) {
@@ -347,6 +439,12 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Toggles the visibility of the debug hand display, which shows the current hands of the player and dealer.
+     * If `visible` is not provided, the display is toggled. If `visible` is `true`, the display is shown. If `visible` is `false`, the display is hidden.
+     * If the display is shown, the `updateDebugHandDisplay` method is called to populate the display.
+     * @param visible Whether to show or hide the debug hand display.
+     */
     public toggleHandDisplay(visible?: boolean): void {
         if (typeof visible === 'undefined') {
             this.isHandDisplayVisible = !this.isHandDisplayVisible;
@@ -369,6 +467,13 @@ export class DebugManager {
         }
     }
 
+
+    /**
+     * Toggles the visibility of the debug menu, which provides various debug options.
+     * If `visible` is not provided, the menu is toggled. If `visible` is `true`, the menu is shown. If `visible` is `false`, the menu is hidden.
+     * If the menu is shown, the `createDebugMenuElement` method is called to populate the menu.
+     * @param visible Whether to show or hide the debug menu.
+     */
     public toggleDebugMenu(visible?: boolean): void {
         if (typeof visible === 'undefined') {
             this.isDebugMenuVisible = !this.isDebugMenuVisible;
@@ -390,7 +495,12 @@ export class DebugManager {
         }
     }
 
-
+    /**
+     * Records the current player and dealer hands in the hand history array.
+     * Only records hands if either the player or dealer has at least one card.
+     * Ensures the hand history array does not exceed the maximum number of entries.
+     * Logs a message to the console indicating the number of hand history entries after recording.
+     */
     private recordHandHistory(): void {
         const playerHand = this.blackjackGame.getPlayerHand();
         const dealerHand = this.blackjackGame.getDealerHand();
@@ -408,6 +518,13 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Injects global CSS styles necessary for the debug elements used in the application.
+     * If the styles are not already present, it creates a new <style> element with a
+     * unique ID and appends it to the document head. The styles include properties for
+     * positioning, appearance, and animations of various debug components such as
+     * windows, cards, headers, buttons, and prompts.
+     */
     private injectGlobalStyles(): void {
         if (!document.getElementById('blackjack-debug-styles')) {
             const styleSheet = document.createElement("style");
@@ -644,6 +761,10 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Makes an element draggable.
+     * @param element The element to make draggable.
+     */
     private makeDraggable(element: HTMLElement): void {
         element.onmousedown = (e) => {
             if ((e.target as HTMLElement).closest('button, input, select, textarea')) {
@@ -688,7 +809,12 @@ export class DebugManager {
         };
     }
 
-
+    /**
+     * Creates the debug hand display element, which is a div with the
+     * 'blackjack-debug-hand-display' id and 'debug-window-base' class.
+     * The element is appended to the document body and is made draggable
+     * using the `makeDraggable` method.
+     */
     private createDebugHandDisplayElement(): void {
         this.injectGlobalStyles();
 
@@ -702,6 +828,23 @@ export class DebugManager {
         this.makeDraggable(this.debugHandDisplayElement);
     }
 
+    /**
+     * Creates the debug menu element, which is a div with the
+     * 'blackjack-debug-menu' id and 'debug-window-base' class.
+     * The element is appended to the document body and is made draggable
+     * using the `makeDraggable` method.
+     *
+     * The debug menu element contains a header with a title and close button,
+     * as well as a container for debug buttons. The buttons are created using
+     * the `createButton` method, which takes a text string and an action callback.
+     * The buttons are grouped into categories using the `createSeparator` method.
+     *
+     * The categories are:
+     *  - Scenario Starters
+     *  - Game Control
+     *  - Funds Control
+     *  - Outcome Control
+     */
     private createDebugMenuElement(): void {
         this.injectGlobalStyles();
 
@@ -737,6 +880,12 @@ export class DebugManager {
         const content = document.createElement('div');
         content.className = 'debug-menu-button-container';
 
+        /**
+         * Creates a new button element with the given text and
+         * action callback and adds it to the content container.
+         * @param {string} text - The text to display on the button.
+         * @param {() => void} action - The function to call when button is clicked.
+         */
         const createButton = (text: string, action: () => void) => {
             const button = document.createElement('button');
             button.className = 'debug-menu-button';
@@ -748,6 +897,11 @@ export class DebugManager {
             content.appendChild(button);
         };
 
+        /**
+         * Creates a separator element that can be used to
+         * visually separate menu items and groups.
+         * This is a simple horizontal line.
+         */
         const createSeparator = () => {
             const separator = document.createElement('div');
             separator.className = 'debug-menu-separator';
@@ -792,6 +946,11 @@ export class DebugManager {
     }
 
 
+    /**
+     * Drags the currently selected element by updating its left and top CSS style
+     * properties. It also prevents the default mouse event behavior.
+     * @param e The mouse event.
+     */
     private dragElement(e: MouseEvent): void {
         if (this.isDragging && this.draggedElement) {
             e.preventDefault();
@@ -811,6 +970,10 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Resets the state of the drag feature when the user releases the mouse button
+     * by stopping the event listeners and resetting the flags.
+     */
     private stopDragElement(): void {
         if (this.isDragging) {
             this.isDragging = false;
@@ -820,6 +983,21 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Creates a new HTMLElement that represents a playing card.
+     * The element is a container that holds a "playing-card" element
+     * and a small indicator that shows whether the card is face up or not.
+     * The container gets a class of "debug-card-container".
+     * The card element is created with the correct card ID set as an attribute.
+     * The indicator is a span with class "debug-card-indicator" and is either
+     * a pair of eyes (`👁️`) for a face-up card or a question mark (`❓`) for
+     * a face-down card. For face-down cards, the question mark is displayed
+     * in a light gray color.
+     * @param {Card} card - The card to be represented.
+     * @param {boolean} isNew - Whether the card is "new" and should have a
+     *   "card-dealt" animation applied.
+     * @returns {HTMLElement} The created element.
+     */
     private createCardElement(card: Card, isNew: boolean): HTMLElement {
         const container = document.createElement('div');
         container.className = 'debug-card-container';
@@ -847,6 +1025,16 @@ export class DebugManager {
         return container;
     }
 
+    /**
+     * Renders a hand of cards within a specified parent element, displaying a title and visualizing the current
+     * and last known cards in the hand. This function is capable of showing both current hands and historical views.
+     *
+     * @param {string} title - The title to display above the hand.
+     * @param {Card[]} currentCards - The list of current cards to render in the hand.
+     * @param {Card[]} lastCards - The list of cards previously in the hand, used for comparison.
+     * @param {boolean} isHistoryView - Flag indicating if this is a historical view of the hand.
+     * @param {HTMLElement} parentElement - The parent HTML element where the hand will be rendered.
+     */
     private renderHandInContainer(title: string, currentCards: Card[], lastCards: Card[], isHistoryView: boolean, parentElement: HTMLElement): void {
         const headerEl = document.createElement('h4');
         headerEl.textContent = title;
@@ -885,6 +1073,11 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Updates the debug hand display when the history index changes or the user toggles the hand display.
+     * This function is responsible for rendering the current or historical hand state in the debug window,
+     * including the title and navigation buttons.
+     */
     public updateDebugHandDisplay(): void {
         if (!this.isHandDisplayVisible || !this.debugHandDisplayElement) {
             return;
@@ -973,6 +1166,11 @@ export class DebugManager {
 
     // --- Debug Menu Button Actions ---
 
+    /**
+     * Starts a new normal Blackjack game with the minimum bet.
+     * This function is part of the debug menu and is only accessible when the game is in a debug state.
+     * It resets the game state and starts a new game.
+     */
     private debugStartNormalHand(): void {
         console.log("DEBUG: Starting Normal Hand");
         this.resetGame();
@@ -982,6 +1180,14 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Starts a new Blackjack game with the minimum bet and a split hand.
+     * This function is part of the debug menu and is only accessible when the game is in a debug state.
+     * It resets the game state and starts a new game with a split hand.
+     * The player's hand is created by randomly selecting a rank and creating two cards with that rank and alternating suits.
+     * The dealer's hand is created by randomly selecting two cards.
+     * The game state is set to `GameState.Dealing` and then immediately set to `GameState.PlayerTurn` after the cards are dealt.
+     */
     private debugStartSplitHand(): void {
         console.log("DEBUG: Starting Split Hand");
         this.resetGame();
@@ -1014,6 +1220,12 @@ export class DebugManager {
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
     }
 
+    /**
+     * Starts a new Blackjack game with the minimum bet and the dealer's upcard an Ace.
+     * This function is part of the debug menu and is only accessible when the game is in a debug state.
+     * It resets the game state and starts a new game with a hand that will trigger the insurance option.
+     * The game state is set to `GameState.PlayerTurn` after the cards are dealt.
+     */
     private debugStartInsuranceHand(): void {
         console.log("DEBUG: Starting Insurance Hand");
         this.resetGame();
@@ -1042,6 +1254,10 @@ export class DebugManager {
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
     }
 
+    /**
+     * Forces the deck to reshuffle immediately in a debug context.
+     * Logs the number of cards remaining post-reshuffle and updates the UI.
+     */
     public forceReshuffle(): void {
         console.log("DEBUG: Forcing deck reshuffle.");
         const cardsRemaining = this.blackjackGame.getHandManager().forceDeckReshuffle();
@@ -1049,6 +1265,12 @@ export class DebugManager {
         this.updateUI();
     }
 
+    /**
+     * Ensures that a bet is active before attempting to force an outcome.
+     * If there is no bet, it will auto-place the minimum bet.
+     * If the player has insufficient funds for the minimum bet, it will log a warning.
+     * If the game is not in a valid state to process a forced outcome, it will set the game state to `GameState.PlayerTurn`.
+     */
     private ensureBetActiveForForceOutcome(): void {
         const game = this.blackjackGame;
         if (game.getCurrentBet() === 0) {
@@ -1066,6 +1288,15 @@ export class DebugManager {
     }
 
 
+    /**
+     * Forces a win for the player or dealer in a debug context.
+     * Automatically places a minimum bet if none is active, and logs a warning if the player has insufficient funds.
+     * If the game is not in a valid state to process a forced outcome, it will set the game state to `GameState.PlayerTurn`.
+     * Reveals the dealer's hole card and determines the game outcome based on the given parameter.
+     * If the player wins, their funds are increased by double the current bet; if the dealer wins, the player's funds are unchanged.
+     * The game state is set to `GameState.GameOver` after the outcome is determined.
+     * @param playerWins Whether the player wins (true) or the dealer wins (false).
+     */
     public forceWin(playerWins: boolean): void {
         console.log(`DEBUG: Forcing ${playerWins ? 'Player Win' : 'Dealer Win'}`);
         this.ensureBetActiveForForceOutcome();
@@ -1089,6 +1320,14 @@ export class DebugManager {
         gameActions.setGameState(GameState.GameOver, true, true);
     }
 
+    /**
+     * Forces a push in a debug context.
+     * Automatically places a minimum bet if none is active, and logs a warning if the player has insufficient funds.
+     * If the game is not in a valid state to process a forced outcome, it will set the game state to `GameState.PlayerTurn`.
+     * Reveals the dealer's hole card and determines the game outcome to be a push.
+     * The player's funds are increased by the current bet.
+     * The game state is set to `GameState.GameOver` after the outcome is determined.
+     */
     public forcePush(): void {
         console.log("DEBUG: Forcing Push");
         this.ensureBetActiveForForceOutcome();
@@ -1108,6 +1347,13 @@ export class DebugManager {
     }
 
 
+    /**
+     * Cleans up all visual elements and event listeners added by the debug manager.
+     * This method is called when the debug manager is no longer needed, such as when the game is reset or when the debug menu is closed.
+     * It removes the debug menu element, the debug hand display element, and any open custom prompt overlay.
+     * It also removes the global click event listener and the stylesheet element.
+     * Finally, it sets the window-level debug property to undefined.
+     */
     public dispose(): void {
         if (this.debugHandDisplayElement) {
             this.debugHandDisplayElement.remove();
@@ -1134,6 +1380,13 @@ export class DebugManager {
     }
 
     // --- Sub-menu helper and global click handler ---
+
+    /**
+     * Handles global clicks to close submenus and custom prompts.
+     * This method is bound to the document click event and checks if the click is outside of any open submenus or custom prompts.
+     * If a submenu is open, it will close it unless the click was on the active submenu trigger or inside the submenu.
+     * If a custom prompt is active, it will only close it if the click was on the overlay itself.
+     */
     private handleGlobalClick = (event: MouseEvent): void => {
         // If a custom prompt is active, don't close submenus.
         // The prompt overlay should handle its own dismissal or prevent clicks from passing.
@@ -1162,6 +1415,14 @@ export class DebugManager {
         }
     };
 
+    /**
+     * Returns a modified version of the given text, with the accessKey character underlined.
+     * If the accessKey is not a single character, or if the text does not contain the accessKey,
+     * the original text is returned.
+     * @param text The text to modify
+     * @param accessKey The key to underline in the text
+     * @returns The modified text
+     */
     private formatTextWithAccessKey(text: string, accessKey?: string): string {
         if (!accessKey || accessKey.length !== 1) {
             return text;
@@ -1173,7 +1434,11 @@ export class DebugManager {
         return `${text.substring(0, keyIndex)}<u>${text.substring(keyIndex, keyIndex + 1)}</u>${text.substring(keyIndex + 1)}`;
     }
 
-
+    /**
+     * Closes the currently open submenu, if any, and cleans up event listeners and DOM elements.
+     * If `removeFromDom` is true, it will remove the submenu from the document body.
+     * If `removeFromDom` is false, it will just hide the submenu by setting its display to 'none'.
+     */
     private closeOpenSubMenuAndCleanup(removeFromDom: boolean): void {
         if (this.openSubMenu) {
             document.removeEventListener('keydown', this.boundHandleSubMenuAccessKeys);
@@ -1188,6 +1453,12 @@ export class DebugManager {
         }
     }
 
+    /**
+     * Handles keyboard events when a submenu is open.
+     * If the pressed key matches an access key on a button in the submenu,
+     * the button's action is triggered and the submenu is closed.
+     * @param event The keyboard event
+     */
     private handleSubMenuAccessKeys(event: KeyboardEvent): void {
         if (!this.openSubMenu || event.altKey || event.ctrlKey || event.metaKey) {
             return;
@@ -1205,7 +1476,18 @@ export class DebugManager {
         }
     }
 
-
+    /**
+     * Creates a dropdown button that can be used in the debug menu.
+     * The button shows a main label and has a submenu with multiple items.
+     * When an item is clicked, its action is triggered and the submenu is closed.
+     * The submenu is positioned below the main button, or to the left if `openLeft` is true.
+     * @param mainButtonText The text to show on the main button
+     * @param items An array of objects with `text` and `action` properties, and an optional `accessKey` property.
+     *              The `accessKey` is used to underline the corresponding character in the `text` string.
+     *              When the user types the `accessKey` key, the button will be clicked.
+     * @param parentContainer The container element to append the created elements to
+     * @param openLeft If true, the submenu will be positioned to the left of the main button, otherwise it will be below
+     */
     private createDropdownButton(
         mainButtonText: string,
         items: { text: string, action: () => void, accessKey?: string }[],
@@ -1239,6 +1521,14 @@ export class DebugManager {
             subMenu.appendChild(subButton);
         });
 
+        /**
+         * Handles the onclick event for the main button. It toggles the visibility of the submenu.
+         * When the main button is clicked, it first closes any open submenu. If the clicked
+         * button's submenu was not open, it opens it by appending it to the body and positioning it
+         * relative to the main button. If the submenu was already open, this action results in closing it.
+         *
+         * @param e The mouse event triggered by clicking the main button.
+         */
         mainButton.onclick = (e) => {
             e.stopPropagation(); // Prevent global click handler
 
@@ -1281,6 +1571,20 @@ export class DebugManager {
     }
 
     // --- Custom Prompt Methods ---
+
+    /**
+     * Shows a custom prompt to the user with a message, a default value in an input field,
+     * and two buttons: "Confirm" and "Cancel". The prompt is modal, meaning it will block
+     * any other interaction with the page until it is closed. The user can close the prompt
+     * by clicking outside the prompt, pressing the Escape key, or clicking the "Cancel" button.
+     * When the user clicks the "Confirm" button or presses the Enter key, the value of the
+     * input field is passed to the `onConfirm` callback, and the prompt is closed.
+     * If the user closes the prompt without confirming, the `onConfirm` callback is called
+     * with `null` as the argument.
+     * @param message The message to display in the prompt
+     * @param defaultValue The default value of the input field
+     * @param onConfirm The callback function to call when the user clicks the "Confirm" button
+     */
     private showCustomPrompt(
         message: string,
         defaultValue: string,
@@ -1315,6 +1619,13 @@ export class DebugManager {
         closeButton.className = 'debug-close-button';
         closeButton.innerHTML = '&#x2715;';
         closeButton.title = 'Cancel';
+
+        /**
+         * Handles the onclick event for the close button in the custom prompt.
+         * When this button is clicked, the prompt is closed and the `onConfirm` callback
+         * is called with `null` as the argument, indicating that the user did not confirm.
+         * @param e The event triggered by clicking the button
+         */
         closeButton.onclick = (e) => {
             e.stopPropagation();
             this.closeCustomPrompt(true);
@@ -1330,6 +1641,15 @@ export class DebugManager {
         const input = document.createElement('input');
         input.type = 'number';
         input.value = defaultValue;
+
+        /**
+        * Handles the onkeydown event for the input element within the custom prompt.
+        * If the 'Enter' key is pressed, it prevents the default action and closes the prompt,
+        * passing the current input value to the confirm callback. If the 'Escape' key
+        * is pressed, it prevents the default action and closes the prompt without confirming.
+        *
+        * @param e The keyboard event triggered by the key press
+        */
         input.onkeydown = (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -1346,11 +1666,24 @@ export class DebugManager {
         const confirmButton = document.createElement('button');
         confirmButton.textContent = 'Confirm';
         confirmButton.className = 'debug-prompt-confirm';
+
+        /**
+         * Handles the onclick event for the confirm button in the custom prompt.
+         * When this button is clicked, the prompt is closed and the `onConfirm` callback
+         * is called with the current input value as the argument, indicating that the user
+         * confirmed.
+         */
         confirmButton.onclick = () => this.closeCustomPrompt(false, input.value);
 
         const cancelButton = document.createElement('button');
         cancelButton.textContent = 'Cancel';
         cancelButton.className = 'debug-prompt-cancel';
+
+        /**
+         * Handles the onclick event for the cancel button in the custom prompt.
+         * When this button is clicked, the prompt is closed and the `onConfirm` callback
+         * is called with `null` as the argument, indicating that the user did not confirm.
+         */
         cancelButton.onclick = () => this.closeCustomPrompt(true);
 
         buttonsDiv.appendChild(cancelButton);
@@ -1361,14 +1694,18 @@ export class DebugManager {
         dialog.appendChild(buttonsDiv);
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
-        
-        // Make the dialog draggable
+
         this.makeDraggable(dialog);
 
         input.focus();
         input.select();
 
-        // Add Escape key listener to the document
+        /**
+         * Handles the keydown event for the document when a custom prompt is active.
+         * If the 'Escape' key is pressed, it closes the custom prompt and calls the
+         * confirm callback with `null`, indicating that the user did not confirm.
+         * @param event The keyboard event triggered by the key press
+         */
         this.customPromptEscapeListener = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 this.closeCustomPrompt(true);
@@ -1377,14 +1714,19 @@ export class DebugManager {
         document.addEventListener('keydown', this.customPromptEscapeListener);
     }
 
+    /**
+     * Closes the custom prompt dialog and cleans up all associated event listeners and DOM elements.
+     * If the prompt was confirmed, the provided value is passed to the confirm callback; otherwise, `null` is passed.
+     *
+     * @param isCancel - Indicates whether the prompt was canceled. If true, the confirm callback is called with `null`.
+     * @param value - The input value to be passed to the confirm callback, if the prompt was not canceled.
+     */
     private closeCustomPrompt(isCancel: boolean, value?: string): void {
         if (this.activeCustomPromptElement) {
-            // Remove the overlay click event to prevent memory leaks
             if (this.activeCustomPromptElement.onclick) {
                 (this.activeCustomPromptElement as HTMLElement).onclick = null;
             }
-            
-            // Find and clean up the dialog element
+            // Clean up the dialog element and its children
             const dialogElement = this.activeCustomPromptElement.querySelector('.debug-prompt-dialog');
             if (dialogElement) {
                 (dialogElement as HTMLElement).onclick = null;
@@ -1407,7 +1749,8 @@ export class DebugManager {
                     (button as HTMLButtonElement).onclick = null;
                 });
             }
-            
+
+            // Remove the dialog element from the DOM
             document.body.removeChild(this.activeCustomPromptElement);
             this.activeCustomPromptElement = null;
         }

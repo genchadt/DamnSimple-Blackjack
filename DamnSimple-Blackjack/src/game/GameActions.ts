@@ -3,16 +3,19 @@
 // Added insurance logic
 // Introduced GameState.Dealing
 // Made resolveInsurance public for debug purposes
-import { Card, Rank } from "./Card"; // Import Rank
+import { Card, Rank } from "./Card";
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
-import { ScoreCalculator } from "./ScoreCalculator";
 import { GameStorage } from "./GameStorage";
 import { BlackjackGame } from "./BlackjackGame";
-import { Constants } from "../Constants"; // Import Constants
+import { Constants } from "../Constants";
 
-/** Enum to track the last animated action initiated by GameActions. */
+/**
+ * Enumeration for the last animated action.
+ * This is used to track the last action that triggered an animation,
+ * allowing the game to determine the next logical step after an animation completes.
+ */
 enum LastAnimatedAction {
     None,
     InitialDeal, // Represents one card being dealt in the initial sequence
@@ -23,6 +26,12 @@ enum LastAnimatedAction {
     InsuranceTaken // Represents the UI update after insurance is taken (no cards dealt)
 }
 
+/**
+ * GameActions class handles the game logic for Blackjack, including state management,
+ * betting, player actions (hit, stand, double down), dealer logic, and animations.
+ * It manages the flow of the game, ensuring that actions are taken in the correct order
+ * and that the game state is updated appropriately after each action.
+ */
 export class GameActions {
     private blackjackGame: BlackjackGame;
     private handManager: HandManager;
@@ -36,15 +45,28 @@ export class GameActions {
     private roundInsuranceBetAmount: number = 0; // The actual amount of the insurance bet placed this round
     private roundInsuranceTaken: boolean = false; // If insurance was taken this round
 
-
+    // State for managing the last animated action
     private lastAction: LastAnimatedAction = LastAnimatedAction.None;
-    /** Queue for the initial 4-card deal sequence. */
-    private dealQueue: { hand: Card[], faceUp: boolean, isPlayer: boolean }[] = []; // Added isPlayer for logging
-    /** Flag indicating if the initial 4-card deal animation sequence is currently active. */
+
+    // Queue for the initial deal sequence
+    private dealQueue: { hand: Card[], faceUp: boolean, isPlayer: boolean }[] = [];
+
+    // State to track if we are currently dealing the initial sequence
     private isDealingInitialSequence: boolean = false;
-    /** Stores a callback to execute after the dealer hole card reveal animation completes. */
+
+    // Callback to execute after revealing the dealer's hole card
     private _postRevealCallback: (() => void) | null = null;
 
+    /**
+     * Constructs a GameActions instance.
+     * @param blackjackGame
+     * @param handManager
+     * @param playerFunds
+     * @remarks
+     * This class is responsible for managing the game logic of Blackjack,
+     * including state transitions, betting, player actions, dealer logic,
+     * and animations.
+     */
     constructor(blackjackGame: BlackjackGame, handManager: HandManager, playerFunds: PlayerFunds) {
         this.blackjackGame = blackjackGame;
         this.handManager = handManager;
@@ -52,6 +74,7 @@ export class GameActions {
     }
 
     // --- State ---
+
     /**
      * Sets the game's logical state.
      * @param state The new GameState.
@@ -69,6 +92,11 @@ export class GameActions {
             this.blackjackGame.notifyAnimationComplete();
         }
     }
+
+    /**
+     * Gets the current game state.
+     * @return The current GameState.
+     */
     public getGameState(): GameState { return this.gameState; }
 
     /**
@@ -82,10 +110,26 @@ export class GameActions {
             this.saveGameState();
         }
     }
+
+    /**
+     * Gets the current game result.
+     * @return The current GameResult.
+     */
     public getGameResult(): GameResult { return this.gameResult; }
 
     // --- Bet ---
+
+    /**
+     * Gets the current bet amount.
+     * @return The current bet amount.
+     */
     public getCurrentBet(): number { return this.currentBet; }
+
+    /**
+     * Gets the last bet amount.
+     * This is used to retrieve the bet amount from the previous round.
+     * @return The last bet amount.
+     */
     public getLastBet(): number { return this.lastBet; }
 
     /**
@@ -106,6 +150,7 @@ export class GameActions {
     }
 
     // --- Game Flow ---
+
     /**
      * Initiates the start of a new game round.
      * Clears hands, deducts the bet, sets up the initial deal queue, and starts the deal animation sequence.
@@ -204,7 +249,9 @@ export class GameActions {
         }
     }
 
-    /** Initiates the player 'hit' action if conditions are met. */
+    /**
+     * Logic executed when the player 'hit' action is initiated.
+     */
     public playerHit(): void {
         if (this.gameState !== GameState.PlayerTurn) { console.warn("[GameActions] Cannot hit outside of PlayerTurn"); return; }
         if (this.isDealingInitialSequence || this.lastAction !== LastAnimatedAction.None) { console.warn("[GameActions] Cannot hit: Action/Animation in progress."); return; }
@@ -215,7 +262,9 @@ export class GameActions {
         this.dealCardToHand(this.blackjackGame.getPlayerHand(), true);
     }
 
-    /** Logic executed after the player 'hit' animation completes. Checks for bust. */
+    /**
+     * Completes the player 'hit' action after the card deal animation.
+     */
     private completePlayerHit(): void {
         const playerScore = this.blackjackGame.getPlayerScore();
         console.log(`%c[GameActions] completePlayerHit. Score: ${playerScore}`, 'color: #DAA520');
@@ -234,7 +283,10 @@ export class GameActions {
         }
     }
 
-    /** Initiates the player 'stand' action if conditions are met. */
+    /**
+     * Logic executed when the player 'stand' action is initiated.
+     * Reveals the dealer's hole card and proceeds to the dealer's turn.
+     */
     public playerStand(): void {
         if (this.gameState !== GameState.PlayerTurn) { console.warn("[GameActions] Cannot stand outside of PlayerTurn"); return; }
         if (this.isDealingInitialSequence || this.lastAction !== LastAnimatedAction.None) { console.warn("[GameActions] Cannot stand: Action/Animation in progress."); return; }
@@ -280,7 +332,9 @@ export class GameActions {
         return true;
     }
 
-    /** Logic executed after the double down card deal animation completes. Checks for bust, then proceeds to dealer turn. */
+    /**
+     * Logic executed after th 'double down' animation completes.
+     */
     private completeDoubleDown(): void {
         const playerScore = this.blackjackGame.getPlayerScore();
         console.log(`%c[GameActions] completeDoubleDown. Score: ${playerScore}`, 'color: #DAA520');
@@ -311,7 +365,9 @@ export class GameActions {
         }
     }
 
-    /** Handles the player's decision to take insurance. */
+    /**
+     * Logic executed when the player takes insurance.
+     */
     public playerTakeInsurance(): void {
         if (!this.blackjackGame.isInsuranceAvailable()) {
             console.warn("[GameActions] Insurance is not available.");
@@ -361,8 +417,8 @@ export class GameActions {
         }
     }
 
-
     // --- Dealer Logic ---
+
     /**
      * Initiates the visual reveal of the dealer's hole card if it's face down.
      * @param callback Optional function to execute after the reveal animation completes.
@@ -396,7 +452,11 @@ export class GameActions {
         }
     }
 
-    /** Executes the dealer's turn logic: Hit if score < 17, otherwise stand. */
+    /**
+     * Executes the dealer's turn logic.
+     * This method checks the dealer's score and decides whether to hit or stand based on Blackjack rules.
+     * It also handles bust conditions and proceeds to determine the game outcome.
+     */
     public executeDealerTurn(): void {
         console.log(`%c[GameActions] executeDealerTurn called. State: ${GameState[this.gameState]}`, 'color: magenta');
         if (this.gameState !== GameState.DealerTurn) {
@@ -421,7 +481,10 @@ export class GameActions {
         }
     }
 
-    /** Logic executed after the dealer 'hit' animation completes. Checks for bust, otherwise continues dealer turn. */
+    /**
+     * Logic executed after the dealer 'hit' animation completes.
+     * Checks for bust, otherwise continues dealer turn.
+     */
     private completeDealerHit(): void {
         const dealerScore = this.blackjackGame.getDealerFullScore();
         console.log(`%c[GameActions] completeDealerHit. Score: ${dealerScore}`, 'color: #DAA520');
@@ -439,7 +502,9 @@ export class GameActions {
         }
     }
 
-    /** Logic executed when the dealer stands. Determines the winner based on scores. */
+    /**
+     * Logic executed when the dealer stands. Determines the winner based on scores.
+     */
     private dealerStand(): void {
         console.log(`%c[GameActions] dealerStand called. State: ${GameState[this.gameState]}, LastAction: ${LastAnimatedAction[this.lastAction]}`, 'color: #DAA520');
         if ((this.gameState === GameState.Initial ||
@@ -481,12 +546,25 @@ export class GameActions {
     }
 
     // --- Card Dealing ---
-    /** Adds a card deal instruction to the initial deal queue. */
+
+    /**
+     * Queues a card deal for the initial deal sequence.
+     * @param hand
+     * @param faceUp
+     * @param isPlayer
+     * @private
+     */
     private queueDeal(hand: Card[], faceUp: boolean, isPlayer: boolean): void {
         this.dealQueue.push({ hand, faceUp, isPlayer });
     }
 
-    /** Processes the next card deal from the initial deal queue, triggering its animation. */
+    /**
+     * Processes the deal queue for the initial deal sequence.
+     * This method handles the logic for dealing cards to the player and dealer,
+     * including managing the state of the game during the initial deal.
+     * It ensures that cards are dealt in the correct order and that the game state
+     * is updated appropriately after each card is dealt.
+     */
     private processDealQueue(): void {
         console.log(`%c[GameActions] processDealQueue called. Queue size: ${this.dealQueue.length}, isDealingInitialSequence: ${this.isDealingInitialSequence}`, 'color: cyan');
         if (!this.isDealingInitialSequence) {
@@ -543,7 +621,14 @@ export class GameActions {
         }
     }
 
-    /** Deals a single card directly to a hand (used for Hit, Double Down, Dealer Hit). */
+    /**
+     * Deals a single card to the specified hand.
+     * This method is used for player hits, dealer hits, and double downs.
+     * It checks if the game is in the correct state to deal a card and manages the animation flow.
+     * @param hand
+     * @param faceUp
+     * @private
+     */
     private dealCardToHand(hand: Card[], faceUp: boolean): void {
         console.log(`%c[GameActions] dealCardToHand called. FaceUp: ${faceUp}, isDealingInitial: ${this.isDealingInitialSequence}`, 'color: cyan');
         if (this.isDealingInitialSequence) {
@@ -586,7 +671,12 @@ export class GameActions {
 
 
     // --- Animation Callback ---
-    /** Central handler for when any visual animation completes (deal, flip). Determines the next logical step. */
+
+    /**
+     * Callback for when an animation completes.
+     * This method handles the logic for processing the last action that was animated,
+     * updating the game state, and managing the next steps in the game flow.
+     */
     public onAnimationComplete(): void {
         const actionJustCompleted = this.lastAction;
         console.log(`%c[GameActions] >>> onAnimationComplete called for action: ${LastAnimatedAction[actionJustCompleted]} <<<`, 'color: orange; font-weight: bold');
@@ -650,7 +740,10 @@ export class GameActions {
     }
 
     // --- Save/Load ---
-    /** Saves the current game state to storage, avoiding saves during initial deal animation. */
+
+    /**
+     * Saves the current game state to storage, avoiding saves during initial deal animation.
+     */
     public saveGameState(): void {
         GameStorage.saveGameState(
             this.gameState, this.currentBet, this.gameResult,
@@ -660,7 +753,11 @@ export class GameActions {
         );
     }
 
-    /** Loads game state from storage and restores the game logic. */
+    /**
+     * Loads the game state from storage.
+     * Resets hands, state, and other variables as needed.
+     * Returns true if the game state was successfully restored, false if no valid state was found.
+     */
     public loadGameState(): boolean {
         const loadedData = GameStorage.loadGameState();
 
@@ -671,7 +768,6 @@ export class GameActions {
         this._postRevealCallback = null;
         this.roundInsuranceBetAmount = 0;
         this.roundInsuranceTaken = false;
-
 
         if (!loadedData.gameState) {
             GameStorage.clearSavedHands();
@@ -696,7 +792,9 @@ export class GameActions {
         this.roundInsuranceTaken = this.blackjackGame.insuranceTakenThisRound;
         this.roundInsuranceBetAmount = this.blackjackGame.insuranceBetPlaced;
 
-
+        /**
+         * Restores the player hand(s) from the saved state.
+         */
         const restoredPlayerHand = loadedData.playerHand!.map(data => {
             const card = new Card(data.suit, data.rank);
             card.setFaceUp(data.faceUp);
@@ -705,6 +803,9 @@ export class GameActions {
         });
         this.blackjackGame.setPlayerHand(restoredPlayerHand);
 
+        /**
+         * Restores the dealer hand from the saved state.
+         */
         const restoredDealerHand = loadedData.dealerHand!.map(data => {
             const card = new Card(data.suit, data.rank);
             card.setFaceUp(data.faceUp);

@@ -18,6 +18,14 @@ export class TableEnvironment {
         Constants.DECK_POSITION_Z
     );
 
+    /**
+     * Constructs a new TableEnvironment.
+     * Initializes the scene, sets up the camera and lighting, and creates the table mesh.
+     * Optionally creates a visual box representing the card dispenser if a CardVisualizer is provided.
+     *
+     * @param scene - The Babylon.js scene where the table environment will be rendered.
+     * @param cardVisualizer - The CardVisualizer used to create the deck visual box.
+     */
     constructor(scene: Scene, cardVisualizer: CardVisualizer) { // Expect CardVisualizer
         this.scene = scene;
         console.log("[TableEnv] Constructor called.");
@@ -35,6 +43,10 @@ export class TableEnvironment {
         console.log("[TableEnv] Constructor finished.");
     }
 
+    /**
+     * Sets up the camera for the scene.
+     * Positions the camera above the table and sets its target to the center of the table.
+     */
     private setupCamera(): void {
         const camera = new UniversalCamera("camera", new Vector3(0, 15, 0), this.scene);
         camera.setTarget(new Vector3(0, 0, 0));
@@ -42,6 +54,13 @@ export class TableEnvironment {
         console.log("[TableEnv] Camera setup.");
     }
 
+    /**
+     * Sets up the lighting for the scene.
+     * Creates an ambient light and a fill light to illuminate the table and cards.
+     * The ambient light is a hemispheric light pointing down from above the table.
+     * The fill light is a point light positioned above the table and pointing down.
+     * The fill light has a smaller range than the ambient light, so it provides a bit more focus.
+     */
     private setupLighting(): void {
         const ambientLight = new HemisphericLight("ambientLight", new Vector3(0, 1, 0), this.scene);
         ambientLight.intensity = 1.0;
@@ -57,6 +76,13 @@ export class TableEnvironment {
         console.log("[TableEnv] Lighting setup.");
     }
 
+    /**
+     * Creates a mesh for the table.
+     * The mesh is a box with width, height, and depth of 10, 0.5, and 8 respectively.
+     * The mesh is given a material with a diffuse color that matches the table color.
+     * The table is positioned so that its top surface is at y=0.
+     * @returns The mesh for the table.
+     */
     private createTable(): Mesh {
         const table = MeshBuilder.CreateBox("table", { width: 10, height: 0.5, depth: 8 }, this.scene);
         const tableMaterial = new StandardMaterial("tableMaterial", this.scene);
@@ -68,6 +94,14 @@ export class TableEnvironment {
         return table;
     }
 
+    /**
+     * Creates a visual representation of the card dispenser box in the scene.
+     * Uses the CardVisualizer to determine the dimensions and materials for the box.
+     * The dispenser is positioned at the deck position specified in the class.
+     * MultiMaterial is used to apply different materials to the box surfaces.
+     *
+     * @param cardVisualizer - The CardVisualizer instance used to retrieve card dimensions and materials.
+     */
     private createDeckVisualBox(cardVisualizer: CardVisualizer): void {
         console.log("%c[TableEnv] Creating Deck Visual Box (Dispenser)...", "color: blue; font-weight: bold;");
         try {
@@ -142,11 +176,28 @@ export class TableEnvironment {
         }
     }
 
+    /**
+     * Retrieves the current Babylon.js scene instance.
+     *
+     * @returns {Scene} The scene associated with the table environment.
+     */
     public getScene(): Scene { return this.scene; }
     public getDeckPosition(): Vector3 {
         return new Vector3(Constants.DECK_POSITION_X, 0, Constants.DECK_POSITION_Z);
     }
 
+    /**
+     * Disposes all elements of the TableEnvironment instance.
+     *
+     * This disposes:
+     *  - The Table mesh
+     *  - The Deck Visual mesh
+     *  - The tableMaterial
+     *  - The deckDispenserMultiMat
+     *  - The deckDispenserBottomMat
+     *
+     * Called by GameScene when it needs to dispose its resources.
+     */
     public dispose(): void {
         console.log("[TableEnv] Disposing TableEnvironment elements");
         this.table?.dispose();

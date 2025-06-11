@@ -19,6 +19,11 @@ export class StatusUI extends BaseUI {
     private insuranceBetText!: TextBlock;
     private currencySign: string = "$";
 
+    /**
+     * Constructor for StatusUI.
+     * @param scene The Babylon.js scene this UI component will be attached to.
+     * @param game The BlackjackGame instance this UI component will be bound to.
+     */
     constructor(scene: Scene, game: BlackjackGame) {
         super(scene, "StatusUI");
         this.game = game;
@@ -26,6 +31,17 @@ export class StatusUI extends BaseUI {
         this.update();
     }
 
+    /**
+     * Initializes and adds UI controls to display player and dealer scores,
+     * game status, funds, bet amounts, and insurance bet information on the screen.
+     *
+     * @remarks
+     * This method sets up various text and panel controls using Babylon.js GUI
+     * components. It configures text properties, positioning, and alignment
+     * for each control, and arranges them within panels for organized display.
+     * The controls include player and dealer scores, game status updates,
+     * and financial information such as current funds, bets, and insurance bets.
+     */
     private createControls(): void {
         const scoreOptions = {
             color: "white", fontSize: 22, height: "30px",
@@ -95,11 +111,30 @@ export class StatusUI extends BaseUI {
         fundsStack.addControl(this.insuranceBetText);
     }
 
+    /**
+     * Sets the currency sign to be used in the UI components.
+     * Updates the UI to reflect the new currency sign immediately.
+     *
+     * @param sign The new currency sign to set (e.g., '$', '€').
+     */
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
         this.update();
     }
 
+    /**
+     * Updates the StatusUI with the latest game state information.
+     *
+     * This method is called by the BlackjackGame instance when the game state changes.
+     * It updates the display of player and dealer scores, game status, funds, bet amounts,
+     * and insurance bet information.
+     *
+     * @remarks
+     * The method evaluates the current game state and updates the UI controls accordingly.
+     * It takes into account the player and dealer scores, the current game state, and
+     * whether insurance is available or not. It also updates the display of the game result
+     * (win, loss, push, or blackjack) and the dealer's full score when the game is over.
+     */
     public update(): void {
         const gameState = this.game.getGameState();
         const playerHand = this.game.getPlayerHand();

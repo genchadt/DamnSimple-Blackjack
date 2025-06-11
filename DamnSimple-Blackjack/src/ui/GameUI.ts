@@ -22,6 +22,13 @@ export class GameUI {
 
     private currencySign: string = "$"; // Default currency sign
 
+    /**
+     * Initializes a new instance of the GameUI class.
+     * @param scene The BabylonJS scene to render UI controls in.
+     * @param game The BlackjackGame instance to interact with.
+     * @param onOpenSettings A callback to open the game settings, passed to NavigationUI.
+     * @param onClearTableRequest A callback to request clearing visual elements (cards) on the game table.
+     */
     constructor(
         scene: Scene,
         game: BlackjackGame,
@@ -58,14 +65,22 @@ export class GameUI {
 
     // --- UI Action Handlers ---
 
-    /** Handles the "Sit Down" action from NavigationUI. */
+
+    /**
+     * Handles the "Sit Down" action from NavigationUI.
+     * Sets the game state to Betting and updates the UI.
+     */
     private onSitDown(): void {
         console.log("[GameUI] === Sit Down action triggered ===");
         this.game.getGameActions().setGameState(GameState.Betting);
         this.update();
     }
 
-    /** Handles the "Confirm Bet" action from BettingUI. */
+    /**
+     * Handles the "Confirm Bet" action from BettingUI.
+     * Requests to clear the table and starts a new game with the specified bet.
+     * @param bet The bet amount confirmed by the player.
+     */
     private onConfirmBet(bet: number): void {
         console.log(`[GameUI] === Confirm Bet action triggered. Bet: ${bet} ===`);
         console.log("[GameUI]   -> Requesting table clear...");
@@ -81,7 +96,11 @@ export class GameUI {
         }
     }
 
-    /** Handles the "Leave Table" action from NavigationUI. */
+    /**
+     * Handles the "Leave Table" action from NavigationUI.
+     * Sets the game state to Initial, clears the table, and updates the UI.
+     * This action is only valid during Betting, GameOver, or Initial states.
+     */
     private onLeaveTable(): void {
         console.log("[GameUI] === Leave Table action triggered ===");
         const currentState = this.game.getGameState();
@@ -98,8 +117,9 @@ export class GameUI {
     }
 
     /**
-     * Handles the request to start a new game using the previous bet amount.
-     * Triggered by the repurposed "Hit" button ("Same Bet") in the GameOver state via GameActionUI.
+     * Handles the "New Game" action from NavigationUI.
+     * Requests to clear the table and starts a new game with the same bet amount as the previous round.
+     * This action is only valid during GameOver state.
      */
     private onNewGameRequest(): void {
         console.log("[GameUI] === New Game request action (Same Bet) triggered ===");
@@ -128,8 +148,11 @@ export class GameUI {
     }
 
     // --- Other Methods ---
-
-    /** Sets the currency sign used across relevant UI components. */
+    /**
+     * Sets the currency sign used to display monetary values in the UI.
+     * Updates the display immediately.
+     * @param sign The currency sign to use.
+     */
     public setCurrencySign(sign: string): void {
         this.currencySign = sign;
         this.statusUI.setCurrencySign(sign);
@@ -162,7 +185,10 @@ export class GameUI {
         this.gameActionUI.update(isAnimating);
     }
 
-    /** Disposes all UI elements managed by GameUI. */
+    /**
+     * Disposes of all UI elements and their resources.
+     * This method should be called when the game is over or when the UI is no longer needed.
+     */
     public dispose(): void {
         console.log("[GameUI] Disposing GameUI elements");
         this.statusUI?.dispose();

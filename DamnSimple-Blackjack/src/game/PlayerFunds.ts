@@ -1,18 +1,30 @@
 // src/game/playerfunds-ts
 // Use centralized constants
 import { GameStorage } from "./GameStorage";
-import { Constants } from "../Constants"; // *** IMPORT Constants ***
+import { Constants } from "../Constants";
 
+/**
+ * PlayerFunds class manages the player's funds in the game.
+ * It allows adding, deducting, and resetting funds,
+ * as well as saving and loading funds from persistent storage.
+ */
 export class PlayerFunds {
-    // *** REMOVED static DEFAULT_FUNDS ***
     private funds: number;
 
+    /**
+     * Initializes PlayerFunds with default funds.
+     * Loads funds from GameStorage or uses a default value.
+     */
+     public static readonly instance = new PlayerFunds();
     constructor() {
-        // *** USE Constant for default funds ***
         this.funds = GameStorage.loadFunds(Constants.DEFAULT_FUNDS);
         console.log("PlayerFunds Initialized. Funds:", this.funds);
     }
 
+    /**
+     * Gets the current amount of funds.
+     * @returns The current funds.
+     */
     public getFunds(): number {
         return this.funds;
     }
@@ -30,7 +42,12 @@ export class PlayerFunds {
         }
     }
 
-
+    /**
+     * Adds funds to the player's total.
+     * @param amount The amount to add. Should be non-negative.
+     * If negative, logs a warning and does nothing.
+     * @returns void
+     */
     public addFunds(amount: number): void {
         if (amount < 0) {
             console.warn("Use deductFunds for negative amounts.");
@@ -41,6 +58,11 @@ export class PlayerFunds {
         console.log(`Added ${amount} funds. New total: ${this.funds}`);
     }
 
+    /**
+     * Deducts funds from the player's total.
+     * @param amount The amount to deduct. Should be non-negative and not exceed current funds.
+     * @returns True if deduction was successful, false otherwise.
+     */
     public deductFunds(amount: number): boolean {
         if (amount < 0) {
             console.warn("Use addFunds for positive amounts.");
@@ -56,14 +78,20 @@ export class PlayerFunds {
         return true; // Indicate success
     }
 
+    /**
+     * Resets the player's funds to a default value.
+     * This is useful for starting a new game or resetting the game state.
+     */
     public resetFunds(): void {
-        // *** USE Constant for default funds ***
         console.log(`Resetting funds from ${this.funds} to ${Constants.DEFAULT_FUNDS}`);
         this.funds = Constants.DEFAULT_FUNDS;
         this.saveFunds();
     }
 
-    // Save funds using GameStorage
+    /**
+     * Saves the current funds to persistent storage.
+     * This is called after any change to the funds.
+     */
     private saveFunds(): void {
         GameStorage.saveFunds(this.funds);
     }

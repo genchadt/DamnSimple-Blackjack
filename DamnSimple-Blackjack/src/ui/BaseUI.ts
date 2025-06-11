@@ -9,6 +9,13 @@ export abstract class BaseUI {
     protected guiTexture: AdvancedDynamicTexture;
     protected name: string;
 
+    /**
+     * Initializes a new instance of the BaseUI class.
+     * Sets up the scene, engine, and creates a fullscreen UI texture with specified ideal dimensions.
+     *
+     * @param scene - The Babylon.js scene where the UI will be rendered.
+     * @param name - The name for the UI, defaulting to "BaseUI".
+     */
     protected constructor(scene: Scene, name:string = "BaseUI") {
         this.scene = scene;
         this.engine = scene.getEngine() as Engine;
@@ -28,6 +35,13 @@ export abstract class BaseUI {
         console.log(`Initialized ${this.name}. UI texture initial ideal size: ${this.guiTexture.idealWidth}x${this.guiTexture.idealHeight}. renderAtIdealSize: false`);
     }
 
+    /**
+     * Abstract method to update the UI state, optionally indicating if an animation is in progress.
+     * Implementing classes should override this method to update the UI state based on the game state
+     * and the animation status.
+     * @param isAnimating When true, the UI should consider that a visual animation is in progress.
+     * @returns void
+     */
     public abstract update(isAnimating?: boolean): void;
 
     /**
@@ -46,6 +60,12 @@ export abstract class BaseUI {
         }
     }
 
+    /**
+     * Disposes the UI instance.
+     * When called, this method disposes the AdvancedDynamicTexture created by the UI,
+     * which is used to render the UI elements. This is necessary to free up memory when
+     * the UI is no longer needed.
+     */
     public dispose(): void {
         console.log(`Disposing ${this.name}`);
         if (this.guiTexture) {

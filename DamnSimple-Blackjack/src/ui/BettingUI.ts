@@ -18,6 +18,13 @@ export class BettingUI extends BaseUI {
     private increaseBetButton!: Button;
     private onConfirmBet: (bet: number) => void;
 
+    /**
+     * Initializes a new instance of the BettingUI class.
+     *
+     * @param scene - The Babylon.js scene object.
+     * @param game - The BlackjackGame instance providing game logic and state.
+     * @param onConfirmBet - Callback function to handle bet confirmation, receiving the bet amount.
+     */
     constructor(scene: Scene, game: BlackjackGame, onConfirmBet: (bet: number) => void) {
         super(scene, "BettingUI");
         this.game = game;
@@ -31,6 +38,14 @@ export class BettingUI extends BaseUI {
         this.update();
     }
 
+    /**
+     * Creates the controls for the betting UI panel.
+     *
+     * @remarks
+     * This method creates the controls for the betting UI panel, including the
+     * panel itself, the title, the bet adjustment buttons, the current bet
+     * display, and the confirm bet button.
+     */
     private createControls(): void {
         this.betPanel = new Rectangle("betPanel");
         this.betPanel.width = "350px"; this.betPanel.height = "180px";
@@ -71,6 +86,14 @@ export class BettingUI extends BaseUI {
         mainStack.addControl(this.confirmBetButton);
     }
 
+     /**
+      * Creates a button for adjusting the current bet amount.
+      *
+      * @param name - The name of the button control.
+      * @param text - The text to display on the button.
+      * @param amount - The amount to add to the current bet when the button is clicked.
+      * @returns The created button control.
+      */
      private createBetAdjustButton(name: string, text: string, amount: number): Button {
         const button = Button.CreateSimpleButton(name, text);
         button.width = "50px"; button.height = "50px"; button.color = "white";
@@ -79,6 +102,16 @@ export class BettingUI extends BaseUI {
         return button;
     }
 
+    /**
+     * Adjusts the current bet amount by the specified amount, ensuring it remains
+     * within the player's available funds and the minimum bet limit.
+     *
+     * @param amount - The amount to adjust the current bet by. Can be positive or negative.
+     *
+     * @remarks
+     * The new bet amount is clamped between the minimum bet and the player's funds.
+     * If the bet amount changes, the display is updated and the game's current bet is set.
+     */
     private adjustBet(amount: number): void {
         const playerFunds = this.game.getPlayerFunds();
         // *** USE Constant for min bet ***
@@ -91,6 +124,15 @@ export class BettingUI extends BaseUI {
         }
     }
 
+     /**
+      * Updates the display of the current bet amount, enabling/disabling the
+      * increase/decrease buttons and the confirm button as appropriate.
+      *
+      * @remarks
+      * This method is called by the `adjustBet` method after the bet amount has changed.
+      * It updates the display of the current bet amount and enables/disables the buttons
+      * based on whether the bet amount is within the player's funds and the minimum bet limit.
+      */
      private updateBetDisplay(): void {
         this.currentBetText.text = `${this.currencySign}${this.currentBet}`;
         const playerFunds = this.game.getPlayerFunds();
@@ -104,8 +146,23 @@ export class BettingUI extends BaseUI {
         this.confirmBetButton.alpha = this.confirmBetButton.isEnabled ? 1.0 : 0.5;
     }
 
+    /**
+     * Confirms the current bet amount if the confirm button is enabled.
+     *
+     * @remarks
+     * This method logs the confirmed bet amount, hides the betting UI, and
+     * invokes the callback function with the current bet amount.
+     */
     private confirmBet(): void { if (this.confirmBetButton.isEnabled) { console.log("Bet confirmed:", this.currentBet); this.hide(); this.onConfirmBet(this.currentBet); } }
 
+    /**
+     * Shows the betting UI and updates the current bet amount if necessary.
+     *
+     * @remarks
+     * This method is called when the game state changes to `GameState.Betting`.
+     * It updates the current bet amount to be within the player's funds and the
+     * minimum bet limit, updates the display, and shows the betting UI.
+     */
     public show(): void {
         const playerFunds = this.game.getPlayerFunds();
         // *** USE Constant for min bet ***
@@ -116,8 +173,27 @@ export class BettingUI extends BaseUI {
         console.log("Betting UI shown.");
     }
 
+    /**
+     * Hides the betting UI and logs that the UI is hidden.
+     */
     public hide(): void { this.betPanel.isVisible = false; console.log("Betting UI hidden."); }
+
+
+    /**
+     * Sets the currency sign to be used when displaying the current bet amount.
+     * Updates the display immediately.
+     * @param sign The currency sign to use.
+     */
     public setCurrencySign(sign: string): void { this.currencySign = sign; this.updateBetDisplay(); }
+
+
+    /**
+     * Updates the betting UI's visibility and current bet amount based on the game's state.
+     *
+     * If the game is in the `GameState.Betting` state, shows the betting UI if it's not already visible,
+     * and updates the current bet amount display. If the game is in any other state, hides the betting UI
+     * if it's visible.
+     */
     public update(): void {
         if (this.game.getGameState() === GameState.Betting) {
             if (!this.betPanel.isVisible) {
