@@ -38,6 +38,18 @@ export class GameActionUI extends BaseUI {
     private onRequiresGlobalUpdate: () => void;
     private onLeaveTableRequest: () => void;
 
+    /**
+     * Initializes a new instance of the GameActionUI class.
+     *
+     * @param scene - The Babylon.js scene object.
+     * @param game - The BlackjackGame instance providing game logic and state.
+     * @param onNewGameRequest - Callback for starting a new game.
+     * @param onRequiresGlobalUpdate - Callback for requesting a global update (e.g., UI refresh).
+     * @param onLeaveTableRequest - Callback for leaving the table.
+     * @remarks
+     * This class manages the game action buttons
+     * (Hit, Stand, Double, Split, Insurance, Leave).
+     */
     constructor(
         scene: Scene,
         game: BlackjackGame,
@@ -77,7 +89,15 @@ export class GameActionUI extends BaseUI {
         this.update();
     }
 
-    /** Helper to check if game logic or animations might be busy */
+    /**
+     * Determines if the game is currently busy, meaning that the player cannot
+     * perform any game actions (Hit, Stand, Double, Split, Insurance, Leave).
+     * The game is considered busy if there is an animation in progress and the
+     * game state is not GameOver, or if the game state is not PlayerTurn or
+     * GameOver.
+     *
+     * @returns True if the game is busy, false otherwise.
+     */
     private isGameBusy(): boolean {
         const controller = (window as any).gameController; // Access global controller if needed
         const isAnimating = controller?.isAnimating() ?? false;
@@ -99,7 +119,19 @@ export class GameActionUI extends BaseUI {
         return false;
     }
 
-    /** Creates a single action button with text and key indicator. */
+
+    /**
+     * Creates a game action button with the given properties and adds it to the UI.
+     *
+     * @param name A unique name for the button.
+     * @param initialText The initial text to display on the button.
+     * @param key The keyboard shortcut key for the button.
+     * @param color The color of the button.
+     * @param x The horizontal position of the button.
+     * @param y The vertical position of the button.
+     * @param action The action to perform when the button is clicked.
+     * @returns The created button.
+     */
     private createActionButton(name: string, initialText: string, key: string, color: string, x: string, y: string, action: () => void): Button {
         const button = Button.CreateSimpleButton(name, "");
         button.width = "110px"; button.height = "80px";
@@ -146,7 +178,10 @@ export class GameActionUI extends BaseUI {
         return button;
     }
 
-    /** Creates and positions action buttons and separators vertically, centered on the right side. */
+
+    /**
+     * Creates and configures the vertical action menu for the game.
+     */
     private createVerticalActionButtons(): void {
         const rightMargin = "-5px";
         const buttonHeight = 80;
@@ -179,7 +214,23 @@ export class GameActionUI extends BaseUI {
         });
     }
 
-    /** Sets up keyboard shortcuts (W, S, A, E, F, Q) to trigger button actions. */
+
+    /**
+     * Listens for keyboard input and triggers the corresponding action button.
+     *
+     * Handles keydown events and checks if the game is busy and the game state is not GameOver.
+     * If the game is not busy, it checks if the pressed key matches a keybind for an action button,
+     * and if that button is visible and enabled, it simulates a pointer up event on the button.
+     * Prevents the default browser behavior for the key press.
+     *
+     * Keybinds:
+     * W: Hit
+     * S: Stand
+     * A: Double
+     * E: Split
+     * F: Insurance
+     * Q: Leave Table
+     */
     private setupKeyboardControls(): void {
         this.scene.onKeyboardObservable.add((kbInfo) => {
             if (kbInfo.type === KeyboardEventTypes.KEYDOWN) {
@@ -229,6 +280,10 @@ export class GameActionUI extends BaseUI {
         });
     }
 
+    /**
+     * Updates the visibility and enabled state of game action buttons based on the current game state.
+     * @param isAnimating Flag indicating if a visual animation (deal, flip) is in progress.
+     */
     public update(isAnimating: boolean = false): void {
         const gameState = this.game.getGameState();
         const activeHandInfo = this.game.getActivePlayerHandInfo();
@@ -328,13 +383,31 @@ export class GameActionUI extends BaseUI {
         this.leaveTableButton.alpha = this.leaveTableButton.isEnabled ? 1.0 : 0.5;
     }
 
-    /** Helper to safely update a button's click action. Clears previous observers first. */
+
+    /**
+     * Updates the action associated with a game action button.
+     * @param button The button to update.
+     * @param action The new action to associate with the button.
+     * @remarks
+     * The existing action is cleared from the button's
+     * `onPointerUpObservable` before adding the new action.
+     * This ensures that there is never more than one action associated with a button.
+     */
     private updateButtonAction(button: Button, action: () => void): void {
         button.onPointerUpObservable.clear();
         button.onPointerUpObservable.add(action);
     }
 
-    /** Helper to safely update the text label within a button's content stack. */
+
+    /**
+     * Safely updates the displayed label of a game action button.
+     * @param button The button to update.
+     * @param text The new text to display.
+     * @remarks
+     * This method searches for a TextBlock named `${button.name}ActionText` which is a child of a StackPanel named `${button.name}ContentStack`.
+     * If either of these elements is not found, a warning is logged to the console and no change is made.
+     * If the text is different from the existing text, it is updated.
+     */
     private updateButtonLabel(button: Button, text: string): void {
         const contentStack = button.getChildByName(`${button.name}ContentStack`) as StackPanel;
         if (contentStack) {

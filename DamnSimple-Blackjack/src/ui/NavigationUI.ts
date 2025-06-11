@@ -18,6 +18,15 @@ export class NavigationUI extends BaseUI {
     private onNewGameRequest: () => void; // Kept for potential future use, but not linked currently
     private onOpenSettings: () => void;
 
+    /**
+     * Constructs a new NavigationUI instance.
+     *
+     * @param scene The scene this UI belongs to.
+     * @param game The BlackjackGame instance associated with this UI.
+     * @param onSitDown The callback to be called when the user clicks "Sit Down".
+     * @param onNewGameRequest The callback to be called when the user requests a new game (not linked currently).
+     * @param onOpenSettings The callback to be called when the user clicks "Settings".
+     */
     constructor(
         scene: Scene,
         game: BlackjackGame,
@@ -37,6 +46,13 @@ export class NavigationUI extends BaseUI {
         this.update(); // Initial update
     }
 
+    /**
+     * Creates the buttons for the NavigationUI:
+     *  - Sit Down button (center, shown initially)
+     *  - Leave Table button (bottom left, removed)
+     *  - New Game button (removed, handled by GameActionUI)
+     *  - Settings button (top right cog)
+     */
     private createButtons(): void {
         // Sit Down Button (Center, shown initially)
         this.sitDownButton = Button.CreateSimpleButton("sitDownButton", "Sit Down");
@@ -95,8 +111,15 @@ export class NavigationUI extends BaseUI {
         this.guiTexture.addControl(this.settingsButton);
     }
 
+
     /**
-     * Updates the visibility and enabled state of navigation buttons based on the game state.
+     * Updates the visibility and enabled state of NavigationUI buttons based on the current game state.
+     *
+     * The visibility of the buttons is as follows:
+     *  - Sit Down button: visible only in Initial state
+     *  - Leave Table button (removed): visible unless in Initial state
+     *  - New Game button (removed): not present
+     *  - Settings button: always visible and enabled (unless maybe during animation?)
      */
     public update(): void {
         const gameState = this.game.getGameState();
