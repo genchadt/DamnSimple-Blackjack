@@ -8,6 +8,7 @@ import { GameUI } from "../ui/GameUI";
 import { Constants } from "../Constants";
 import { ScoreCalculator } from "../game/ScoreCalculator"; // Import ScoreCalculator
 import { GameStorage } from "../game/GameStorage"; // Import GameStorage
+import { CustomPromptDialog, DebugHandDisplayDialog, DebugMenuDialog } from "../ui/factories/DialogFactory";
 
 export class DebugManager {
     private gameScene: GameScene;
@@ -15,44 +16,14 @@ export class DebugManager {
     private cardVisualizer: CardVisualizer;
     private gameUI: GameUI;
 
-    private debugHandDisplayElement: HTMLElement | null = null;
+    // --- New Dialog-based UI ---
+    private handDisplay: DebugHandDisplayDialog;
+    private debugMenu: DebugMenuDialog;
     private isHandDisplayVisible: boolean = false;
-
-    // --- New properties for debug menu ---
-    private debugMenuElement: HTMLElement | null = null;
     private isDebugMenuVisible: boolean = false;
-    private openSubMenu: HTMLElement | null = null;
-    private activeSubMenuTrigger: HTMLElement | null = null;
-    private activeCustomPromptElement: HTMLElement | null = null; // For custom dialog
-    private customPromptConfirmCallback: ((value: string | null) => void) | null = null;
-    private customPromptEscapeListener: ((event: KeyboardEvent) => void) | null = null;
-    private boundHandleSubMenuAccessKeys = this.handleSubMenuAccessKeys.bind(this);
-
-    // --- Properties for hover-to-open/close submenus ---
-    private hoverOpenTimer: number | null = null;
-    private hoverCloseTimer: number | null = null;
-    private readonly HOVER_OPEN_DELAY = 350; // ms
-    private readonly HOVER_CLOSE_DELAY = 250; // ms
 
     // --- Key for localStorage ---
     private static readonly DEBUG_MENU_VISIBLE_KEY = "blackjack_debugMenuVisible";
-
-
-    // --- Properties for dragging ---
-    private dragOffsetX: number = 0;
-    private dragOffsetY: number = 0;
-    private isDragging: boolean = false;
-    private draggedElement: HTMLElement | null = null;
-
-
-    // --- New properties for advanced debug display ---
-    private handHistory: { playerHands: PlayerHandInfo[], dealer: Card[] }[] = []; // Store array of PlayerHandInfo
-    private readonly MAX_HISTORY_ENTRIES = 10;
-    private historyIndex: number = -1; // -1 means current hand, 0 is most recent history, etc.
-
-    // Store last known hands to detect changes (deal/discard)
-    private lastPlayerHands: PlayerHandInfo[] = []; // Store array of PlayerHandInfo
-    private lastDealerHand: Card[] = [];
 
     /**
      * Initializes a new instance of the DebugManager class.
@@ -63,29 +34,22 @@ export class DebugManager {
         this.cardVisualizer = cardVisualizer;
         this.gameUI = gameScene.getGameUI();
 
+        // --- Initialize new UI components ---
+        this.handDisplay = new DebugHandDisplayDialog(this.blackjackGame, () => this.toggleHandDisplay(false));
+        this.debugMenu = new DebugMenuDialog(this);
+
         (window as any).debug = this;
         (window as any).game = this.blackjackGame;
         (window as any).scene = gameScene.getScene();
         (window as any).cardViz = this.cardVisualizer;
         (window as any).gameUI = this.gameUI;
 
-        document.addEventListener('click', this.handleGlobalClick, true);
-
         // Load debug menu visibility state
         const storedVisibility = localStorage.getItem(DebugManager.DEBUG_MENU_VISIBLE_KEY);
         if (storedVisibility !== null) {
             this.isDebugMenuVisible = JSON.parse(storedVisibility);
             if (this.isDebugMenuVisible) {
-                // Ensure menu is created and shown if it should be visible
-                // Use a timeout to ensure the DOM is ready, especially if called very early
-                setTimeout(() => {
-                    if (!this.debugMenuElement) {
-                        this.createDebugMenuElement();
-                    }
-                    if (this.debugMenuElement && this.isDebugMenuVisible) { // Check isDebugMenuVisible again in case it was toggled off before timeout
-                        this.debugMenuElement.style.display = 'block';
-                    }
-                }, 0);
+                setTimeout(() => this.debugMenu.show(), 0);
             }
         }
 
@@ -189,10 +153,7 @@ export class DebugManager {
         this.blackjackGame.insuranceTakenThisRound = false;
         this.blackjackGame.insuranceBetPlaced = 0;
 
-        this.handHistory = [];
-        this.historyIndex = -1;
-        this.lastPlayerHands = [];
-        this.lastDealerHand = [];
+        this.handDisplay.resetHistory();
 
         console.log("Game reset to initial state, storage cleared, debug history cleared.");
         this.updateDebugHandDisplay();
@@ -383,7 +344,6 @@ export class DebugManager {
     }
 
     public setFunds(amount?: number): void {
-        let finalAmount: number;
         if (amount !== undefined) {
             if (amount < 0) {
                 console.error("Funds cannot be negative");
@@ -395,7 +355,7 @@ export class DebugManager {
             return;
         }
 
-        this.showCustomPrompt(
+        CustomPromptDialog.show(
             "Enter new player funds:",
             this.blackjackGame.getPlayerFunds().toString(),
             (value) => {
@@ -403,23 +363,9 @@ export class DebugManager {
                     console.log("Set funds cancelled.");
                     return;
                 }
-                finalAmount = parseInt(value, 10);
+                const finalAmount = parseInt(value, 10);
                 if (isNaN(finalAmount) || finalAmount < 0) {
                     console.error("Invalid amount entered for funds. Must be a non-negative number.");
-                    // Optionally, re-show prompt or show an error in the prompt itself
-                    this.showCustomPrompt(
-                        "Invalid amount. Enter new player funds:",
-                        this.blackjackGame.getPlayerFunds().toString(),
-                        // Re-pass the same logic or a refined one
-                        (reValue) => {
-                            if (reValue === null) { console.log("Set funds cancelled."); return; }
-                            const reFinalAmount = parseInt(reValue, 10);
-                            if (isNaN(reFinalAmount) || reFinalAmount < 0) { console.error("Invalid amount again."); return; }
-                            this.blackjackGame.getPlayerFundsManager().setFunds(reFinalAmount);
-                            this.updateUI();
-                            console.log(`Player funds set to ${reFinalAmount}`);
-                        }
-                    );
                     return;
                 }
                 this.blackjackGame.getPlayerFundsManager().setFunds(finalAmount);
@@ -485,18 +431,12 @@ export class DebugManager {
             this.isHandDisplayVisible = visible;
         }
 
+        this.handDisplay.toggle(this.isHandDisplayVisible);
         if (this.isHandDisplayVisible) {
-            if (!this.debugHandDisplayElement) {
-                this.createDebugHandDisplayElement();
-            }
-            this.debugHandDisplayElement!.style.display = 'block';
             this.updateDebugHandDisplay();
             console.log("Debug hand display shown.");
         } else {
-            if (this.debugHandDisplayElement) {
-                this.debugHandDisplayElement.style.display = 'none';
-                console.log("Debug hand display hidden.");
-            }
+            console.log("Debug hand display hidden.");
         }
     }
 
@@ -506,722 +446,34 @@ export class DebugManager {
         } else {
             this.isDebugMenuVisible = visible;
         }
-
+        
+        this.debugMenu.toggle(this.isDebugMenuVisible);
         if (this.isDebugMenuVisible) {
-            if (!this.debugMenuElement) {
-                this.createDebugMenuElement();
-            }
-            this.debugMenuElement!.style.display = 'block';
             console.log("Debug menu shown.");
         } else {
-            if (this.debugMenuElement) {
-                this.debugMenuElement.style.display = 'none';
-                console.log("Debug menu hidden.");
-            }
-            this.closeOpenSubMenuAndCleanup(true); // Close any open submenus when main menu is hidden
+            console.log("Debug menu hidden.");
         }
-        // Save debug menu visibility state
         localStorage.setItem(DebugManager.DEBUG_MENU_VISIBLE_KEY, JSON.stringify(this.isDebugMenuVisible));
     }
 
 
     private recordHandHistory(): void {
-        const playerHandsInfo = this.blackjackGame.getPlayerHands();
-        const dealerHandCards = this.blackjackGame.getDealerHand();
-
-        if (playerHandsInfo.length > 0 || dealerHandCards.length > 0) {
-            // Deep clone player hands for history
-            const clonedPlayerHands = playerHandsInfo.map(hand => ({
-                ...hand,
-                cards: [...hand.cards] // Shallow clone cards within hand
-            }));
-            this.handHistory.unshift({
-                playerHands: clonedPlayerHands,
-                dealer: [...dealerHandCards] // Shallow clone dealer cards
-            });
-
-            if (this.handHistory.length > this.MAX_HISTORY_ENTRIES) {
-                this.handHistory.pop();
-            }
-            console.log(`[DebugManager] Hand history recorded. Entries: ${this.handHistory.length}`);
-        }
+        this.handDisplay.recordHandHistory(
+            this.blackjackGame.getPlayerHands(),
+            this.blackjackGame.getDealerHand()
+        );
+        console.log(`[DebugManager] Hand history recorded.`);
     }
-
-    private injectGlobalStyles(): void {
-        if (!document.getElementById('blackjack-debug-styles')) {
-            const styleSheet = document.createElement("style");
-            styleSheet.id = "blackjack-debug-styles";
-            styleSheet.innerText = `
-                .debug-window-base {
-                    position: absolute;
-                    width: auto;
-                    min-width: 250px;
-                    max-width: 400px;
-                    max-height: 500px;
-                    overflow-y: auto;
-                    overflow-x: hidden;
-                    border: 2px solid blue;
-                    background-color: rgba(220, 220, 255, 0.9);
-                    padding: 10px;
-                    z-index: 1002;
-                    cursor: move;
-                    font-family: Arial, sans-serif;
-                    font-size: 14px;
-                    color: #333;
-                    border-radius: 5px;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-                }
-                .debug-card-container {
-                    position: relative;
-                    width: 60px;
-                    height: 84px;
-                    display: inline-block;
-                }
-                .debug-card-container playing-card {
-                    width: 100%;
-                    height: 100%;
-                    border-radius: 3px;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-                }
-                .debug-card-indicator {
-                    position: absolute;
-                    top: 2px;
-                    right: 2px;
-                    width: 18px;
-                    height: 18px;
-                    background-color: rgba(0, 0, 0, 0.6);
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 12px;
-                    font-family: 'Segoe UI Symbol', sans-serif;
-                    pointer-events: none;
-                    line-height: 1;
-                }
-                @keyframes green-flash {
-                    from { box-shadow: 0 0 8px 3px limegreen; }
-                    to { box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
-                }
-                .card-dealt {
-                    animation: green-flash 0.5s ease-out;
-                }
-                @keyframes red-flash-and-fade {
-                    0% { box-shadow: 0 0 8px 3px tomato; opacity: 1; }
-                    70% { box-shadow: none; opacity: 1; }
-                    100% { opacity: 0; transform: scale(0.9); }
-                }
-                .card-discarded .debug-card-container {
-                    animation: red-flash-and-fade 0.5s ease-out forwards;
-                }
-                .debug-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 8px;
-                    padding-bottom: 5px;
-                    border-bottom: 1px solid #aaa;
-                }
-                .debug-header-title {
-                    font-weight: bold;
-                    font-size: 16px;
-                }
-                .debug-header-nav button {
-                    padding: 2px 6px;
-                    margin-left: 5px;
-                    cursor: pointer;
-                    border: 1px solid #555;
-                    background-color: #eee;
-                    border-radius: 3px;
-                }
-                .debug-header-nav button:hover {
-                    background-color: #ddd;
-                }
-                .debug-close-button {
-                    padding: 0;
-                    width: 22px;
-                    height: 22px;
-                    border-radius: 50%;
-                    background-color: #f06060;
-                    color: white;
-                    border: 1px solid #d04040;
-                    font-size: 14px;
-                    line-height: 20px;
-                    text-align: center;
-                    cursor: pointer;
-                    font-weight: bold;
-                    flex-shrink: 0;
-                }
-                .debug-close-button:hover {
-                    background-color: #e04040;
-                }
-                .debug-menu-button-container {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                }
-                .debug-menu-button {
-                    padding: 8px 12px;
-                    background-color: #4CAF50;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    text-align: left;
-                    font-size: 13px;
-                    width: 100%; /* Ensure all buttons have the same width */
-                    box-sizing: border-box; /* Include padding in width calculation */
-                }
-                .debug-menu-button:hover {
-                    background-color: #45a049;
-                }
-                .debug-menu-separator {
-                    height: 1px;
-                    background-color: #aaa;
-                    margin-top: 8px;
-                    margin-bottom: 8px;
-                }
-                .debug-menu-button-group {
-                    position: relative; /* For submenu positioning */
-                }
-                .debug-submenu {
-                    display: none; /* Hidden by default */
-                    position: fixed; /* Use fixed to pop out of container */
-                    background-color: #f9f9f9;
-                    min-width: 200px;
-                    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-                    z-index: 1005; /* Ensure it's above other debug elements */
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
-                    padding: 5px 0;
-                    /* left, top, right will be set dynamically */
-                }
-                .debug-submenu-button {
-                    color: black;
-                    padding: 8px 12px;
-                    text-decoration: none;
-                    display: block;
-                    text-align: left;
-                    background-color: transparent;
-                    border: none;
-                    width: 100%;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .debug-submenu-button:hover {
-                    background-color: #e0e0e0;
-                }
-                .debug-prompt-overlay {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(0,0,0,0.5);
-                    z-index: 1010; /* Above submenus */
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .debug-prompt-dialog {
-                    position: absolute; /* Added for positioning */
-                    left: 50%; /* Added for centering */
-                    top: 50%; /* Added for centering */
-                    transform: translate(-50%, -50%); /* Added for centering */
-                    background-color: #fff;
-                    padding: 20px;
-                    border-radius: 8px;
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-                    min-width: 300px;
-                    max-width: 90%;
-                    z-index: 1011;
-                    cursor: move; /* Added for draggable */
-                }
-                .debug-prompt-dialog p {
-                    margin-top: 0;
-                    margin-bottom: 15px;
-                    font-size: 16px;
-                    color: #333;
-                }
-                .debug-prompt-dialog input[type="number"] {
-                    width: calc(100% - 22px); /* Account for padding/border */
-                    padding: 10px;
-                    margin-bottom: 20px;
-                    border: 1px solid #ccc;
-                    border-radius: 4px;
-                    font-size: 16px;
-                }
-                .debug-prompt-buttons {
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: 10px;
-                }
-                .debug-prompt-buttons button {
-                    padding: 10px 15px;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: bold;
-                }
-                .debug-prompt-confirm {
-                    background-color: #4CAF50;
-                    color: white;
-                }
-                .debug-prompt-confirm:hover {
-                    background-color: #45a049;
-                }
-                .debug-prompt-cancel {
-                    background-color: #f44336;
-                    color: white;
-                }
-                .debug-prompt-cancel:hover {
-                    background-color: #d32f2f;
-                }
-                .debug-player-hand-section { /* Style for each player hand block */
-                    border: 1px solid #777;
-                    padding: 5px;
-                    margin-bottom: 10px;
-                    border-radius: 4px;
-                    background-color: rgba(230,230,250,0.5); /* Light lavender */
-                }
-                .debug-player-hand-section.active-hand {
-                     border-color: limegreen;
-                     box-shadow: 0 0 5px limegreen;
-                }
-
-            `;
-            document.head.appendChild(styleSheet);
-        }
-    }
-
-    private makeDraggable(element: HTMLElement): void {
-        element.onmousedown = (e) => {
-            if ((e.target as HTMLElement).closest('button, input, select, textarea')) {
-                return;
-            }
-
-            // If dragging the main debug menu, close any open submenu
-            if (element === this.debugMenuElement && this.openSubMenu) {
-                this.closeOpenSubMenuAndCleanup(true);
-            }
-
-            this.isDragging = true;
-            this.draggedElement = element;
-
-            const computedStyle = getComputedStyle(element);
-            let finalEffectiveLeft = element.offsetLeft;
-            let finalEffectiveTop = element.offsetTop;
-
-            // If element was centered using transform, convert to explicit L/T for dragging
-            if (computedStyle.transform !== 'none' && computedStyle.transform !== '') {
-                const rect = element.getBoundingClientRect();
-                // Assuming the element's offset parent is effectively the viewport origin
-                // (e.g., child of a full-screen fixed overlay like .debug-prompt-overlay)
-                // or the element itself is fixed.
-                // For the dialog, its parent overlay is fixed at (0,0), so rect.left/top are correct.
-                element.style.left = `${rect.left}px`;
-                element.style.top = `${rect.top}px`;
-                element.style.transform = 'none'; // Remove transform, subsequent drags won't re-enter
-
-                finalEffectiveLeft = rect.left;
-                finalEffectiveTop = rect.top;
-            }
-
-            // Ensure the element is positioned (not static) so style.left/top will work.
-            if (computedStyle.position === 'static') {
-                // Draggable elements are typically 'absolute', 'relative', or 'fixed'.
-                // Setting to 'relative' is a fallback if it was 'static'.
-                // The .debug-prompt-dialog is set to 'absolute' via CSS, so this won't apply to it.
-                element.style.position = 'relative';
-            }
-
-            this.dragOffsetX = e.clientX - finalEffectiveLeft;
-            this.dragOffsetY = e.clientY - finalEffectiveTop;
-
-            document.onmousemove = this.dragElement.bind(this);
-            document.onmouseup = this.stopDragElement.bind(this);
-            e.preventDefault();
-        };
-    }
-
-
-    private createDebugHandDisplayElement(): void {
-        this.injectGlobalStyles();
-
-        this.debugHandDisplayElement = document.createElement("div");
-        this.debugHandDisplayElement.id = "blackjack-debug-hand-display";
-        this.debugHandDisplayElement.classList.add("debug-window-base");
-        this.debugHandDisplayElement.style.left = '10px';
-        this.debugHandDisplayElement.style.top = '10px';
-        document.body.appendChild(this.debugHandDisplayElement);
-
-        this.makeDraggable(this.debugHandDisplayElement);
-    }
-
-    private createDebugMenuElement(): void {
-        this.injectGlobalStyles();
-
-        this.debugMenuElement = document.createElement("div");
-        this.debugMenuElement.id = "blackjack-debug-menu";
-        this.debugMenuElement.classList.add("debug-window-base");
-        this.debugMenuElement.style.left = 'calc(100vw - 270px)';
-        this.debugMenuElement.style.top = '10px';
-        this.debugMenuElement.style.minWidth = '220px';
-        this.debugMenuElement.style.maxWidth = '280px';
-
-
-        const header = document.createElement('div');
-        header.className = 'debug-header';
-
-        const title = document.createElement('span');
-        title.className = 'debug-header-title';
-        title.textContent = 'Debug Menu';
-
-        const closeButton = document.createElement('button');
-        closeButton.className = 'debug-close-button';
-        closeButton.innerHTML = '&#x2715;';
-        closeButton.title = 'Close Debug Menu';
-        closeButton.onclick = (e) => {
-            e.stopPropagation();
-            this.toggleDebugMenu(false);
-        };
-
-        header.appendChild(title);
-        header.appendChild(closeButton);
-        this.debugMenuElement.appendChild(header);
-
-        const content = document.createElement('div');
-        content.className = 'debug-menu-button-container';
-
-        const createButton = (text: string, action: () => void) => {
-            const button = document.createElement('button');
-            button.className = 'debug-menu-button';
-            button.textContent = text;
-            button.onclick = (e) => {
-                e.stopPropagation();
-                action();
-            };
-            content.appendChild(button);
-        };
-
-        const createSeparator = () => {
-            const separator = document.createElement('div');
-            separator.className = 'debug-menu-separator';
-            content.appendChild(separator);
-        };
-
-        // --- Scenario Starters ---
-        this.createDropdownButton('Start Scenario ▸', [
-            { text: 'Start Hand (Normal)', action: () => this.debugStartNormalHand(), accessKey: 'N' },
-            { text: 'Start Split Hand Pair', action: () => this.debugStartSplitHand(), accessKey: 'S' },
-            { text: 'Start Insurance Hand', action: () => this.debugStartInsuranceHand(), accessKey: 'I' }
-        ], content, false); // Changed true to false
-
-        createSeparator();
-
-        // --- Game Control ---
-        createButton('Toggle Card Debug Window', () => this.toggleHandDisplay());
-        createButton('Reveal Dealer Hole Card', () => this.revealDealerHole());
-        createButton('Force Reshuffle Deck', () => this.forceReshuffle());
-        createButton('Reset Game', () => {
-            this.resetGame();
-            // Note: Debug menu visibility persists due to localStorage
-        });
-
-        createSeparator();
-
-        // --- Funds Control ---
-        this.createDropdownButton('Manage Funds ▸', [
-            { text: 'Set Player Funds...', action: () => this.setFunds(), accessKey: 'F' },
-            { text: 'Reset Player Bank', action: () => this.resetFunds(), accessKey: 'R' }
-        ], content, false); // Changed true to false
-
-        createSeparator();
-
-        // --- Outcome Control ---
-        this.createDropdownButton('Force Outcome ▸', [
-            { text: 'Force Player Win (Active Hand)', action: () => this.forceWin(true), accessKey: 'P' },
-            { text: 'Force Dealer Win (Active Hand)', action: () => this.forceWin(false), accessKey: 'D' },
-            { text: 'Force Push (Active Hand)', action: () => this.forcePush(), accessKey: 'U' }
-        ], content, false); // Changed true to false
-
-
-        this.debugMenuElement.appendChild(content);
-        document.body.appendChild(this.debugMenuElement);
-        this.makeDraggable(this.debugMenuElement);
-    }
-
-
-    private dragElement(e: MouseEvent): void {
-        if (this.isDragging && this.draggedElement) {
-            e.preventDefault();
-            let newLeft = e.clientX - this.dragOffsetX;
-            let newTop = e.clientY - this.dragOffsetY;
-
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            const elWidth = this.draggedElement.offsetWidth;
-            const elHeight = this.draggedElement.offsetHeight;
-
-            newLeft = Math.max(0, Math.min(newLeft, viewportWidth - elWidth));
-            newTop = Math.max(0, Math.min(newTop, viewportHeight - elHeight));
-
-            this.draggedElement.style.left = newLeft + 'px';
-            this.draggedElement.style.top = newTop + 'px';
-        }
-    }
-
-    private stopDragElement(): void {
-        if (this.isDragging) {
-            this.isDragging = false;
-            this.draggedElement = null;
-            document.onmousemove = null;
-            document.onmouseup = null;
-        }
-    }
-
-    private createCardElement(card: Card, isNew: boolean): HTMLElement {
-        const container = document.createElement('div');
-        container.className = 'debug-card-container';
-
-        const cardEl = document.createElement('playing-card');
-        cardEl.setAttribute('cid', card.getCid());
-
-        if (isNew) {
-            cardEl.classList.add('card-dealt');
-            setTimeout(() => cardEl.classList.remove('card-dealt'), 500);
-        }
-
-        container.appendChild(cardEl);
-
-        const indicator = document.createElement('span');
-        indicator.className = 'debug-card-indicator';
-        if (card.isFaceUp()) {
-            indicator.innerHTML = `👁️`;
-        } else {
-            indicator.innerHTML = `❓`;
-            indicator.style.color = '#aaa';
-        }
-        container.appendChild(indicator);
-
-        return container;
-    }
-
-    // *** ADDED METHOD ***
-    private renderHandInContainer(
-        title: string,
-        currentHand: Card[],
-        lastHand: Card[],
-        isHistoryView: boolean,
-        parentElement: HTMLElement
-    ): void {
-        const section = document.createElement('div');
-        // No special class for dealer hand section
-
-        const headerEl = document.createElement('h4');
-        let headerText = title;
-        if (currentHand) {
-            const score = ScoreCalculator.calculateHandValue(currentHand);
-            headerText += ` (Score: ${score})`;
-        }
-        headerEl.textContent = headerText;
-        headerEl.style.margin = '10px 0 5px 0';
-        headerEl.style.borderBottom = '1px solid #999';
-        headerEl.style.paddingBottom = '3px';
-        section.appendChild(headerEl);
-
-        const container = document.createElement('div');
-        container.style.display = 'flex';
-        container.style.flexWrap = 'wrap';
-        container.style.gap = '5px';
-        section.appendChild(container);
-        parentElement.appendChild(section);
-
-        const currentCardIds = new Set(currentHand.map(c => c.getUniqueId()));
-        const lastCardIds = new Set(lastHand.map(c => c.getUniqueId()));
-
-        if (!isHistoryView) {
-            [...lastHand].reverse().forEach(card => {
-                if (!currentCardIds.has(card.getUniqueId())) {
-                    const discardedEl = this.createCardElement(card, false);
-                    discardedEl.classList.add('card-discarded');
-                    container.appendChild(discardedEl);
-                    setTimeout(() => discardedEl.remove(), 500);
-                }
-            });
-        }
-
-        [...currentHand].reverse().forEach(card => {
-            const isNew = !isHistoryView && !lastCardIds.has(card.getUniqueId());
-            container.appendChild(this.createCardElement(card, isNew));
-        });
-
-        if (currentHand.length === 0 && (isHistoryView || lastHand.length === 0)) {
-            container.textContent = 'No cards';
-        }
-    }
-
-    private renderPlayerHandInContainer(
-        playerHandInfo: PlayerHandInfo,
-        lastPlayerHandInfo: PlayerHandInfo | undefined,
-        isHistoryView: boolean,
-        parentElement: HTMLElement,
-        handIndex: number
-    ): void {
-        const section = document.createElement('div');
-        section.className = 'debug-player-hand-section';
-        if (!isHistoryView && handIndex === this.blackjackGame.getActivePlayerHandIndex()) {
-            section.classList.add('active-hand');
-        }
-
-        const headerEl = document.createElement('h4');
-        let title = `Player Hand ${handIndex}`;
-        if (playerHandInfo) {
-            const score = ScoreCalculator.calculateHandValue(playerHandInfo.cards);
-            title += ` (Bet: ${playerHandInfo.bet}, Score: ${score}, Result: ${GameResult[playerHandInfo.result]}, Resolved: ${playerHandInfo.isResolved})`;
-        }
-        headerEl.textContent = title;
-        headerEl.style.margin = '10px 0 5px 0';
-        headerEl.style.borderBottom = '1px solid #999';
-        headerEl.style.paddingBottom = '3px';
-        section.appendChild(headerEl);
-
-        const container = document.createElement('div');
-        container.style.display = 'flex';
-        container.style.flexWrap = 'wrap';
-        container.style.gap = '5px';
-        section.appendChild(container);
-        parentElement.appendChild(section);
-
-        const currentCards = playerHandInfo.cards;
-        const lastCards = lastPlayerHandInfo ? lastPlayerHandInfo.cards : [];
-        const currentCardIds = new Set(currentCards.map(c => c.getUniqueId()));
-        const lastCardIds = new Set(lastCards.map(c => c.getUniqueId()));
-
-        if (!isHistoryView) {
-            [...lastCards].reverse().forEach(card => {
-                if (!currentCardIds.has(card.getUniqueId())) {
-                    const discardedEl = this.createCardElement(card, false);
-                    discardedEl.classList.add('card-discarded');
-                    container.appendChild(discardedEl);
-                    setTimeout(() => discardedEl.remove(), 500);
-                }
-            });
-        }
-
-        [...currentCards].reverse().forEach(card => {
-            const isNew = !isHistoryView && !lastCardIds.has(card.getUniqueId());
-            container.appendChild(this.createCardElement(card, isNew));
-        });
-
-        if (currentCards.length === 0 && (isHistoryView || lastCards.length === 0)) {
-            container.textContent = 'No cards';
-        }
-    }
-
 
     public updateDebugHandDisplay(): void {
-        if (!this.isHandDisplayVisible || !this.debugHandDisplayElement) {
-            return;
-        }
-
-        const isHistoryView = this.historyIndex > -1;
-        let playerHands: PlayerHandInfo[];
-        let dealerHand: Card[];
-        let titleText: string;
-
-        if (isHistoryView) {
-            const historicalState = this.handHistory[this.historyIndex];
-            playerHands = historicalState.playerHands;
-            dealerHand = historicalState.dealer;
-            titleText = `History (${this.historyIndex + 1}/${this.handHistory.length})`;
-        } else {
-            playerHands = this.blackjackGame.getPlayerHands();
-            dealerHand = this.blackjackGame.getDealerHand();
-            titleText = "Current Hands";
-        }
-
-        this.debugHandDisplayElement.innerHTML = ''; // Clear previous content
-
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'debug-header';
-
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'debug-header-title';
-        titleSpan.textContent = titleText;
-
-        const rightControls = document.createElement('div');
-        rightControls.style.display = 'flex';
-        rightControls.style.alignItems = 'center';
-
-        const navContainer = document.createElement('div');
-        navContainer.className = 'debug-header-nav';
-
-        if (isHistoryView) {
-            const homeButton = document.createElement('button');
-            homeButton.innerHTML = '🏠&nbsp;Current';
-            homeButton.onclick = () => { this.historyIndex = -1; this.updateDebugHandDisplay(); };
-            navContainer.appendChild(homeButton);
-        }
-        if (this.historyIndex > -1) { // Next button (older history)
-            const nextButton = document.createElement('button');
-            nextButton.textContent = 'Next →';
-            nextButton.disabled = this.historyIndex === 0;
-            nextButton.onclick = () => { if (this.historyIndex > 0) this.historyIndex--; this.updateDebugHandDisplay(); };
-            navContainer.appendChild(nextButton);
-        }
-        if (this.historyIndex < this.handHistory.length - 1) { // Prev button (newer history)
-            const prevButton = document.createElement('button');
-            prevButton.textContent = '← Prev';
-            prevButton.disabled = this.historyIndex === this.handHistory.length - 1 && this.historyIndex !== -1;
-            prevButton.onclick = () => { if (this.historyIndex < this.handHistory.length - 1) this.historyIndex++; this.updateDebugHandDisplay(); };
-            navContainer.appendChild(prevButton);
-        }
-        if (this.handHistory.length > 0 && this.historyIndex === -1) { // Prev button from current to newest history
-            const prevButton = document.createElement('button');
-            prevButton.textContent = '← Prev';
-            prevButton.onclick = () => { this.historyIndex = 0; this.updateDebugHandDisplay(); };
-            navContainer.appendChild(prevButton);
-        }
-
-
-        const closeButton = document.createElement('button');
-        closeButton.className = 'debug-close-button';
-        closeButton.innerHTML = '&#x2715;';
-        closeButton.title = 'Close Card Debug Window';
-        closeButton.onclick = (e) => { e.stopPropagation(); this.toggleHandDisplay(false); };
-        closeButton.style.marginLeft = '10px';
-
-        rightControls.appendChild(navContainer);
-        rightControls.appendChild(closeButton);
-        headerDiv.appendChild(titleSpan);
-        headerDiv.appendChild(rightControls);
-        this.debugHandDisplayElement.appendChild(headerDiv);
-
-        // Render Dealer Hand
-        const dealerSection = document.createElement('div');
-        this.renderHandInContainer('Dealer', dealerHand, this.lastDealerHand, isHistoryView, dealerSection);
-        this.debugHandDisplayElement.appendChild(dealerSection);
-
-
-        // Render Player Hands
-        playerHands.forEach((pHandInfo, index) => {
-            const lastPHandInfo = !isHistoryView ? this.lastPlayerHands.find(h => h.id === pHandInfo.id) : undefined;
-            this.renderPlayerHandInContainer(pHandInfo, lastPHandInfo, isHistoryView, this.debugHandDisplayElement!, index);
-        });
-
-
-        if (!isHistoryView) {
-            // Deep clone for last state
-            this.lastPlayerHands = playerHands.map(h => ({ ...h, cards: [...h.cards] }));
-            this.lastDealerHand = [...dealerHand];
+        if (this.isHandDisplayVisible) {
+            this.handDisplay.update();
         }
     }
 
     // --- Debug Menu Button Actions ---
 
-    private debugStartNormalHand(): void {
+    public debugStartNormalHand(): void {
         console.log("DEBUG: Starting Normal Hand");
         this.resetGame();
         const success = this.blackjackGame.startNewGame(Constants.MIN_BET);
@@ -1230,7 +482,7 @@ export class DebugManager {
         }
     }
 
-    private debugStartSplitHand(): void {
+    public debugStartSplitHand(): void {
         console.log("DEBUG: Starting Split Hand Scenario");
         this.resetGame();
 
@@ -1281,7 +533,7 @@ export class DebugManager {
         console.log("DEBUG: Split hand scenario set up. Player has a pair. Try splitting.");
     }
 
-    private debugStartInsuranceHand(): void {
+    public debugStartInsuranceHand(): void {
         console.log("DEBUG: Starting Insurance Hand");
         this.resetGame();
         const initialBet = Constants.MIN_BET;
@@ -1440,464 +692,16 @@ export class DebugManager {
 
 
     public dispose(): void {
-        if (this.debugHandDisplayElement) {
-            this.debugHandDisplayElement.remove();
-            this.debugHandDisplayElement = null;
-        }
-        if (this.debugMenuElement) {
-            this.debugMenuElement.remove();
-            this.debugMenuElement = null;
-        }
-        if (this.activeCustomPromptElement) {
-            this.closeCustomPrompt(true); // Pass true to indicate cancellation
-        }
-        // Ensure any open submenu is removed from the body and listener is cleaned up
-        this.closeOpenSubMenuAndCleanup(true);
-
-        const styleSheet = document.getElementById('blackjack-debug-styles');
+        this.handDisplay?.dispose();
+        this.debugMenu?.dispose();
+        
+        const styleSheet = document.getElementById('blackjack-dialog-styles');
         if (styleSheet) {
             styleSheet.remove();
         }
-        document.removeEventListener('click', this.handleGlobalClick, true);
+        
         if ((window as any).debug === this) {
             (window as any).debug = undefined;
-        }
-    }
-
-    // --- Sub-menu helper and global click handler ---
-    private handleGlobalClick = (event: MouseEvent): void => {
-        // If a custom prompt is active, don't close submenus.
-        // The prompt overlay should handle its own dismissal or prevent clicks from passing.
-        if (this.activeCustomPromptElement) {
-            // Check if the click was on the overlay itself to close the prompt
-            if (event.target === this.activeCustomPromptElement) { // activeCustomPromptElement is the overlay
-                this.closeCustomPrompt(true); // true for cancel
-            }
-            return;
-        }
-
-        if (this.openSubMenu) {
-            const target = event.target as HTMLElement;
-
-            // Do not close if the click is on the button that triggered the current submenu
-            if (this.activeSubMenuTrigger && this.activeSubMenuTrigger.contains(target)) {
-                return;
-            }
-            // Do not close if the click is inside the currently open submenu
-            if (this.openSubMenu.contains(target)) {
-                return;
-            }
-
-            // Click is outside, close the submenu
-            this.closeOpenSubMenuAndCleanup(true);
-        }
-    };
-
-    private formatTextWithAccessKey(text: string, accessKey?: string): string {
-        if (!accessKey || accessKey.length !== 1) {
-            return text;
-        }
-        const keyIndex = text.toLowerCase().indexOf(accessKey.toLowerCase());
-        if (keyIndex === -1) {
-            return text;
-        }
-        return `${text.substring(0, keyIndex)}<u>${text.substring(keyIndex, keyIndex + 1)}</u>${text.substring(keyIndex + 1)}`;
-    }
-
-
-    private closeOpenSubMenuAndCleanup(removeFromDom: boolean): void {
-        this.clearHoverTimers(); // Clear any pending hover actions
-        if (this.openSubMenu) {
-            document.removeEventListener('keydown', this.boundHandleSubMenuAccessKeys);
-            if (removeFromDom && this.openSubMenu.parentNode === document.body) {
-                document.body.removeChild(this.openSubMenu);
-            }
-            // Ensure style.display is 'none' even if not removed from DOM,
-            // as it might be reused if its parent button is clicked again.
-            this.openSubMenu.style.display = 'none';
-            this.openSubMenu = null;
-            this.activeSubMenuTrigger = null;
-        }
-    }
-
-    private handleSubMenuAccessKeys(event: KeyboardEvent): void {
-        if (!this.openSubMenu) { // Should not happen if listener is correctly managed, but good check
-            return;
-        }
-
-        this.clearHoverTimers(); // User is interacting, clear hover timers
-
-        if (event.key === 'Escape') {
-            event.preventDefault();
-            event.stopPropagation();
-            const triggerToFocus = this.activeSubMenuTrigger;
-            this.closeOpenSubMenuAndCleanup(true);
-            triggerToFocus?.focus();
-            return;
-        }
-
-        if (event.key === 'Tab') {
-            event.preventDefault();
-            event.stopPropagation();
-
-            const focusableItems = Array.from(this.openSubMenu.querySelectorAll('.debug-submenu-button')) as HTMLElement[];
-            if (focusableItems.length === 0) return;
-
-            let currentIndex = focusableItems.indexOf(document.activeElement as HTMLElement);
-
-            if (event.shiftKey) {
-                currentIndex = (currentIndex - 1 + focusableItems.length) % focusableItems.length;
-            } else {
-                currentIndex = (currentIndex + 1) % focusableItems.length;
-            }
-            focusableItems[currentIndex]?.focus();
-            return;
-        }
-
-
-        if (event.altKey || event.ctrlKey || event.metaKey) {
-            return;
-        }
-
-        const pressedKey = event.key.toLowerCase();
-        for (const child of Array.from(this.openSubMenu.children)) {
-            const button = child as HTMLElement;
-            if (button.dataset.accessKey === pressedKey) {
-                event.preventDefault();
-                event.stopPropagation();
-                button.click(); // This will trigger the action and close the submenu
-                return;
-            }
-        }
-    }
-
-    private clearHoverTimers(): void {
-        if (this.hoverOpenTimer) {
-            clearTimeout(this.hoverOpenTimer);
-            this.hoverOpenTimer = null;
-        }
-        if (this.hoverCloseTimer) {
-            clearTimeout(this.hoverCloseTimer);
-            this.hoverCloseTimer = null;
-        }
-    }
-
-    private openSubMenuLogic(subMenu: HTMLElement, triggerButton: HTMLElement, openLeft: boolean): void {
-        this.clearHoverTimers();
-
-        // If the requested submenu is already open, do nothing.
-        if (this.openSubMenu === subMenu && subMenu.style.display === 'block') {
-            return;
-        }
-
-        // Close any other currently open submenu
-        if (this.openSubMenu && this.openSubMenu !== subMenu) {
-            this.closeOpenSubMenuAndCleanup(true);
-        }
-
-        if (subMenu.parentNode !== document.body) {
-            document.body.appendChild(subMenu); // Append to body to avoid clipping and for fixed positioning
-        }
-
-        subMenu.style.visibility = 'hidden'; // Hide for measurement
-        subMenu.style.display = 'block';
-
-        const rect = triggerButton.getBoundingClientRect();
-        const subMenuWidth = subMenu.offsetWidth;
-        const subMenuHeight = subMenu.offsetHeight;
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        let top, left; 
-
-        // Vertical positioning: Align submenu top with button top, adjust if off-screen.
-        top = rect.top; // Preferred: align submenu top with button top
-
-        // If submenu overflows the bottom of the viewport
-        if (top + subMenuHeight > viewportHeight) {
-            // Align submenu bottom with viewport bottom
-            top = viewportHeight - subMenuHeight;
-        }
-        // Ensure submenu doesn't go off the top of the viewport
-        top = Math.max(0, top);
-        
-        subMenu.style.top = `${top}px`;
-
-        // Horizontal positioning
-        if (openLeft) {
-            // Try to open to the left of the trigger
-            if (rect.left - subMenuWidth >= 0) {
-                left = rect.left - subMenuWidth;
-                subMenu.style.left = `${left}px`;
-                subMenu.style.right = 'auto';
-            } else { // Not enough space to the left, try to open to the right (fallback)
-                left = rect.right;
-                if (left + subMenuWidth <= viewportWidth) {
-                    subMenu.style.left = `${left}px`;
-                    subMenu.style.right = 'auto';
-                } else { // Still not enough space, align to right edge of viewport as last resort
-                    subMenu.style.right = `0px`;
-                    subMenu.style.left = 'auto';
-                }
-            }
-        } else { // Open right (default behavior now)
-            // Try to open to the right of the trigger
-            if (rect.right + subMenuWidth <= viewportWidth) {
-                left = rect.right;
-                subMenu.style.left = `${left}px`;
-                subMenu.style.right = 'auto';
-            } else { // Not enough space to the right, try to open to the left (fallback)
-                left = rect.left - subMenuWidth;
-                if (left >= 0) {
-                    subMenu.style.left = `${left}px`;
-                    subMenu.style.right = 'auto';
-                } else { // Still not enough space, align to left edge of viewport as last resort
-                    subMenu.style.left = `0px`;
-                    subMenu.style.right = 'auto';
-                }
-            }
-        }
-        
-        subMenu.style.position = 'fixed'; // Ensure it's fixed for viewport-relative positioning
-        subMenu.style.visibility = 'visible'; // Show after positioning
-
-        this.openSubMenu = subMenu;
-        this.activeSubMenuTrigger = triggerButton;
-        document.addEventListener('keydown', this.boundHandleSubMenuAccessKeys);
-
-        // If the trigger button is the currently focused element, it implies keyboard activation.
-        // In this case, move focus to the first item in the submenu.
-        if (document.activeElement === triggerButton) {
-            const firstItem = subMenu.querySelector('.debug-submenu-button') as HTMLElement;
-            firstItem?.focus();
-        }
-    }
-
-
-    private createDropdownButton(
-        mainButtonText: string,
-        items: { text: string, action: () => void, accessKey?: string }[],
-        parentContainer: HTMLElement,
-        openLeft: boolean = false // Default openLeft to false
-    ): void {
-        const group = document.createElement('div');
-        group.className = 'debug-menu-button-group';
-
-        const mainButton = document.createElement('button');
-        mainButton.className = 'debug-menu-button';
-        mainButton.textContent = mainButtonText;
-
-        const subMenu = document.createElement('div');
-        subMenu.className = 'debug-submenu';
-        // subMenu.style.top and left/right will be set on show by openSubMenuLogic
-
-        items.forEach(item => {
-            const subButton = document.createElement('button');
-            subButton.className = 'debug-submenu-button';
-            subButton.innerHTML = this.formatTextWithAccessKey(item.text, item.accessKey);
-            if (item.accessKey) {
-                subButton.dataset.accessKey = item.accessKey.toLowerCase();
-            }
-
-            subButton.onclick = (e) => {
-                e.stopPropagation(); // Prevent global click handler from closing immediately
-                this.clearHoverTimers();
-                item.action();
-                this.closeOpenSubMenuAndCleanup(true); // Action performed, close menu
-            };
-            subMenu.appendChild(subButton);
-        });
-
-        mainButton.onclick = (e) => {
-            e.stopPropagation(); // Prevent global click handler
-            this.clearHoverTimers();
-
-            if (this.openSubMenu === subMenu) {
-                this.closeOpenSubMenuAndCleanup(true);
-            } else {
-                this.openSubMenuLogic(subMenu, mainButton, openLeft);
-            }
-        };
-
-        mainButton.onmouseenter = () => {
-            this.clearHoverTimers();
-            this.hoverOpenTimer = window.setTimeout(() => {
-                this.openSubMenuLogic(subMenu, mainButton, openLeft);
-            }, this.HOVER_OPEN_DELAY);
-        };
-
-        mainButton.onmouseleave = () => {
-            this.clearHoverTimers();
-            this.hoverCloseTimer = window.setTimeout(() => {
-                // Only close if the mouse hasn't entered the submenu itself
-                if (this.openSubMenu === subMenu && !subMenu.matches(':hover')) {
-                    this.closeOpenSubMenuAndCleanup(true);
-                }
-            }, this.HOVER_CLOSE_DELAY);
-        };
-
-        subMenu.onmouseenter = () => {
-            this.clearHoverTimers(); // Mouse is over the submenu, cancel any pending close
-        };
-
-        subMenu.onmouseleave = () => {
-            this.clearHoverTimers();
-            this.hoverCloseTimer = window.setTimeout(() => {
-                 if (this.openSubMenu === subMenu) {
-                    this.closeOpenSubMenuAndCleanup(true);
-                }
-            }, this.HOVER_CLOSE_DELAY);
-        };
-
-
-        group.appendChild(mainButton);
-        // subMenu is appended to document.body by openSubMenuLogic when needed
-        parentContainer.appendChild(group);
-    }
-
-    // --- Custom Prompt Methods ---
-    private showCustomPrompt(
-        message: string,
-        defaultValue: string,
-        onConfirm: (value: string | null) => void
-    ): void {
-        if (this.activeCustomPromptElement) {
-            // Close existing prompt first if any
-            this.closeCustomPrompt(true);
-        }
-
-        this.customPromptConfirmCallback = onConfirm;
-
-        const overlay = document.createElement('div');
-        overlay.className = 'debug-prompt-overlay';
-        overlay.onclick = () => this.closeCustomPrompt(true); // Close when clicking outside
-        this.activeCustomPromptElement = overlay; // The overlay is the main tracked element
-
-        const dialog = document.createElement('div');
-        dialog.className = 'debug-prompt-dialog';
-        dialog.onclick = (e) => e.stopPropagation(); // Prevent overlay click when clicking dialog
-
-        // Add dialog header with title and close button
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'debug-header';
-        headerDiv.style.marginTop = '0';
-
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'debug-header-title';
-        titleSpan.textContent = 'Set Player Funds';
-
-        const closeButton = document.createElement('button');
-        closeButton.className = 'debug-close-button';
-        closeButton.innerHTML = '&#x2715;';
-        closeButton.title = 'Cancel';
-        closeButton.onclick = (e) => {
-            e.stopPropagation();
-            this.closeCustomPrompt(true);
-        };
-
-        headerDiv.appendChild(titleSpan);
-        headerDiv.appendChild(closeButton);
-        dialog.appendChild(headerDiv);
-
-        const p = document.createElement('p');
-        p.textContent = message;
-
-        const input = document.createElement('input');
-       
-        input.type = 'number';
-        input.value = defaultValue;
-        input.onkeydown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.closeCustomPrompt(false, input.value);
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                this.closeCustomPrompt(true);
-            }
-        };
-
-        const buttonsDiv = document.createElement('div');
-        buttonsDiv.className = 'debug-prompt-buttons';
-
-        const confirmButton = document.createElement('button');
-        confirmButton.textContent = 'Confirm';
-        confirmButton.className = 'debug-prompt-confirm';
-        confirmButton.onclick = () => this.closeCustomPrompt(false, input.value);
-
-        const cancelButton = document.createElement('button');
-        cancelButton.textContent = 'Cancel';
-        cancelButton.className = 'debug-prompt-cancel';
-        cancelButton.onclick = () => this.closeCustomPrompt(true);
-
-        buttonsDiv.appendChild(cancelButton);
-        buttonsDiv.appendChild(confirmButton);
-
-        dialog.appendChild(p);
-        dialog.appendChild(input);
-        dialog.appendChild(buttonsDiv);
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-
-        // Make the dialog draggable
-        this.makeDraggable(dialog);
-
-        input.focus();
-        input.select();
-
-        // Add Escape key listener to the document
-        this.customPromptEscapeListener = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                this.closeCustomPrompt(true);
-            }
-        };
-        document.addEventListener('keydown', this.customPromptEscapeListener);
-    }
-
-    private closeCustomPrompt(isCancel: boolean, value?: string): void {
-        if (this.activeCustomPromptElement) {
-            // Remove the overlay click event to prevent memory leaks
-            if (this.activeCustomPromptElement.onclick) {
-                (this.activeCustomPromptElement as HTMLElement).onclick = null;
-            }
-
-            // Find and clean up the dialog element
-            const dialogElement = this.activeCustomPromptElement.querySelector('.debug-prompt-dialog');
-            if (dialogElement) {
-                (dialogElement as HTMLElement).onclick = null;
-
-                // Clean up header buttons if present
-                const closeButton = dialogElement.querySelector('.debug-close-button');
-                if (closeButton) {
-                    (closeButton as HTMLElement).onclick = null;
-                }
-
-                // Clean up input event handlers
-                const input = dialogElement.querySelector('input');
-                if (input) {
-                    (input as HTMLInputElement).onkeydown = null;
-                }
-
-                // Clean up button click handlers
-                const buttons = dialogElement.querySelectorAll('button');
-                buttons.forEach(button => {
-                    (button as HTMLButtonElement).onclick = null;
-                });
-            }
-
-            document.body.removeChild(this.activeCustomPromptElement);
-            this.activeCustomPromptElement = null;
-        }
-
-        // Remove escape key listener
-        if (this.customPromptEscapeListener) {
-            document.removeEventListener('keydown', this.customPromptEscapeListener);
-            this.customPromptEscapeListener = null;
-        }
-
-        // Call the callback with result
-        if (this.customPromptConfirmCallback) {
-            this.customPromptConfirmCallback(isCancel ? null : (value ?? ''));
-            this.customPromptConfirmCallback = null;
         }
     }
 }

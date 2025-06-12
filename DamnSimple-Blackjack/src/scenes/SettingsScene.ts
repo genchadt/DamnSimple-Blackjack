@@ -2,6 +2,7 @@
 import { Scene, Engine, Vector3, HemisphericLight, Color4, ArcRotateCamera } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Button, TextBlock, StackPanel, Control, Rectangle } from "@babylonjs/gui";
 import { QualityLevel, QualitySettings, UIScaleLevel, UIScaleSettings, UI_IDEAL_WIDTH, UI_IDEAL_HEIGHT } from "../Constants";
+import { ConfirmDialog } from "../ui/factories/DialogFactory";
 
 export class SettingsScene {
     private scene: Scene;
@@ -145,7 +146,7 @@ export class SettingsScene {
         resetFundsButton.background = "orange"; resetFundsButton.cornerRadius = 8;
         resetFundsButton.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
         resetFundsButton.onPointerUpObservable.add(() => {
-            this.showConfirmDialog("Are you sure you want to reset your funds to the default amount?", onResetFunds);
+            ConfirmDialog.show(this.guiTexture, "Are you sure you want to reset your funds to the default amount?", onResetFunds);
         });
         panel.addControl(resetFundsButton);
 
@@ -202,68 +203,6 @@ export class SettingsScene {
         const spacer = new Control();
         spacer.height = height;
         parent.addControl(spacer);
-    }
-    private showConfirmDialog(message: string, onConfirm: () => void): void {
-        const dialogContainer = new Rectangle("confirmDialogContainer");
-        dialogContainer.width = 1.0;
-        dialogContainer.height = 1.0;
-        dialogContainer.background = "rgba(0, 0, 0, 0.7)";
-        dialogContainer.zIndex = 100;
-        this.guiTexture.addControl(dialogContainer);
-
-        const dialogPanelContainer = new Rectangle("confirmDialogPanelContainer");
-        dialogPanelContainer.width = "400px";
-        dialogPanelContainer.adaptHeightToChildren = true;
-        dialogPanelContainer.background = "#444444";
-        dialogPanelContainer.cornerRadius = 10;
-        dialogPanelContainer.thickness = 1;
-        dialogPanelContainer.color = "#666";
-        dialogPanelContainer.verticalAlignment = Control.VERTICAL_ALIGNMENT_CENTER;
-        dialogContainer.addControl(dialogPanelContainer);
-
-        const dialogPanel = new StackPanel("confirmDialogPanel");
-        dialogPanel.paddingTop = "20px";
-        dialogPanel.paddingBottom = "20px";
-        dialogPanel.paddingLeft = "15px";
-        dialogPanel.paddingRight = "15px";
-        dialogPanelContainer.addControl(dialogPanel);
-
-        const dialogText = new TextBlock("confirmText", message);
-        dialogText.color = "white";
-        dialogText.fontSize = 18;
-        dialogText.height = "80px";
-        dialogText.textWrapping = true;
-        dialogPanel.addControl(dialogText);
-
-        const buttonsPanel = new StackPanel("confirmButtonsPanel");
-        buttonsPanel.isVertical = false;
-        buttonsPanel.height = "50px";
-        buttonsPanel.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_CENTER;
-        buttonsPanel.spacing = 20;
-        dialogPanel.addControl(buttonsPanel);
-
-        const yesButton = Button.CreateSimpleButton("yesButton", "Yes");
-        yesButton.width = "100px";
-        yesButton.height = "40px";
-        yesButton.color = "white";
-        yesButton.background = "darkred";
-        yesButton.cornerRadius = 5;
-        yesButton.onPointerUpObservable.add(() => {
-            onConfirm();
-            this.guiTexture.removeControl(dialogContainer);
-        });
-        buttonsPanel.addControl(yesButton);
-
-        const noButton = Button.CreateSimpleButton("noButton", "No");
-        noButton.width = "100px";
-        noButton.height = "40px";
-        noButton.color = "white";
-        noButton.background = "#555555";
-        noButton.cornerRadius = 5;
-        noButton.onPointerUpObservable.add(() => {
-            this.guiTexture.removeControl(dialogContainer);
-        });
-        buttonsPanel.addControl(noButton);
     }
 
     public getScene(): Scene { return this.scene; }
