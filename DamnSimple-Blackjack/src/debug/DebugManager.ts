@@ -916,7 +916,7 @@ export class DebugManager {
             { text: 'Start Hand (Normal)', action: () => this.debugStartNormalHand(), accessKey: 'N' },
             { text: 'Start Split Hand Pair', action: () => this.debugStartSplitHand(), accessKey: 'S' },
             { text: 'Start Insurance Hand', action: () => this.debugStartInsuranceHand(), accessKey: 'I' }
-        ], content, true); // true for openLeft
+        ], content, false); // Changed true to false
 
         createSeparator();
 
@@ -935,7 +935,7 @@ export class DebugManager {
         this.createDropdownButton('Manage Funds ▸', [
             { text: 'Set Player Funds...', action: () => this.setFunds(), accessKey: 'F' },
             { text: 'Reset Player Bank', action: () => this.resetFunds(), accessKey: 'R' }
-        ], content, true); // true for openLeft
+        ], content, false); // Changed true to false
 
         createSeparator();
 
@@ -944,7 +944,7 @@ export class DebugManager {
             { text: 'Force Player Win (Active Hand)', action: () => this.forceWin(true), accessKey: 'P' },
             { text: 'Force Dealer Win (Active Hand)', action: () => this.forceWin(false), accessKey: 'D' },
             { text: 'Force Push (Active Hand)', action: () => this.forcePush(), accessKey: 'U' }
-        ], content, true); // true for openLeft
+        ], content, false); // Changed true to false
 
 
         this.debugMenuElement.appendChild(content);
@@ -1608,17 +1608,19 @@ export class DebugManager {
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
 
-        let top, left, right;
+        let top, left; 
 
-        // Vertical positioning: Try below, then above
-        if (rect.bottom + subMenuHeight <= viewportHeight) {
-            top = rect.bottom;
-        } else if (rect.top - subMenuHeight >= 0) {
-            top = rect.top - subMenuHeight;
-        } else {
-            // Not enough space above or below, position at top or bottom of viewport
-            top = Math.max(0, viewportHeight - subMenuHeight);
+        // Vertical positioning: Align submenu top with button top, adjust if off-screen.
+        top = rect.top; // Preferred: align submenu top with button top
+
+        // If submenu overflows the bottom of the viewport
+        if (top + subMenuHeight > viewportHeight) {
+            // Align submenu bottom with viewport bottom
+            top = viewportHeight - subMenuHeight;
         }
+        // Ensure submenu doesn't go off the top of the viewport
+        top = Math.max(0, top);
+        
         subMenu.style.top = `${top}px`;
 
         // Horizontal positioning
@@ -1628,28 +1630,28 @@ export class DebugManager {
                 left = rect.left - subMenuWidth;
                 subMenu.style.left = `${left}px`;
                 subMenu.style.right = 'auto';
-            } else { // Not enough space to the left, try to open to the right
+            } else { // Not enough space to the left, try to open to the right (fallback)
                 left = rect.right;
                 if (left + subMenuWidth <= viewportWidth) {
                     subMenu.style.left = `${left}px`;
                     subMenu.style.right = 'auto';
-                } else { // Still not enough space, align to right edge of viewport
+                } else { // Still not enough space, align to right edge of viewport as last resort
                     subMenu.style.right = `0px`;
                     subMenu.style.left = 'auto';
                 }
             }
-        } else { // Open right (default)
+        } else { // Open right (default behavior now)
             // Try to open to the right of the trigger
             if (rect.right + subMenuWidth <= viewportWidth) {
                 left = rect.right;
                 subMenu.style.left = `${left}px`;
                 subMenu.style.right = 'auto';
-            } else { // Not enough space to the right, try to open to the left
+            } else { // Not enough space to the right, try to open to the left (fallback)
                 left = rect.left - subMenuWidth;
                 if (left >= 0) {
                     subMenu.style.left = `${left}px`;
                     subMenu.style.right = 'auto';
-                } else { // Still not enough space, align to left edge of viewport
+                } else { // Still not enough space, align to left edge of viewport as last resort
                     subMenu.style.left = `0px`;
                     subMenu.style.right = 'auto';
                 }
@@ -1676,7 +1678,7 @@ export class DebugManager {
         mainButtonText: string,
         items: { text: string, action: () => void, accessKey?: string }[],
         parentContainer: HTMLElement,
-        openLeft: boolean = false
+        openLeft: boolean = false // Default openLeft to false
     ): void {
         const group = document.createElement('div');
         group.className = 'debug-menu-button-group';
