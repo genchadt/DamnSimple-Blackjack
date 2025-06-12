@@ -19,14 +19,16 @@ function injectDialogStyles(): void {
     styleSheet.innerText = `
         .bj-dialog-base {
             position: absolute;
-            border: 2px solid blue;
-            background-color: rgba(220, 220, 255, 0.9);
+            border: none;
+            background-color: rgba(20, 20, 30, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             z-index: 1002;
             font-family: Arial, sans-serif;
             font-size: 14px;
-            color: #333;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
             display: none; /* Hidden by default */
         }
         .bj-dialog-draggable {
@@ -38,14 +40,19 @@ function injectDialogStyles(): void {
             align-items: center;
             margin-bottom: 8px;
             padding: 5px 10px;
-            border-bottom: 1px solid #aaa;
-            background-color: rgba(180, 180, 220, 0.9);
-            border-top-left-radius: 3px;
-            border-top-right-radius: 3px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background-color: rgba(30, 30, 40, 0.5);
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            cursor: grab;
+        }
+        .bj-dialog-header:active {
+            cursor: grabbing;
         }
         .bj-dialog-title {
             font-weight: bold;
             font-size: 16px;
+            color: white;
         }
         .bj-dialog-close-button {
             padding: 0;
@@ -66,7 +73,7 @@ function injectDialogStyles(): void {
             background-color: #e04040;
         }
         .bj-dialog-content {
-            padding: 10px;
+            padding: 15px;
             max-height: 450px;
             overflow-y: auto;
             overflow-x: hidden;
@@ -108,15 +115,40 @@ function injectDialogStyles(): void {
         .debug-menu-button-container { display: flex; flex-direction: column; gap: 8px; }
         .debug-menu-button { padding: 8px 12px; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: left; font-size: 13px; width: 100%; box-sizing: border-box; }
         .debug-menu-button:hover { background-color: #45a049; }
-        .debug-menu-separator { height: 1px; background-color: #aaa; margin: 8px 0; }
+        .debug-menu-separator { height: 1px; background-color: rgba(255, 255, 255, 0.2); margin: 8px 0; }
         .debug-menu-button-group { position: relative; }
-        .debug-submenu { display: none; position: fixed; background-color: #f9f9f9; min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); z-index: 1005; border: 1px solid #ccc; border-radius: 4px; padding: 5px 0; }
-        .debug-submenu-button { color: black; padding: 8px 12px; text-decoration: none; display: block; text-align: left; background-color: transparent; border: none; width: 100%; font-size: 13px; cursor: pointer; }
-        .debug-submenu-button:hover { background-color: #e0e0e0; }
+        .debug-submenu { display: none; position: fixed; background-color: rgba(35, 35, 45, 0.95); min-width: 200px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.3); z-index: 1005; border: none; border-radius: 8px; padding: 8px 0; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .debug-submenu-button { color: white; padding: 8px 12px; text-decoration: none; display: block; text-align: left; background-color: transparent; border: none; width: 100%; font-size: 13px; cursor: pointer; }
+        .debug-submenu-button:hover { background-color: rgba(255, 255, 255, 0.1); }
         .debug-prompt-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1010; display: flex; align-items: center; justify-content: center; }
-        .debug-prompt-dialog { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background-color: #fff; padding: 0; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); min-width: 300px; max-width: 90%; z-index: 1011; }
-        .debug-prompt-dialog p { margin: 0 0 15px 0; font-size: 16px; color: #333; }
-        .debug-prompt-dialog input[type="number"] { width: calc(100% - 22px); padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        .debug-prompt-dialog {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            /* background-color will be inherited from .bj-dialog-base */
+            padding: 0; /* Header and content have their own padding */
+            /* border-radius will be inherited from .bj-dialog-base (10px) */
+            /* box-shadow will be inherited from .bj-dialog-base */
+            min-width: 300px;
+            max-width: 90%;
+            z-index: 1011; /* Must be above overlay */
+        }
+        .debug-prompt-dialog p {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            /* color will be inherited from .bj-dialog-base (white) */
+        }
+        .debug-prompt-dialog input[type="number"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3); /* Dark theme border */
+            border-radius: 4px;
+            font-size: 16px;
+            background-color: rgba(255, 255, 255, 0.1); /* Dark theme background */
+            color: white; /* Dark theme text color */
+        }
         .debug-prompt-buttons { display: flex; justify-content: flex-end; gap: 10px; }
         .debug-prompt-buttons button { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
         .debug-prompt-confirm { background-color: #4CAF50; color: white; }
@@ -125,6 +157,26 @@ function injectDialogStyles(): void {
         .debug-prompt-cancel:hover { background-color: #d32f2f; }
         .debug-player-hand-section { border: 1px solid #777; padding: 5px; margin-bottom: 10px; border-radius: 4px; background-color: rgba(230,230,250,0.5); }
         .debug-player-hand-section.active-hand { border-color: limegreen; box-shadow: 0 0 5px limegreen; }
+        
+        /* Debug Menu Mica Effect - now redundant as we've moved styles to base dialog */
+        #blackjack-debug-menu .debug-menu-button-container {
+            padding: 0 5px 5px 5px;
+        }
+        
+        /* Debug prompt dialog - specific overrides removed or adjusted for dark theme */
+        /*
+        .debug-prompt-dialog {
+            background-color: #fff !important; // Removed
+            color: #333 !important;           // Removed
+        }
+        .debug-prompt-dialog .bj-dialog-header {
+            background-color: #f0f0f0 !important; // Removed
+            border-bottom: 1px solid #ddd !important; // Removed
+        }
+        .debug-prompt-dialog .bj-dialog-title {
+            color: #333 !important; // Removed
+        }
+        */
     `;
     document.head.appendChild(styleSheet);
 }
@@ -561,8 +613,8 @@ export class DebugMenuDialog extends DynamicDialog {
         this.clearHoverTimers();
         if (this.openSubMenu) {
             document.removeEventListener('keydown', this.boundHandleSubMenuAccessKeys);
-            if (removeFromDom && this.openSubMenu.parentNode === document.body) {
-                document.body.removeChild(this.openSubMenu);
+            if (removeFromDom && this.openSubMenu.parentNode === this.dialogElement) { // Changed from document.body
+                this.dialogElement.removeChild(this.openSubMenu); // Changed from document.body
             }
             this.openSubMenu.style.display = 'none';
             this.openSubMenu = null;
@@ -612,36 +664,58 @@ export class DebugMenuDialog extends DynamicDialog {
         this.clearHoverTimers();
         if (this.openSubMenu === subMenu && subMenu.style.display === 'block') return;
         if (this.openSubMenu && this.openSubMenu !== subMenu) this.closeOpenSubMenuAndCleanup(true);
-        if (subMenu.parentNode !== document.body) document.body.appendChild(subMenu);
-        subMenu.style.visibility = 'hidden';
+
+        // Ensure submenu is a child of the dialog element
+        if (subMenu.parentNode !== this.dialogElement) {
+            if (subMenu.parentNode) { // If parented elsewhere, remove it first
+                subMenu.parentNode.removeChild(subMenu);
+            }
+            this.dialogElement.appendChild(subMenu);
+        }
+        
+        subMenu.style.visibility = 'hidden'; // Calculate size before making visible
         subMenu.style.display = 'block';
-        const rect = triggerButton.getBoundingClientRect();
+        subMenu.style.position = 'absolute'; // Position relative to dialogElement
+
+        const triggerRect = triggerButton.getBoundingClientRect();
+        const dialogRect = this.dialogElement.getBoundingClientRect();
         const subMenuWidth = subMenu.offsetWidth;
         const subMenuHeight = subMenu.offsetHeight;
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        let top = rect.top;
-        if (top + subMenuHeight > viewportHeight) top = viewportHeight - subMenuHeight;
-        top = Math.max(0, top);
-        subMenu.style.top = `${top}px`;
+
+        // Calculate target viewport top for the submenu
+        let targetVPTop = triggerRect.top;
+        if (targetVPTop + subMenuHeight > viewportHeight) {
+            targetVPTop = viewportHeight - subMenuHeight;
+        }
+        targetVPTop = Math.max(0, targetVPTop); // Clamp to viewport top edge
+
+        // Calculate target viewport left for the submenu using original logic structure
+        let targetVPLeftCandidate;
         if (openLeft) {
-            if (rect.left - subMenuWidth >= 0) {
-                subMenu.style.left = `${rect.left - subMenuWidth}px`;
-                subMenu.style.right = 'auto';
+            if (triggerRect.left - subMenuWidth >= 0) {
+                targetVPLeftCandidate = triggerRect.left - subMenuWidth;
             } else {
-                subMenu.style.left = `${rect.right}px`;
-                subMenu.style.right = 'auto';
+                // Fallback to opening right if opening left goes off-screen
+                targetVPLeftCandidate = triggerRect.right;
             }
-        } else {
-            if (rect.right + subMenuWidth <= viewportWidth) {
-                subMenu.style.left = `${rect.right}px`;
-                subMenu.style.right = 'auto';
+        } else { // Default is to open right
+            if (triggerRect.right + subMenuWidth <= viewportWidth) {
+                targetVPLeftCandidate = triggerRect.right;
             } else {
-                subMenu.style.left = `${rect.left - subMenuWidth}px`;
-                subMenu.style.right = 'auto';
+                // Fallback to opening left if opening right goes off-screen
+                targetVPLeftCandidate = triggerRect.left - subMenuWidth;
             }
         }
-        subMenu.style.position = 'fixed';
+        
+        // Clamp the candidate to ensure it's within viewport boundaries
+        const targetVPLeft = Math.max(0, Math.min(targetVPLeftCandidate, viewportWidth - subMenuWidth));
+        
+        // Convert viewport-relative coordinates to dialog-relative coordinates
+        subMenu.style.top = `${targetVPTop - dialogRect.top}px`;
+        subMenu.style.left = `${targetVPLeft - dialogRect.left}px`;
+        
         subMenu.style.visibility = 'visible';
         this.openSubMenu = subMenu;
         this.activeSubMenuTrigger = triggerButton;
@@ -726,7 +800,8 @@ export class CustomPromptDialog {
         overlay.onclick = () => closePrompt(true);
 
         const dialog = document.createElement('div');
-        dialog.className = 'debug-prompt-dialog';
+        // Add bj-dialog-base for theme, debug-prompt-dialog for specific positioning/sizing.
+        dialog.className = 'debug-prompt-dialog bj-dialog-base'; 
         dialog.onclick = (e) => e.stopPropagation();
         
         const header = document.createElement('div');
@@ -781,6 +856,8 @@ export class CustomPromptDialog {
             }
         })();
         
+        dialogInstance.show(); // Explicitly show the dialog after creation and class assignment
+
         input.focus();
         input.select();
 
