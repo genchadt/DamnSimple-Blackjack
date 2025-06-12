@@ -1,5 +1,5 @@
 // src/scenes/gamescene-ts
-import { Scene, Engine, Vector3 } from "@babylonjs/core";
+import { Scene, Engine, Vector3, Color4 } from "@babylonjs/core";
 import { BlackjackGame } from "../game/BlackjackGame";
 import { GameUI } from "../ui/GameUI";
 import { DebugManager } from "../debug/DebugManager";
@@ -22,6 +22,7 @@ export class GameScene {
         console.log("GameScene constructor called");
         this.engine = engine;
         this.scene = new Scene(engine);
+        this.scene.clearColor = new Color4(0.1, 0.1, 0.1, 1); // Dark background for the game scene
 
         // --- Order of Initialization ---
         // 1. Core Game Logic
