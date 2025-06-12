@@ -28,6 +28,15 @@ export class DebugManager {
     private customPromptEscapeListener: ((event: KeyboardEvent) => void) | null = null;
     private boundHandleSubMenuAccessKeys = this.handleSubMenuAccessKeys.bind(this);
 
+    // --- Properties for hover-to-open/close submenus ---
+    private hoverOpenTimer: number | null = null;
+    private hoverCloseTimer: number | null = null;
+    private readonly HOVER_OPEN_DELAY = 350; // ms
+    private readonly HOVER_CLOSE_DELAY = 250; // ms
+
+    // --- Key for localStorage ---
+    private static readonly DEBUG_MENU_VISIBLE_KEY = "blackjack_debugMenuVisible";
+
 
     // --- Properties for dragging ---
     private dragOffsetX: number = 0;
@@ -61,6 +70,24 @@ export class DebugManager {
         (window as any).gameUI = this.gameUI;
 
         document.addEventListener('click', this.handleGlobalClick, true);
+
+        // Load debug menu visibility state
+        const storedVisibility = localStorage.getItem(DebugManager.DEBUG_MENU_VISIBLE_KEY);
+        if (storedVisibility !== null) {
+            this.isDebugMenuVisible = JSON.parse(storedVisibility);
+            if (this.isDebugMenuVisible) {
+                // Ensure menu is created and shown if it should be visible
+                // Use a timeout to ensure the DOM is ready, especially if called very early
+                setTimeout(() => {
+                    if (!this.debugMenuElement) {
+                        this.createDebugMenuElement();
+                    }
+                    if (this.debugMenuElement && this.isDebugMenuVisible) { // Check isDebugMenuVisible again in case it was toggled off before timeout
+                        this.debugMenuElement.style.display = 'block';
+                    }
+                }, 0);
+            }
+        }
 
         console.log("Debug manager initialized. Type 'debug.help()' for available commands.");
     }
@@ -491,7 +518,10 @@ export class DebugManager {
                 this.debugMenuElement.style.display = 'none';
                 console.log("Debug menu hidden.");
             }
+            this.closeOpenSubMenuAndCleanup(true); // Close any open submenus when main menu is hidden
         }
+        // Save debug menu visibility state
+        localStorage.setItem(DebugManager.DEBUG_MENU_VISIBLE_KEY, JSON.stringify(this.isDebugMenuVisible));
     }
 
 
@@ -770,6 +800,12 @@ export class DebugManager {
             if ((e.target as HTMLElement).closest('button, input, select, textarea')) {
                 return;
             }
+
+            // If dragging the main debug menu, close any open submenu
+            if (element === this.debugMenuElement && this.openSubMenu) {
+                this.closeOpenSubMenuAndCleanup(true);
+            }
+
             this.isDragging = true;
             this.draggedElement = element;
 
@@ -888,6 +924,10 @@ export class DebugManager {
         createButton('Toggle Card Debug Window', () => this.toggleHandDisplay());
         createButton('Reveal Dealer Hole Card', () => this.revealDealerHole());
         createButton('Force Reshuffle Deck', () => this.forceReshuffle());
+        createButton('Reset Game', () => {
+            this.resetGame();
+            // Note: Debug menu visibility persists due to localStorage
+        });
 
         createSeparator();
 
@@ -1466,6 +1506,7 @@ export class DebugManager {
 
 
     private closeOpenSubMenuAndCleanup(removeFromDom: boolean): void {
+        this.clearHoverTimers(); // Clear any pending hover actions
         if (this.openSubMenu) {
             document.removeEventListener('keydown', this.boundHandleSubMenuAccessKeys);
             if (removeFromDom && this.openSubMenu.parentNode === document.body) {
@@ -1480,7 +1521,41 @@ export class DebugManager {
     }
 
     private handleSubMenuAccessKeys(event: KeyboardEvent): void {
-        if (!this.openSubMenu || event.altKey || event.ctrlKey || event.metaKey) {
+        if (!this.openSubMenu) { // Should not happen if listener is correctly managed, but good check
+            return;
+        }
+
+        this.clearHoverTimers(); // User is interacting, clear hover timers
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            const triggerToFocus = this.activeSubMenuTrigger;
+            this.closeOpenSubMenuAndCleanup(true);
+            triggerToFocus?.focus();
+            return;
+        }
+
+        if (event.key === 'Tab') {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const focusableItems = Array.from(this.openSubMenu.querySelectorAll('.debug-submenu-button')) as HTMLElement[];
+            if (focusableItems.length === 0) return;
+
+            let currentIndex = focusableItems.indexOf(document.activeElement as HTMLElement);
+
+            if (event.shiftKey) {
+                currentIndex = (currentIndex - 1 + focusableItems.length) % focusableItems.length;
+            } else {
+                currentIndex = (currentIndex + 1) % focusableItems.length;
+            }
+            focusableItems[currentIndex]?.focus();
+            return;
+        }
+
+
+        if (event.altKey || event.ctrlKey || event.metaKey) {
             return;
         }
 
@@ -1493,6 +1568,106 @@ export class DebugManager {
                 button.click(); // This will trigger the action and close the submenu
                 return;
             }
+        }
+    }
+
+    private clearHoverTimers(): void {
+        if (this.hoverOpenTimer) {
+            clearTimeout(this.hoverOpenTimer);
+            this.hoverOpenTimer = null;
+        }
+        if (this.hoverCloseTimer) {
+            clearTimeout(this.hoverCloseTimer);
+            this.hoverCloseTimer = null;
+        }
+    }
+
+    private openSubMenuLogic(subMenu: HTMLElement, triggerButton: HTMLElement, openLeft: boolean): void {
+        this.clearHoverTimers();
+
+        // If the requested submenu is already open, do nothing.
+        if (this.openSubMenu === subMenu && subMenu.style.display === 'block') {
+            return;
+        }
+
+        // Close any other currently open submenu
+        if (this.openSubMenu && this.openSubMenu !== subMenu) {
+            this.closeOpenSubMenuAndCleanup(true);
+        }
+
+        if (subMenu.parentNode !== document.body) {
+            document.body.appendChild(subMenu); // Append to body to avoid clipping and for fixed positioning
+        }
+
+        subMenu.style.visibility = 'hidden'; // Hide for measurement
+        subMenu.style.display = 'block';
+
+        const rect = triggerButton.getBoundingClientRect();
+        const subMenuWidth = subMenu.offsetWidth;
+        const subMenuHeight = subMenu.offsetHeight;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let top, left, right;
+
+        // Vertical positioning: Try below, then above
+        if (rect.bottom + subMenuHeight <= viewportHeight) {
+            top = rect.bottom;
+        } else if (rect.top - subMenuHeight >= 0) {
+            top = rect.top - subMenuHeight;
+        } else {
+            // Not enough space above or below, position at top or bottom of viewport
+            top = Math.max(0, viewportHeight - subMenuHeight);
+        }
+        subMenu.style.top = `${top}px`;
+
+        // Horizontal positioning
+        if (openLeft) {
+            // Try to open to the left of the trigger
+            if (rect.left - subMenuWidth >= 0) {
+                left = rect.left - subMenuWidth;
+                subMenu.style.left = `${left}px`;
+                subMenu.style.right = 'auto';
+            } else { // Not enough space to the left, try to open to the right
+                left = rect.right;
+                if (left + subMenuWidth <= viewportWidth) {
+                    subMenu.style.left = `${left}px`;
+                    subMenu.style.right = 'auto';
+                } else { // Still not enough space, align to right edge of viewport
+                    subMenu.style.right = `0px`;
+                    subMenu.style.left = 'auto';
+                }
+            }
+        } else { // Open right (default)
+            // Try to open to the right of the trigger
+            if (rect.right + subMenuWidth <= viewportWidth) {
+                left = rect.right;
+                subMenu.style.left = `${left}px`;
+                subMenu.style.right = 'auto';
+            } else { // Not enough space to the right, try to open to the left
+                left = rect.left - subMenuWidth;
+                if (left >= 0) {
+                    subMenu.style.left = `${left}px`;
+                    subMenu.style.right = 'auto';
+                } else { // Still not enough space, align to left edge of viewport
+                    subMenu.style.left = `0px`;
+                    subMenu.style.right = 'auto';
+                }
+            }
+        }
+        
+        subMenu.style.position = 'fixed'; // Ensure it's fixed for viewport-relative positioning
+        subMenu.style.visibility = 'visible'; // Show after positioning
+
+        this.openSubMenu = subMenu;
+        this.activeSubMenuTrigger = triggerButton;
+        document.addEventListener('keydown', this.boundHandleSubMenuAccessKeys);
+
+        // If the trigger button is the currently focused element, it implies keyboard activation.
+        // In this case, move focus to the first item in the submenu.
+        if (document.activeElement === triggerButton) {
+            const firstItem = subMenu.querySelector('.debug-submenu-button') as HTMLElement;
+            firstItem?.focus();
         }
     }
 
@@ -1512,7 +1687,7 @@ export class DebugManager {
 
         const subMenu = document.createElement('div');
         subMenu.className = 'debug-submenu';
-        // subMenu.style.top and left/right will be set on show
+        // subMenu.style.top and left/right will be set on show by openSubMenuLogic
 
         items.forEach(item => {
             const subButton = document.createElement('button');
@@ -1524,50 +1699,57 @@ export class DebugManager {
 
             subButton.onclick = (e) => {
                 e.stopPropagation(); // Prevent global click handler from closing immediately
+                this.clearHoverTimers();
                 item.action();
-                this.closeOpenSubMenuAndCleanup(true);
+                this.closeOpenSubMenuAndCleanup(true); // Action performed, close menu
             };
             subMenu.appendChild(subButton);
         });
 
         mainButton.onclick = (e) => {
             e.stopPropagation(); // Prevent global click handler
+            this.clearHoverTimers();
 
-            const subMenuWasOpenAndWasThisOne = this.openSubMenu === subMenu;
-
-            // Always close any potentially open submenu first.
-            // This handles closing the current one if it's clicked again,
-            // or closing a different one if another mainButton is clicked.
-            this.closeOpenSubMenuAndCleanup(true);
-
-            if (!subMenuWasOpenAndWasThisOne) {
-                // If it wasn't this submenu that was visible (or nothing was visible), open this one.
-                document.body.appendChild(subMenu); // Append to body to avoid clipping
-
-                const rect = mainButton.getBoundingClientRect();
-                subMenu.style.position = 'fixed'; // Already in CSS, but good to be explicit
-
-                if (openLeft) {
-                    subMenu.style.top = `${rect.top}px`;
-                    subMenu.style.right = `${window.innerWidth - rect.left}px`;
-                    subMenu.style.left = 'auto';
-                } else {
-                    subMenu.style.top = `${rect.top}px`;
-                    subMenu.style.left = `${rect.right}px`;
-                    subMenu.style.right = 'auto';
-                }
-
-                subMenu.style.display = 'block';
-                this.openSubMenu = subMenu;
-                this.activeSubMenuTrigger = mainButton;
-                document.addEventListener('keydown', this.boundHandleSubMenuAccessKeys);
+            if (this.openSubMenu === subMenu) {
+                this.closeOpenSubMenuAndCleanup(true);
+            } else {
+                this.openSubMenuLogic(subMenu, mainButton, openLeft);
             }
-            // If it *was* this submenu and visible, it's now closed by the call above,
-            // and we don't re-open it.
         };
 
+        mainButton.onmouseenter = () => {
+            this.clearHoverTimers();
+            this.hoverOpenTimer = window.setTimeout(() => {
+                this.openSubMenuLogic(subMenu, mainButton, openLeft);
+            }, this.HOVER_OPEN_DELAY);
+        };
+
+        mainButton.onmouseleave = () => {
+            this.clearHoverTimers();
+            this.hoverCloseTimer = window.setTimeout(() => {
+                // Only close if the mouse hasn't entered the submenu itself
+                if (this.openSubMenu === subMenu && !subMenu.matches(':hover')) {
+                    this.closeOpenSubMenuAndCleanup(true);
+                }
+            }, this.HOVER_CLOSE_DELAY);
+        };
+
+        subMenu.onmouseenter = () => {
+            this.clearHoverTimers(); // Mouse is over the submenu, cancel any pending close
+        };
+
+        subMenu.onmouseleave = () => {
+            this.clearHoverTimers();
+            this.hoverCloseTimer = window.setTimeout(() => {
+                 if (this.openSubMenu === subMenu) {
+                    this.closeOpenSubMenuAndCleanup(true);
+                }
+            }, this.HOVER_CLOSE_DELAY);
+        };
+
+
         group.appendChild(mainButton);
-        // subMenu is not appended to group here, but to document.body on click
+        // subMenu is appended to document.body by openSubMenuLogic when needed
         parentContainer.appendChild(group);
     }
 
@@ -1619,6 +1801,7 @@ export class DebugManager {
         p.textContent = message;
 
         const input = document.createElement('input');
+       
         input.type = 'number';
         input.value = defaultValue;
         input.onkeydown = (e) => {
