@@ -2,11 +2,15 @@
 // Added onHandModified callback for granular updates
 // Added insurance properties and methods
 <<<<<<< HEAD
+<<<<<<< HEAD
 // Added support for multiple player hands for split functionality
 import { Card, Rank } from "./Card"; // Import Rank
 =======
 import { Card, Rank } from "./Card";
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+import { Card, Rank } from "./Card";
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
@@ -25,6 +29,7 @@ export interface HandModificationUpdate {
     type: 'add' | 'set' | 'clear' | 'split'; // The type of modification
 }
 
+<<<<<<< HEAD
 /** Defines the structure for a player's hand, including its bet and status. */
 export interface PlayerHandInfo {
     id: string; // Unique ID for this hand instance, e.g., "hand-0", "hand-1"
@@ -37,6 +42,8 @@ export interface PlayerHandInfo {
     isSplitAces: boolean; // True if this hand resulted from splitting Aces (special rules apply)
 }
 
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
 /**
  * Represents the main game logic for a Blackjack game.
  * Manages player and dealer hands, game state, and player funds.
@@ -58,10 +65,13 @@ export class BlackjackGame {
     public onHandModified: ((update: HandModificationUpdate) => void) | null = null;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Callback function set by GameController to trigger card deal animations. */
     public notifyCardDealt: (card: Card, indexInHand: number, isPlayer: boolean, handDisplayIndex: number, faceUp: boolean) => void = (card, indexInHand, isPlayer, handDisplayIndex, faceUp) => {
         console.debug(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, IndexInHand=${indexInHand}, IsPlayer=${isPlayer}, HandDisplayIndex=${handDisplayIndex}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
 =======
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = (card, index, isPlayer, faceUp) => {
         console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, Index=${index}, IsPlayer=${isPlayer}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
 >>>>>>> ef0a855 (Updated JSDocs)
@@ -160,6 +170,7 @@ export class BlackjackGame {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Initiates the player 'split' action. */
     public playerSplit(): void {
         this.gameActions.playerSplit();
@@ -171,6 +182,11 @@ export class BlackjackGame {
      * Delegates to GameActions.playerTakeInsurance.
      */
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+    /** Initiates the player 'take insurance' action.
+     * Delegates to GameActions.playerTakeInsurance.
+     */
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public playerTakeInsurance(): void {
         this.gameActions.playerTakeInsurance();
     }
@@ -244,6 +260,7 @@ export class BlackjackGame {
 
     // --- Hand Mgmt ---
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Gets all player hands. */
     public getPlayerHands(): PlayerHandInfo[] {
         return this.playerHands;
@@ -253,6 +270,8 @@ export class BlackjackGame {
     public setPlayerHands(hands: PlayerHandInfo[]): void {
         this.playerHands = hands;
 =======
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
 
     /**
      * Gets the player's current hand of cards.
@@ -277,6 +296,7 @@ export class BlackjackGame {
         }
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     /** Gets the currently active player hand's cards. */
     public getActivePlayerHand(): Card[] {
@@ -321,11 +341,16 @@ export class BlackjackGame {
 
     /** Gets the dealer's current hand of cards. */
 =======
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     /**
      * Gets the dealer's current hand of cards.
      * @return An array of Card objects representing the dealer's hand.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public getDealerHand(): Card[] {
         return this.dealerHand;
     }
@@ -342,6 +367,7 @@ export class BlackjackGame {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Adds a card to the specified player's hand and notifies listeners. */
     public addCardToPlayerHand(card: Card, handIndex: number): void {
         if (handIndex >= 0 && handIndex < this.playerHands.length) {
@@ -352,6 +378,8 @@ export class BlackjackGame {
         } else {
             console.error(`[BlackjackGame] Invalid handIndex ${handIndex} for addCardToPlayerHand.`);
 =======
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     /**
      * Adds a card to the player's hand and notifies listeners.
      * @param card
@@ -376,11 +404,14 @@ export class BlackjackGame {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Calculates and returns the current score of the active player's hand. */
     public getPlayerScore(): number { // This now refers to the active hand
         const activeHand = this.getActivePlayerHandInfo();
         return activeHand ? ScoreCalculator.calculateHandValue(activeHand.cards) : 0;
 =======
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     /**
      * Gets the current player's score based on the player's hand.
      * @return The total score of the player's hand.
@@ -426,6 +457,7 @@ export class BlackjackGame {
 
     // --- Money Mgmt ---
 <<<<<<< HEAD
+<<<<<<< HEAD
     /** Gets the current bet amount for the active round/hand. */
     public getCurrentBet(): number { // This typically refers to the bet of the first/main hand or the active hand
         const activeHandInfo = this.getActivePlayerHandInfo();
@@ -438,6 +470,8 @@ export class BlackjackGame {
     /** Sets the current bet amount (typically during the Betting phase for the first hand). */
     public setCurrentBet(amount: number): void { // This sets the bet for the upcoming first hand
 =======
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
 
     /**
      * Gets the current bet amount.
