@@ -155,9 +155,14 @@ function injectDialogStyles(): void {
         .debug-prompt-confirm:hover { background-color: #45a049; }
         .debug-prompt-cancel { background-color: #f44336; color: white; }
         .debug-prompt-cancel:hover { background-color: #d32f2f; }
-        .debug-player-hand-section { border: 1px solid #777; padding: 5px; margin-bottom: 10px; border-radius: 4px; background-color: rgba(230,230,250,0.5); }
+        .debug-player-hand-section { border: 1px solid #777; padding: 5px; margin-bottom: 10px; border-radius: 4px; background-color: transparent; /* Was rgba(230,230,250,0.5) */ }
         .debug-player-hand-section.active-hand { border-color: limegreen; box-shadow: 0 0 5px limegreen; }
         
+        /* Reduce top padding for debug hand display content */
+        #blackjack-debug-hand-display .bj-dialog-content {
+            padding-top: 5px; /* Was 15px by default from .bj-dialog-content */
+        }
+
         /* Debug Menu Mica Effect - now redundant as we've moved styles to base dialog */
         #blackjack-debug-menu .debug-menu-button-container {
             padding: 0 5px 5px 5px;
@@ -373,12 +378,25 @@ export class DebugHandDisplayDialog extends DynamicDialog {
         this.buildNavControls(isHistoryView);
 
         const dealerSection = document.createElement('div');
+        // Add margin to the bottom of the dealer section to prevent overlap
+        // with an active player hand's box-shadow or border.
+        dealerSection.style.marginBottom = '10px'; 
         this.renderHandInContainer('Dealer', dealerHand, this.lastDealerHand, isHistoryView, dealerSection);
         this.contentElement.appendChild(dealerSection);
 
-        playerHands.forEach((pHandInfo, index) => {
+        // Determine how many player hands will actually be displayed
+        const displayablePlayerHandsInfo = playerHands.map((pHandInfo, index) => ({
+            pHandInfo,
+            index,
+            shouldDisplay: index === 0 || pHandInfo.bet > 0
+        })).filter(item => item.shouldDisplay);
+
+        const numDisplayablePlayerHands = displayablePlayerHandsInfo.length;
+
+        displayablePlayerHandsInfo.forEach(item => {
+            const { pHandInfo, index } = item;
             const lastPHandInfo = !isHistoryView ? this.lastPlayerHands.find(h => h.id === pHandInfo.id) : undefined;
-            this.renderPlayerHandInContainer(pHandInfo, lastPHandInfo, isHistoryView, this.contentElement, index);
+            this.renderPlayerHandInContainer(pHandInfo, lastPHandInfo, isHistoryView, this.contentElement, index, numDisplayablePlayerHands);
         });
 
         if (!isHistoryView) {
@@ -453,7 +471,8 @@ export class DebugHandDisplayDialog extends DynamicDialog {
             headerText += ` (Score: ${ScoreCalculator.calculateHandValue(currentHand)})`;
         }
         headerEl.textContent = headerText;
-        Object.assign(headerEl.style, { margin: '10px 0 5px 0', borderBottom: '1px solid #999', paddingBottom: '3px' });
+        // Reduced top margin from 10px to 5px
+        Object.assign(headerEl.style, { margin: '5px 0 5px 0', borderBottom: '1px solid #999', paddingBottom: '3px' });
         section.appendChild(headerEl);
 
         const container = document.createElement('div');
@@ -483,14 +502,21 @@ export class DebugHandDisplayDialog extends DynamicDialog {
         }
     }
 
-    private renderPlayerHandInContainer(playerHandInfo: PlayerHandInfo, lastPlayerHandInfo: PlayerHandInfo | undefined, isHistoryView: boolean, parentElement: HTMLElement, handIndex: number): void {
+    private renderPlayerHandInContainer(playerHandInfo: PlayerHandInfo, lastPlayerHandInfo: PlayerHandInfo | undefined, isHistoryView: boolean, parentElement: HTMLElement, handIndex: number, numDisplayablePlayerHands: number): void {
         const section = document.createElement('div');
         section.className = 'debug-player-hand-section';
         if (!isHistoryView && handIndex === this.blackjackGame.getActivePlayerHandIndex()) {
             section.classList.add('active-hand');
         }
         const headerEl = document.createElement('h4');
-        let title = `Player Hand ${handIndex}`;
+        
+        let title: string;
+        if (handIndex === 0 && numDisplayablePlayerHands === 1) {
+            title = "Player Hand";
+        } else {
+            title = `Player Hand ${handIndex}`;
+        }
+
         if (playerHandInfo) {
             title += ` (Bet: ${playerHandInfo.bet}, Score: ${ScoreCalculator.calculateHandValue(playerHandInfo.cards)}, Result: ${GameResult[playerHandInfo.result]}, Resolved: ${playerHandInfo.isResolved})`;
         }
@@ -749,8 +775,9 @@ export class DebugMenuDialog extends DynamicDialog {
         mainButton.onclick = (e) => {
             e.stopPropagation();
             this.clearHoverTimers();
-            if (this.openSubMenu === subMenu) this.closeOpenSubMenuAndCleanup(true);
-            else this.openSubMenuLogic(subMenu, mainButton, openLeft);
+            // Always call openSubMenuLogic.
+            // It handles closing other submenus or returning if this one is already open.
+            this.openSubMenuLogic(subMenu, mainButton, openLeft);
         };
         mainButton.onmouseenter = () => {
             this.clearHoverTimers();
