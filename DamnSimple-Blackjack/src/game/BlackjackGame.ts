@@ -1,16 +1,31 @@
 // src/game/BlackjackGame.ts
 // Added onHandModified callback for granular updates
 // Added insurance properties and methods
+<<<<<<< HEAD
+<<<<<<< HEAD
 // Added support for multiple player hands for split functionality
 import { Card, Rank } from "./Card"; // Import Rank
+=======
+import { Card, Rank } from "./Card";
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+import { Card, Rank } from "./Card";
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
 import { ScoreCalculator } from "./ScoreCalculator";
 import { GameActions } from "./GameActions";
-import { Constants } from "../Constants"; // Import Constants
+import { Constants } from "../Constants";
 
-/** Defines the structure for hand modification updates. */
+/**
+ * Represents a modification to a player's or dealer's hand.
+ * This is used to notify listeners about changes in the hand, such as adding a card or setting the hand.
+ */
 export interface HandModificationUpdate {
     card?: Card; // The card that was added (undefined for a 'set' operation)
     isPlayer: boolean; // Which hand was modified (true for player, false for dealer)
@@ -18,6 +33,7 @@ export interface HandModificationUpdate {
     type: 'add' | 'set' | 'clear' | 'split'; // The type of modification
 }
 
+<<<<<<< HEAD
 /** Defines the structure for a player's hand, including its bet and status. */
 export interface PlayerHandInfo {
     id: string; // Unique ID for this hand instance, e.g., "hand-0", "hand-1"
@@ -30,6 +46,17 @@ export interface PlayerHandInfo {
     isSplitAces: boolean; // True if this hand resulted from splitting Aces (special rules apply)
 }
 
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+/**
+ * Represents the main game logic for a Blackjack game.
+ * Manages player and dealer hands, game state, and player funds.
+ * Provides methods for starting a new game, handling player actions, and managing game state.
+ */
 export class BlackjackGame {
     private handManager: HandManager;
     private playerFunds: PlayerFunds;
@@ -39,21 +66,38 @@ export class BlackjackGame {
     private activePlayerHandIndex: number = -1; // Initialize to -1
     private dealerHand: Card[] = [];
 
-    // Insurance related properties - managed by GameActions, reflected here for UI/availability checks
     public insuranceTakenThisRound: boolean = false;
     public insuranceBetPlaced: number = 0;
 
-
     private animationCompleteCallback: (() => void) | null = null;
-    /** NEW: Callback function set by GameController to trigger when a hand is modified. */
     public onHandModified: ((update: HandModificationUpdate) => void) | null = null;
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Callback function set by GameController to trigger card deal animations. */
     public notifyCardDealt: (card: Card, indexInHand: number, isPlayer: boolean, handDisplayIndex: number, faceUp: boolean) => void = (card, indexInHand, isPlayer, handDisplayIndex, faceUp) => {
         console.debug(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, IndexInHand=${indexInHand}, IsPlayer=${isPlayer}, HandDisplayIndex=${handDisplayIndex}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
+=======
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+    public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = (card, index, isPlayer, faceUp) => {
+        console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, Index=${index}, IsPlayer=${isPlayer}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
+>>>>>>> ef0a855 (Updated JSDocs)
     };
 
-
+    /**
+     * Constructs a new BlackjackGame instance.
+     *
+     * Creates a new HandManager and PlayerFunds instance.
+     * Instantiates a GameActions instance, which will load game state from storage.
+     * If the loaded game state is empty (i.e. the game is starting from scratch), sets the game state to Initial
+     * and initializes the player and dealer hands.
+     * Logs information about the initial state of the game to the console.
+     */
     constructor() {
         this.handManager = new HandManager();
         this.playerFunds = new PlayerFunds();
@@ -103,6 +147,7 @@ export class BlackjackGame {
     }
 
     // --- Core Game Actions ---
+
     /**
      * Attempts to start a new game round with the specified bet amount.
      * @param bet The amount to bet. Defaults to the last bet amount if not provided.
@@ -112,30 +157,52 @@ export class BlackjackGame {
         return this.gameActions.startNewGame(bet);
     }
 
-    /** Initiates the player 'hit' action (requesting another card). */
+    /**
+     * Initiates the player 'hit' action.
+     * Delegates to GameActions.playerHit.
+     */
     public playerHit(): void {
         this.gameActions.playerHit();
     }
 
-    /** Initiates the player 'stand' action (ending their turn). */
+    /**
+     * Initiates the player 'stand' action.
+     * Delegates to GameActions.playerStand.
+     */
     public playerStand(): void {
         this.gameActions.playerStand();
     }
 
     /**
-     * Attempts to initiate the player 'double down' action.
-     * @returns True if the double down action was successfully initiated, false otherwise.
+     * Initiates the player 'surrender' action.
+     * Delegates to GameActions.playerSurrender.
      */
     public doubleDown(): boolean {
         return this.gameActions.doubleDown();
     }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Initiates the player 'split' action. */
     public playerSplit(): void {
         this.gameActions.playerSplit();
     }
 
     /** Initiates the player 'take insurance' action. */
+=======
+    /** Initiates the player 'take insurance' action.
+     * Delegates to GameActions.playerTakeInsurance.
+     */
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+    /** Initiates the player 'take insurance' action.
+     * Delegates to GameActions.playerTakeInsurance.
+     */
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     public playerTakeInsurance(): void {
         this.gameActions.playerTakeInsurance();
     }
@@ -190,17 +257,26 @@ export class BlackjackGame {
 
 
     // --- Game State Mgmt ---
-    /** Gets the current state of the game (e.g., Betting, PlayerTurn). */
+
+    /**
+     * Gets the current game state.
+     * @returns The current GameState.
+     */
     public getGameState(): GameState {
         return this.gameActions.getGameState();
     }
 
-    /** Gets the result of the last completed game (e.g., PlayerWins, Push). */
+    /**
+     * Gets the current game result.
+     * @return The current GameResult, which can be Win, Lose, Draw, or InProgress.
+     */
     public getGameResult(): GameResult {
         return this.gameActions.getGameResult();
     }
 
     // --- Hand Mgmt ---
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Gets all player hands. */
     public getPlayerHands(): PlayerHandInfo[] {
         return this.playerHands;
@@ -209,6 +285,29 @@ export class BlackjackGame {
     /** Sets all player hands and notifies listeners. Used for initialization/loading. */
     public setPlayerHands(hands: PlayerHandInfo[]): void {
         this.playerHands = hands;
+=======
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+
+    /**
+     * Gets the player's current hand of cards.
+     * @return An array of Card objects representing the player's hand.
+     */
+    public getPlayerHand(): Card[] {
+        return this.playerHand;
+    }
+
+    /**
+     * Sets the player's hand and notifies listeners of the change.
+     * @param hand
+     */
+    public setPlayerHand(hand: Card[]): void {
+        this.playerHand = hand;
+>>>>>>> ef0a855 (Updated JSDocs)
         if (this.onHandModified) {
             // Notify for each hand, or a general 'set all' notification
             hands.forEach((hand, index) => {
@@ -217,6 +316,8 @@ export class BlackjackGame {
         }
     }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Gets the currently active player hand's cards. */
     public getActivePlayerHand(): Card[] {
         const handInfo = this.getActivePlayerHandInfo();
@@ -259,11 +360,34 @@ export class BlackjackGame {
 
 
     /** Gets the dealer's current hand of cards. */
+=======
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+    /**
+     * Gets the dealer's current hand of cards.
+     * @return An array of Card objects representing the dealer's hand.
+     */
+<<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+=======
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public getDealerHand(): Card[] {
         return this.dealerHand;
     }
 
-    /** Sets the dealer's hand and notifies listeners of the change. */
+    /**
+     * Sets the dealer's hand and notifies listeners of the change.
+     * @param hand
+     */
     public setDealerHand(hand: Card[]): void {
         this.dealerHand = hand;
         if (this.onHandModified) {
@@ -271,6 +395,8 @@ export class BlackjackGame {
         }
     }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Adds a card to the specified player's hand and notifies listeners. */
     public addCardToPlayerHand(card: Card, handIndex: number): void {
         if (handIndex >= 0 && handIndex < this.playerHands.length) {
@@ -280,10 +406,29 @@ export class BlackjackGame {
             }
         } else {
             console.error(`[BlackjackGame] Invalid handIndex ${handIndex} for addCardToPlayerHand.`);
+=======
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+    /**
+     * Adds a card to the player's hand and notifies listeners.
+     * @param card
+     */
+    public addCardToPlayerHand(card: Card): void {
+        this.playerHand.push(card);
+        if (this.onHandModified) {
+            this.onHandModified({ card: card, isPlayer: true, type: 'add' });
+>>>>>>> ef0a855 (Updated JSDocs)
         }
     }
 
-    /** Adds a card to the dealer's hand and notifies listeners. */
+    /**
+     * Adds a card to the dealer's hand and notifies listeners.
+     * @param card
+     */
     public addCardToDealerHand(card: Card): void {
         this.dealerHand.push(card);
         if (this.onHandModified) {
@@ -291,10 +436,26 @@ export class BlackjackGame {
         }
     }
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Calculates and returns the current score of the active player's hand. */
     public getPlayerScore(): number { // This now refers to the active hand
         const activeHand = this.getActivePlayerHandInfo();
         return activeHand ? ScoreCalculator.calculateHandValue(activeHand.cards) : 0;
+=======
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+    /**
+     * Gets the current player's score based on the player's hand.
+     * @return The total score of the player's hand.
+     */
+    public getPlayerScore(): number {
+        return ScoreCalculator.calculateHandValue(this.playerHand);
+>>>>>>> ef0a855 (Updated JSDocs)
     }
 
     /** Calculates and returns the score of a specific player hand by index. */
@@ -310,6 +471,7 @@ export class BlackjackGame {
      * Calculates and returns the dealer's score based on the current game state.
      * Shows only the value of face-up cards during player's turn/betting.
      * Shows the full value during dealer's turn or game over.
+     * @return The dealer's score.
      */
     public getDealerScore(): number {
         if (this.getGameState() === GameState.PlayerTurn || this.getGameState() === GameState.Betting || this.getGameState() === GameState.Initial || this.getGameState() === GameState.Dealing) {
@@ -321,12 +483,18 @@ export class BlackjackGame {
         }
     }
 
-    /** Calculates and returns the full score of the dealer's hand, ignoring card visibility state. */
+    /**
+     * Gets the dealer's full score, including all cards in the dealer's hand.
+     * This is used for final score calculations after the game ends.
+     * @return The total score of the dealer's hand.
+     */
     public getDealerFullScore(): number {
         return ScoreCalculator.calculateHandValue(this.dealerHand);
     }
 
     // --- Money Mgmt ---
+<<<<<<< HEAD
+<<<<<<< HEAD
     /** Gets the current bet amount for the active round/hand. */
     public getCurrentBet(): number { // This typically refers to the bet of the first/main hand or the active hand
         const activeHandInfo = this.getActivePlayerHandInfo();
@@ -338,37 +506,78 @@ export class BlackjackGame {
 
     /** Sets the current bet amount (typically during the Betting phase for the first hand). */
     public setCurrentBet(amount: number): void { // This sets the bet for the upcoming first hand
+=======
+=======
+<<<<<<< HEAD
+>>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
+
+    /**
+     * Gets the current bet amount.
+     * This is typically used during the Betting phase to determine how much the player has wagered.
+     * @return The current bet amount.
+     */
+    public getCurrentBet(): number {
+        return this.gameActions.getCurrentBet();
+    }
+
+    /**
+     * Sets the current bet amount.
+     * This is used to update the player's bet during the Betting phase.
+     * @param amount The new bet amount to set.
+     */
+    public setCurrentBet(amount: number): void {
+>>>>>>> ef0a855 (Updated JSDocs)
         this.gameActions.setCurrentBet(amount);
     }
 
-    /** Gets the player's total available funds. */
+    /**
+     * Gets the player's current funds.
+     * This is used to check how much money the player has available to bet.
+     * @return The current amount of funds the player has.
+     */
     public getPlayerFunds(): number {
         return this.playerFunds.getFunds();
     }
 
-    /** Resets the player's funds to the default amount and saves the state. */
+    /**
+     * Resets the player's funds to default (e.g., starting amount).
+     */
     public resetFunds(): void {
         this.playerFunds.resetFunds();
         this.gameActions.saveGameState(); // Save after funds reset
     }
 
     // --- Accessors ---
-    /** Gets the PlayerFunds manager instance. */
+
+    /**
+     * Gets the PlayerFunds instance, which manages the player's funds.
+     * @return The PlayerFunds instance.
+     */
     public getPlayerFundsManager(): PlayerFunds {
         return this.playerFunds;
     }
 
-    /** Gets the HandManager instance (handles deck and card flip callbacks). */
+    /**
+     * Gets the HandManager instance, which manages the player's and dealer's hands.
+     * @return The HandManager instance.
+     */
     public getHandManager(): HandManager {
         return this.handManager;
     }
 
-    /** Gets the GameActions manager instance (handles core game logic flow). */
+    /**
+     * Gets the GameActions instance, which manages game actions and state.
+     * @return The GameActions instance.
+     */
     public getGameActions(): GameActions {
         return this.gameActions;
     }
 
     // --- Event Handling ---
+
     /**
      * Registers a callback function to be notified whenever any card managed by the game is flipped.
      * @param id A unique identifier for the callback.

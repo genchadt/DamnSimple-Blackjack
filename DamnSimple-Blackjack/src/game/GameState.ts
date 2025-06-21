@@ -1,4 +1,8 @@
 // src/game/PlayerFunds.ts
+
+/**
+ * Enumeration for the different game states.
+ */
 export enum GameState {
     Initial,      // Initial state - empty table
     Betting,      // Player setting bet
@@ -8,6 +12,9 @@ export enum GameState {
     GameOver      // Game ended
 }
 
+/**
+ * Enumeration for the possible game results.
+ */
 export enum GameResult {
     PlayerWins,
     DealerWins,

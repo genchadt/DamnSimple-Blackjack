@@ -24,17 +24,29 @@ export enum Rank {
     Ace = "A"
 }
 
+/**
+ * Represents a playing card with a suit and rank.
+ * Cards can be flipped to change their face-up state.
+ * Each card instance has a unique identifier for tracking.
+ */
 export class Card {
     private suit: Suit;
     private rank: Rank;
-    /** Indicates if the card's face is visible. */
     private faceUp: boolean;
-    /** A unique identifier for this specific card instance (useful for tracking visuals). */
     private _uniqueId: string;
 
-    /** Callback function triggered when the card's faceUp state changes via flip(). */
+    /**
+     * Callback function that gets called when this card instance is flipped.
+     * This can be used to update UI or game state.
+     */
     public onFlip: ((card: Card) => void) | null = null;
 
+    /**
+     * Creates a new Card instance with the specified suit and rank.
+     * Cards are typically created face down initially.
+     * @param suit The suit of the card (e.g., Hearts, Diamonds, Clubs, Spades).
+     * @param rank The rank of the card (e.g., "2", "3", ..., "10", "J", "Q", "K", "A").
+     */
     constructor(suit: Suit, rank: Rank) {
         this.suit = suit;
         this.rank = rank;
@@ -43,17 +55,28 @@ export class Card {
         this._uniqueId = `${suit}-${rank}-${Date.now()}-${Math.random()}`;
     }
 
-    /** Gets the unique identifier for this card instance. */
+    /**
+     * Gets a unique identifier for this card instance.
+     * This ID is unique per instance and can be used to track the card in the game.
+     * @returns A unique string identifier for this card.
+     */
     public getUniqueId(): string {
         return this._uniqueId;
     }
 
-    /** Gets the suit of the card. */
+    /**
+     * Gets the suit of the card.
+     * @return The suit of the card (e.g., Hearts, Diamonds, Clubs, Spades).
+     *
+     */
     public getSuit(): Suit {
         return this.suit;
     }
 
-    /** Gets the rank of the card. */
+    /**
+     * Gets the rank of the card.
+     * @return The rank of the card as a Rank enum value.
+     */
     public getRank(): Rank {
         return this.rank;
     }
@@ -85,7 +108,10 @@ export class Card {
         }
     }
 
-    /** Checks if the card is currently face up. */
+    /**
+     * Checks if the card is currently face up.
+     * @returns True if the card is face up, false if it is face down.
+     */
     public isFaceUp(): boolean {
         return this.faceUp;
     }
@@ -105,8 +131,7 @@ export class Card {
     }
 
     /**
-     * Toggles the card's face-up state (face up -> face down, or vice versa)
-     * and triggers the onFlip callback if registered.
+     * Flips the card, changing its face-up state.
      */
     public flip(): void {
         const previousState = this.faceUp;
@@ -147,7 +172,11 @@ export class Card {
         }
     }
 
-    /** Returns a string representation of the card (e.g., "Ace of Spades"). */
+    /**
+     * Returns a string representation of the card in the format "Rank of Suit".
+     * For example, "Ace of Hearts", "10 of Diamonds".
+     * @return A string representation of the card.
+     */
     public toString(): string {
         return `${this.rank} of ${this.suit}`;
     }

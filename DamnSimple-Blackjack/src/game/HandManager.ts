@@ -2,18 +2,24 @@
 import { Card } from "./Card";
 import { Deck } from "./Deck";
 
+/**
+ * Class to manage the deck of cards and card flipping logic.
+ */
 export class HandManager {
     private deck: Deck;
     private cardFlipCallbacks: Map<string, (card: Card) => void> = new Map();
 
+    /**
+     * Initializes a new HandManager instance with a fresh deck.
+     * The deck is shuffled upon creation.
+     */
     constructor() {
         this.deck = new Deck();
     }
 
     /**
      * Draws a card from the deck.
-     * Returns undefined if the deck is empty (should ideally not happen with reshuffling).
-     */
+     * @returns The drawn card or undefined if the deck is empty.
     public drawCard(): Card | undefined {
         return this.deck.drawCard();
     }

@@ -26,6 +26,15 @@ class Game {
     private currentUIScaleLevel: UIScaleLevel; // *** ADDED ***
     private loadingIndicator: HTMLElement | null;
 
+    /**
+     * Creates a new Game instance.
+     *
+     * Loads the current quality level and UI scale level from storage.
+     * Creates a new Babylon engine and applies the current graphics quality settings.
+     * Creates the initial GameScene and starts the game loop.
+     *
+     * @throws {Error} If the canvas element is not found, or if the engine cannot be initialized.
+     */
     constructor() {
         console.info("[Game] Constructor called");
         this.loadingIndicator = document.getElementById("loadingIndicator");
@@ -67,12 +76,30 @@ class Game {
         }
     }
 
+
+    /**
+     * Hides the loading indicator.
+     *
+     * If the loading indicator element was found at initialization,
+     * this sets its display style to 'none'.
+     */
     private hideLoading(): void {
         if (this.loadingIndicator) {
             this.loadingIndicator.style.display = 'none';
         }
     }
 
+    /**
+     * Shows an error message.
+     *
+     * If the loading indicator element was found at initialization,
+     * this sets its text content to the given message, sets its
+     * color to red, and makes it visible.
+     *
+     * Additionally logs the error to the console.
+     *
+     * @param message The error message to display
+     */
     private showError(message: string): void {
         if (this.loadingIndicator) {
             this.loadingIndicator.innerText = `Error: ${message}`;
@@ -82,6 +109,18 @@ class Game {
         console.error(`[Game] Error: ${message}`);
     }
 
+    /**
+     * Switches the current scene to a new one.
+     *
+     * The scene can be either a GameScene or a SettingsScene.
+     * If the current scene is not null, it is disposed of before creating the new scene.
+     * The new scene is created and set as active.
+     * The current graphics quality and UI scale are applied to the new GameScene.
+     * The loading indicator is hidden when the new scene is ready.
+     *
+     * @param newSceneType The type of the new scene to create and set as active.
+     *     Must be either "game" or "settings".
+     */
     private switchScene(newSceneType: "game" | "settings"): void {
         console.info(`[Game] Switching scene from ${this.currentSceneType} to ${newSceneType}`);
 
@@ -138,21 +177,46 @@ class Game {
         }
     }
 
+    /**
+     * Starts the game by switching to the game scene.
+     *
+     * This simply calls `switchScene("game")` to switch to the game scene.
+     */
     private startGame(): void {
         console.info("[Game] Starting game (switching to game scene).");
         this.switchScene("game");
     }
 
+    /**
+     * Opens the settings scene.
+     *
+     * This method switches the current scene to the settings scene,
+     * logging the action and updating the scene state accordingly.
+     */
     public openSettings(): void {
         console.info("[Game] Opening settings (switching to settings scene).");
         this.switchScene("settings");
     }
 
+    /**
+     * Closes the settings scene.
+     *
+     * This method switches the current scene back to the game scene,
+     * logging the action and updating the scene state accordingly.
+     */
     private closeSettings(): void {
         console.info("[Game] Closing settings (switching back to game scene).");
         this.switchScene("game");
     }
 
+    /**
+     * Resets the player's funds to the default amount.
+     *
+     * This method logs the request and checks if the GameScene is active.
+     * If it is, it calls `resetFunds()` on the BlackjackGame instance,
+     * logs this action, and updates the GameScene to reflect the change.
+     * If not, it logs a warning that the GameScene is not active.
+     */
     private resetFunds(): void {
         console.info("[Game] Resetting funds request.");
         if (this.gameScene) {
@@ -164,12 +228,30 @@ class Game {
         }
     }
 
+    /**
+     * Changes the language setting.
+     *
+     * This method logs the request and checks if the language is valid.
+     * If it is, it updates the current language setting and logs the change.
+     * If not, it logs a warning that the language is not valid.
+     *
+     * @param language The new language.
+     */
     private changeLanguage(language: string): void {
         console.info(`[Game] Changing language to ${language}`);
         this.currentLanguage = language;
         console.warn("[Game] Language change functionality not fully implemented.");
     }
 
+    /**
+     * Changes the currency setting.
+     *
+     * This method logs the request and updates the currency setting.
+     * It also applies the new currency sign to the active GameScene
+     * by calling `applyCurrencySign()`.
+     *
+     * @param currency The new currency.
+     */
     private changeCurrency(currency: string): void {
         console.info(`[Game] Changing currency to ${currency}`);
         this.currencySign = currency;
@@ -177,8 +259,13 @@ class Game {
     }
 
     /**
-     * Changes the graphics quality setting.
-     * @param level The new quality level.
+     * Updates the graphics quality level if it has changed and applies the new settings.
+     *
+     * This method logs the change in graphics quality level and applies the new settings
+     * to the game engine. If the current scene is the GameScene, it also updates the
+     * graphics quality settings for the active scene.
+     *
+     * @param level The new graphics quality level to apply.
      */
     private changeGraphicsQuality(level: QualityLevel): void {
         if (this.currentQualityLevel === level) return;
@@ -211,8 +298,12 @@ class Game {
     }
 
     /**
-     * Changes the UI scale setting.
-     * @param level The new UI scale level.
+     * Updates the UI scale setting to the given level, saving the setting and applying it to the active scene if applicable.
+     *
+     * If the current scene is the game scene, this method tells it to update its UI scale.
+     * If the current scene is the settings scene, the new scale will be applied on the next switch.
+     *
+     * @param level The new UI scale level to apply.
      */
     private changeUIScale(level: UIScaleLevel): void {
         if (this.currentUIScaleLevel === level) return;
@@ -228,7 +319,13 @@ class Game {
         // If settings scene is active, it will be recreated on switch, applying new scale then.
     }
 
-
+    /**
+     * Applies the current currency sign to the GameUI.
+     *
+     * This method checks if the current scene is the game scene and,
+     * if so, retrieves the GameUI instance to apply the current currency
+     * sign. Logs the application process or warns if the GameUI is not found.
+     */
     private applyCurrencySign(): void {
         if (this.currentSceneType === "game" && this.gameScene) {
             const gameUI = this.gameScene.getGameUI();
@@ -241,6 +338,11 @@ class Game {
         }
     }
 
+    /**
+     * Gets the current currency sign.
+     *
+     * @returns The current currency sign, for example "$" or "€".
+     */
     public getCurrencySign(): string {
         return this.currencySign;
     }
