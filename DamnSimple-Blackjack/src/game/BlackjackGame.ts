@@ -10,7 +10,11 @@ import { Card, Rank } from "./Card";
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
 import { Card, Rank } from "./Card";
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
@@ -43,7 +47,11 @@ export interface PlayerHandInfo {
 }
 
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 /**
  * Represents the main game logic for a Blackjack game.
  * Manages player and dealer hands, game state, and player funds.
@@ -71,7 +79,11 @@ export class BlackjackGame {
         console.debug(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, IndexInHand=${indexInHand}, IsPlayer=${isPlayer}, HandDisplayIndex=${handDisplayIndex}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     public notifyCardDealt: (card: Card, index: number, isPlayer: boolean, faceUp: boolean) => void = (card, index, isPlayer, faceUp) => {
         console.log(`%c[BlackjackGame] notifyCardDealt: Card=${card.toString()}, Index=${index}, IsPlayer=${isPlayer}, FaceUp=${faceUp}`, 'color: #8A2BE2'); // BlueViolet
 >>>>>>> ef0a855 (Updated JSDocs)
@@ -186,7 +198,11 @@ export class BlackjackGame {
     /** Initiates the player 'take insurance' action.
      * Delegates to GameActions.playerTakeInsurance.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     public playerTakeInsurance(): void {
         this.gameActions.playerTakeInsurance();
     }
@@ -271,7 +287,11 @@ export class BlackjackGame {
         this.playerHands = hands;
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 
     /**
      * Gets the player's current hand of cards.
@@ -342,15 +362,24 @@ export class BlackjackGame {
     /** Gets the dealer's current hand of cards. */
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Gets the dealer's current hand of cards.
      * @return An array of Card objects representing the dealer's hand.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
+=======
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public getDealerHand(): Card[] {
         return this.dealerHand;
     }
@@ -379,7 +408,11 @@ export class BlackjackGame {
             console.error(`[BlackjackGame] Invalid handIndex ${handIndex} for addCardToPlayerHand.`);
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Adds a card to the player's hand and notifies listeners.
      * @param card
@@ -411,7 +444,11 @@ export class BlackjackGame {
         return activeHand ? ScoreCalculator.calculateHandValue(activeHand.cards) : 0;
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Gets the current player's score based on the player's hand.
      * @return The total score of the player's hand.
@@ -471,7 +508,11 @@ export class BlackjackGame {
     public setCurrentBet(amount: number): void { // This sets the bet for the upcoming first hand
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 
     /**
      * Gets the current bet amount.

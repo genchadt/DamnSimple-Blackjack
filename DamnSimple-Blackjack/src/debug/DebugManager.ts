@@ -33,7 +33,11 @@ export class DebugManager {
     private static readonly DEBUG_MENU_VISIBLE_KEY = "blackjack_debugMenuVisible";
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     private dragOffsetX: number = 0;
     private dragOffsetY: number = 0;
     private isDragging: boolean = false;
@@ -148,7 +152,11 @@ export class DebugManager {
     public setGameResult(result: number, handIndex?: number): void {
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Sets the game result to the specified numerical value.
      * @param result Numerical value of the GameResult enum. E.g., 0 for PlayerWins, 1 for DealerWins, etc.
@@ -277,7 +285,11 @@ export class DebugManager {
         let cardSuit: string, cardRank: string, cardFaceUp: boolean;
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Adds a card to either the player's or dealer's hand.
      * @param isPlayer True to add to the player's hand, false to add to the dealer's hand.
@@ -357,7 +369,11 @@ export class DebugManager {
     public clearCards(isPlayer: boolean, handIndex?: number): void {
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Clears the hand of the player or dealer, depending on the isPlayer parameter.
      * @param isPlayer If true, clears the player's hand. If false, clears the dealer's hand.
@@ -404,7 +420,11 @@ export class DebugManager {
             hand = this.blackjackGame.getDealerHand();
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Flips a card at the specified index in the player's or dealer's hand.
      *
@@ -435,7 +455,11 @@ export class DebugManager {
 
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Reveals the dealer's hole card by flipping it face up.
      * If the dealer's hole card is already face up or if the dealer has no cards,
@@ -444,9 +468,14 @@ export class DebugManager {
      * Updates the debug hand display.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
+=======
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public revealDealerHole(): void {
         const dealerHand = this.blackjackGame.getDealerHand();
         if (dealerHand.length > 0 && !dealerHand[0].isFaceUp()) {
@@ -543,7 +572,11 @@ export class DebugManager {
     public setBet(amount: number, handIndex?: number): void {
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Sets the current bet amount for the game. Updates the UI to reflect the new bet.
      * @param amount The amount to set as the current bet. Must be non-negative.
@@ -1253,7 +1286,11 @@ export class DebugManager {
     public debugStartNormalHand(): void {
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Starts a new normal Blackjack game with the minimum bet.
      * This function is part of the debug menu and is only accessible when the game is in a debug state.
@@ -1275,7 +1312,11 @@ export class DebugManager {
         console.log("DEBUG: Starting Split Hand Scenario");
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Starts a new Blackjack game with the minimum bet and a split hand.
      * This function is part of the debug menu and is only accessible when the game is in a debug state.
@@ -1341,7 +1382,11 @@ export class DebugManager {
     public debugStartInsuranceHand(): void {
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Starts a new Blackjack game with the minimum bet and the dealer's upcard an Ace.
      * This function is part of the debug menu and is only accessible when the game is in a debug state.
@@ -1403,7 +1448,11 @@ export class DebugManager {
     private ensureBetActiveForForceOutcome(handIndex?: number): PlayerHandInfo | null {
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Ensures that a bet is active before attempting to force an outcome.
      * If there is no bet, it will auto-place the minimum bet.
@@ -1470,7 +1519,11 @@ export class DebugManager {
 
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Forces a win for the player or dealer in a debug context.
      * Automatically places a minimum bet if none is active, and logs a warning if the player has insufficient funds.
@@ -1524,7 +1577,11 @@ export class DebugManager {
 
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Forces a push in a debug context.
      * Automatically places a minimum bet if none is active, and logs a warning if the player has insufficient funds.

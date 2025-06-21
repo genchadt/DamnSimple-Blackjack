@@ -17,7 +17,11 @@ import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIS
 import { Card, Suit, Rank } from "./Card";
 import { GameState, GameResult } from "./GameState";
 import { QualityLevel, DEFAULT_QUALITY_LEVEL, QualitySettings, UIScaleLevel, UIScaleSettings, DEFAULT_UI_SCALE_LEVEL } from "../Constants";
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 
 /**
  * Interface for serialized card data.
@@ -78,7 +82,11 @@ export interface LoadedGameState {
     insuranceBetPlaced?: number;      // Added
 }
 
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 /**
  * Class for managing game state storage.
  */

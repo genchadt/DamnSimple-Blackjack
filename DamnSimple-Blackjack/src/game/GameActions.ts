@@ -9,9 +9,14 @@ import { Card, Rank } from "./Card"; // Import Rank
 // Made resolveInsurance public for debug purposes
 import { Card, Rank } from "./Card";
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
+=======
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
 import { GameState, GameResult } from "./GameState";
 import { HandManager } from "./HandManager";
 import { PlayerFunds } from "./PlayerFunds";
@@ -27,7 +32,11 @@ import { Constants } from "../Constants";
 =======
 import { BlackjackGame } from "./BlackjackGame";
 import { Constants } from "../Constants";
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 
 /**
  * Enumeration for the last animated action.
@@ -97,7 +106,11 @@ export class GameActions {
     // Callback to execute after revealing the dealer's hole card
     private _postRevealCallback: (() => void) | null = null;
 
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Constructs a GameActions instance.
      * @param blackjackGame
@@ -178,7 +191,11 @@ export class GameActions {
     public getCurrentBet(): number { return this.currentBet; } // This is the primary bet for the round
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 
     /**
      * Gets the current bet amount.
@@ -192,9 +209,14 @@ export class GameActions {
      * @return The last bet amount.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
+=======
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public getLastBet(): number { return this.lastBet; }
 
     /**
@@ -367,7 +389,11 @@ export class GameActions {
     /**
      * Logic executed when the player 'hit' action is initiated.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     public playerHit(): void {
         if (this.gameState !== GameState.PlayerTurn) { console.warn("[GameActions] Cannot hit outside of PlayerTurn"); return; }
         if (this.isDealingInitialSequence || this.lastAction !== LastAnimatedAction.None) { console.warn("[GameActions] Cannot hit: Action/Animation in progress."); return; }
@@ -396,7 +422,11 @@ export class GameActions {
     /**
      * Completes the player 'hit' action after the card deal animation.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     private completePlayerHit(): void {
         const activeHandInfo = this.blackjackGame.getActivePlayerHandInfo();
         if (!activeHandInfo) { console.error("[GameActions] completePlayerHit: No active hand."); return; }
@@ -430,15 +460,24 @@ export class GameActions {
     /** Initiates the player 'stand' action if conditions are met for the active hand. */
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Logic executed when the player 'stand' action is initiated.
      * Reveals the dealer's hole card and proceeds to the dealer's turn.
      */
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
+=======
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
     public playerStand(): void {
         if (this.gameState !== GameState.PlayerTurn) { console.warn("[GameActions] Cannot stand outside of PlayerTurn"); return; }
         if (this.isDealingInitialSequence || this.lastAction !== LastAnimatedAction.None) { console.warn("[GameActions] Cannot stand: Action/Animation in progress."); return; }
@@ -504,7 +543,11 @@ export class GameActions {
     /**
      * Logic executed after th 'double down' animation completes.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     private completeDoubleDown(): void {
         const activeHandInfo = this.blackjackGame.getActivePlayerHandInfo();
         if (!activeHandInfo) { console.error("[GameActions] completeDoubleDown: No active hand."); return; }
@@ -536,7 +579,11 @@ export class GameActions {
     /**
      * Logic executed when the player takes insurance.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     public playerTakeInsurance(): void {
         if (!this.blackjackGame.isInsuranceAvailable()) {
             console.warn("[GameActions] Insurance is not available.");
@@ -673,7 +720,11 @@ export class GameActions {
 =======
 >>>>>>> ef0a855 (Updated JSDocs)
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     // --- Dealer Logic ---
 
     /**
@@ -788,7 +839,11 @@ export class GameActions {
     /**
      * Logic executed when the dealer stands. Determines the winner based on scores.
      */
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     private dealerStand(): void {
         console.log(`%c[GameActions] dealerStand called. State: ${GameState[this.gameState]}, LastAction: ${LastAnimatedAction[this.lastAction]}`, 'color: #DAA520');
 
@@ -858,7 +913,11 @@ export class GameActions {
         this.dealQueue.push({ isPlayer, handDisplayIndex, faceUp });
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
 
     /**
      * Queues a card deal for the initial deal sequence.
@@ -952,7 +1011,11 @@ export class GameActions {
 
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
     /**
      * Deals a single card to the specified hand.
      * This method is used for player hits, dealer hits, and double downs.
@@ -1369,7 +1432,11 @@ export class GameActions {
 
 =======
 =======
+<<<<<<< HEAD
 >>>>>>> ef0a855 (Updated JSDocs)
+=======
+>>>>>>> ef0a855f75c6336e7e7eeea24c045839cd6db4de
+>>>>>>> 686e185efb0f986d9745a5c41522e7d0a67379b6
         /**
          * Restores the player hand(s) from the saved state.
          */
