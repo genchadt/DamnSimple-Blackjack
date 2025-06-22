@@ -700,6 +700,7 @@ export class CardVisualizer {
 
             if (showNormally) {
                 // Active Player Hand or GameOver or DealerTurn: Position hands normally, potentially spread out
+                // zPos is now constant; z-fighting is handled by material.zOffset.
                 zPos = Constants.PLAYER_HAND_Z;
                 const numPlayerHands = this.blackjackGame.getPlayerHands().length;
                 let handGroupCenterX = 0; // Center X for this specific hand's group
@@ -747,6 +748,7 @@ export class CardVisualizer {
                 // Scaling remains Vector3.One()
 
             } else { // Waiting (Inactive) Player Hand during PlayerTurn (and Dealing if applicable)
+                // zPos is now constant for waiting hands as well.
                 zPos = Constants.SPLIT_WAITING_HAND_Z;
                 currentScaling = new Vector3(Constants.SPLIT_WAITING_HAND_SCALE, Constants.SPLIT_WAITING_HAND_SCALE, Constants.SPLIT_WAITING_HAND_SCALE);
 
@@ -808,6 +810,26 @@ export class CardVisualizer {
 
         this.removeVisualTreatmentOverlay(mesh); // Remove any existing overlay first
 
+        // --- Z-Offset for Stacking ---
+        // Find the card's index to apply a zOffset, ensuring correct stacking.
+        const cardId = mesh.name.replace('card_', '');
+        const indexInHand = handInfo.cards.findIndex(c => c.getUniqueId() === cardId);
+        const multiMat = mesh.material as MultiMaterial;
+
+        if (multiMat && multiMat.subMaterials && indexInHand !== -1) {
+            // Negative values push the mesh "towards" the camera in the depth buffer.
+            // A larger negative value means it's more likely to be rendered on top.
+            // Since higher indexInHand cards are physically higher (Y) and should be on top,
+            // they need a larger zOffset magnitude.
+            const zOffsetValue = -indexInHand * 2;
+            multiMat.subMaterials.forEach(subMat => {
+                if (subMat) {
+                    subMat.zOffset = zOffsetValue;
+                }
+            });
+        }
+        // --- End Z-Offset ---
+
         let overlayMaterial: StandardMaterial | null = null;
 
         // Apply treatment if the game is in PlayerTurn state and there are multiple hands
@@ -847,6 +869,15 @@ export class CardVisualizer {
         const overlayMesh = mesh.getChildMeshes(true, (node) => node.name === `${mesh.name}_overlay`)[0] as Mesh;
         if (overlayMesh) {
             overlayMesh.isVisible = false;
+        }
+        // Also reset zOffset on the main mesh's materials
+        const multiMat = mesh.material as MultiMaterial;
+        if (multiMat && multiMat.subMaterials) {
+            multiMat.subMaterials.forEach(subMat => {
+                if (subMat) {
+                    subMat.zOffset = 0;
+                }
+            });
         }
     }
 

@@ -45,6 +45,20 @@ export class HandManager {
         return this.deck.getCardsRemaining();
     }
 
+    /**
+     * Gets a copy of the cards currently in the deck for debug inspection.
+     * @returns An array of Card objects.
+     */
+    public getDeckCards(): Card[] {
+        return this.deck.getCards();
+    }
+
+    /**
+     * DEBUG: Sets the deck to contain only cards of rank '2'.
+     */
+    public setDeckToTwos(): void {
+        this.deck.setDeckToTwos(); // Assuming default 1 deck for now, can be parameterized if needed
+    }
 
     /**
      * Adds a callback function to be called when ANY card managed by this game is flipped.

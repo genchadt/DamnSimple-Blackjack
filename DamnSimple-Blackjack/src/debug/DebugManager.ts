@@ -8,7 +8,7 @@ import { GameUI } from "../ui/GameUI";
 import { Constants } from "../Constants";
 import { ScoreCalculator } from "../game/ScoreCalculator"; // Import ScoreCalculator
 import { GameStorage } from "../game/GameStorage"; // Import GameStorage
-import { CustomPromptDialog, DebugHandDisplayDialog, DebugMenuDialog } from "../ui/factories/DialogFactory";
+import { CustomPromptDialog, DebugHandDisplayDialog, DebugMenuDialog, DeckInspectorDialog } from "../ui/factories/DialogFactory";
 
 export class DebugManager {
     private gameScene: GameScene;
@@ -19,8 +19,10 @@ export class DebugManager {
     // --- New Dialog-based UI ---
     private handDisplay: DebugHandDisplayDialog;
     private debugMenu: DebugMenuDialog;
+    private deckInspector: DeckInspectorDialog;
     private isHandDisplayVisible: boolean = false;
     private isDebugMenuVisible: boolean = false;
+    private isDeckInspectorVisible: boolean = false;
 
     // --- Key for localStorage ---
     private static readonly DEBUG_MENU_VISIBLE_KEY = "blackjack_debugMenuVisible";
@@ -37,6 +39,7 @@ export class DebugManager {
         // --- Initialize new UI components ---
         this.handDisplay = new DebugHandDisplayDialog(this.blackjackGame, () => this.toggleHandDisplay(false));
         this.debugMenu = new DebugMenuDialog(this);
+        this.deckInspector = new DeckInspectorDialog(this.blackjackGame, () => this.toggleDeckInspector(false));
 
         (window as any).debug = this;
         (window as any).game = this.blackjackGame;
@@ -76,6 +79,7 @@ export class DebugManager {
         console.log("  debug.renderCards() - Force re-render all cards (visuals in Babylon)");
         console.log("  debug.revealDealerHole() - Reveals the dealer's hole card");
         console.log("  debug.forceReshuffle() - Forces the deck to reshuffle.");
+        console.log("  debug.setDeckToTwos() - Replaces the deck with only 2s for split testing.");
 
         console.log("%cFunds Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.setFunds(amount) - Set player funds to specific amount");
@@ -87,6 +91,7 @@ export class DebugManager {
         console.log("  debug.toggleInspector() - Toggle Babylon.js inspector");
         console.log("  debug.toggleHandDisplay(visible?) - Toggle draggable display of current hands.");
         console.log("  debug.toggleDebugMenu(visible?) - Toggle the main debug menu window.");
+        console.log("  debug.toggleDeckInspector(visible?) - Toggle draggable display of current deck cards.");
 
         console.log("%cQuick Scenarios:", "font-weight: bold; color: #FF9800;");
         console.log("  debug.forceWin(isPlayer, handIndex?) - Force player (true) or dealer (false) win for active/specified hand.");
@@ -456,6 +461,22 @@ export class DebugManager {
         localStorage.setItem(DebugManager.DEBUG_MENU_VISIBLE_KEY, JSON.stringify(this.isDebugMenuVisible));
     }
 
+    public toggleDeckInspector(visible?: boolean): void {
+        if (typeof visible === 'undefined') {
+            this.isDeckInspectorVisible = !this.isDeckInspectorVisible;
+        } else {
+            this.isDeckInspectorVisible = visible;
+        }
+
+        this.deckInspector.toggle(this.isDeckInspectorVisible);
+        if (this.isDeckInspectorVisible) {
+            this.updateDeckInspector();
+            console.log("Deck inspector shown.");
+        } else {
+            console.log("Deck inspector hidden.");
+        }
+    }
+
 
     private recordHandHistory(): void {
         this.handDisplay.recordHandHistory(
@@ -468,6 +489,12 @@ export class DebugManager {
     public updateDebugHandDisplay(): void {
         if (this.isHandDisplayVisible) {
             this.handDisplay.update();
+        }
+    }
+
+    public updateDeckInspector(): void {
+        if (this.isDeckInspectorVisible) {
+            this.deckInspector.update();
         }
     }
 
@@ -576,6 +603,15 @@ export class DebugManager {
         const cardsRemaining = this.blackjackGame.getHandManager().forceDeckReshuffle();
         console.log(`Deck reshuffled. Cards remaining: ${cardsRemaining}`);
         this.updateUI();
+        this.updateDeckInspector();
+    }
+
+    public setDeckToTwos(): void {
+        console.log("DEBUG: Setting deck to all 2s.");
+        this.blackjackGame.getHandManager().setDeckToTwos();
+        console.log(`Deck now contains only 2s. Cards remaining: ${this.blackjackGame.getHandManager().getCardsRemainingInDeck()}`);
+        this.updateUI();
+        this.updateDeckInspector();
     }
 
     private ensureBetActiveForForceOutcome(handIndex?: number): PlayerHandInfo | null {
@@ -694,6 +730,7 @@ export class DebugManager {
     public dispose(): void {
         this.handDisplay?.dispose();
         this.debugMenu?.dispose();
+        this.deckInspector?.dispose();
         
         const styleSheet = document.getElementById('blackjack-dialog-styles');
         if (styleSheet) {

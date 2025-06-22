@@ -158,6 +158,17 @@ function injectDialogStyles(): void {
         .debug-player-hand-section { border: 1px solid #777; padding: 5px; margin-bottom: 10px; border-radius: 4px; background-color: transparent; /* Was rgba(230,230,250,0.5) */ }
         .debug-player-hand-section.active-hand { border-color: limegreen; box-shadow: 0 0 5px limegreen; }
         
+        .deck-inspector-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            justify-items: center;
+        }
+        .deck-inspector-grid .debug-card-container {
+            width: 50px;
+            height: 70px;
+        }
+
         /* Reduce top padding for debug hand display content */
         #blackjack-debug-hand-display .bj-dialog-content {
             padding-top: 5px; /* Was 15px by default from .bj-dialog-content */
@@ -555,6 +566,48 @@ export class DebugHandDisplayDialog extends DynamicDialog {
 }
 
 /**
+ * A dialog that displays the current cards in the deck for debugging.
+ */
+export class DeckInspectorDialog extends DynamicDialog {
+    private blackjackGame: BlackjackGame;
+
+    constructor(blackjackGame: BlackjackGame, onToggle: () => void) {
+        super("blackjack-deck-inspector", "Deck Inspector", { left: '10px', top: '450px' }, onToggle);
+        this.blackjackGame = blackjackGame;
+        this.dialogElement.style.width = '420px'; // Accommodate 6 cards + gap
+        this.dialogElement.style.maxHeight = '80vh';
+        this.contentElement.style.maxHeight = 'calc(80vh - 50px)'; // Adjust for header
+    }
+
+    public update(): void {
+        const deckCards = this.blackjackGame.getHandManager().getDeckCards();
+        const titleSpan = this.dialogElement.querySelector('.bj-dialog-title') as HTMLElement;
+        if (titleSpan) {
+            titleSpan.textContent = `Deck Inspector (${deckCards.length} cards)`;
+        }
+
+        this.contentElement.innerHTML = '';
+        const grid = document.createElement('div');
+        grid.className = 'deck-inspector-grid';
+
+        deckCards.forEach(card => {
+            grid.appendChild(this.createCardElement(card));
+        });
+
+        this.contentElement.appendChild(grid);
+    }
+
+    private createCardElement(card: Card): HTMLElement {
+        const container = document.createElement('div');
+        container.className = 'debug-card-container';
+        const cardEl = document.createElement('playing-card');
+        cardEl.setAttribute('cid', card.getCid());
+        container.appendChild(cardEl);
+        return container;
+    }
+}
+
+/**
  * A dialog that shows the main debug menu with actions and scenarios.
  */
 export class DebugMenuDialog extends DynamicDialog {
@@ -603,7 +656,11 @@ export class DebugMenuDialog extends DynamicDialog {
         createSeparator();
         createButton('Toggle Card Debug Window', () => this.debugManager.toggleHandDisplay());
         createButton('Reveal Dealer Hole Card', () => this.debugManager.revealDealerHole());
-        createButton('Force Reshuffle Deck', () => this.debugManager.forceReshuffle());
+        this.createDropdownButton('Manage Deck ▸', [
+            { text: 'Deck Inspector', action: () => this.debugManager.toggleDeckInspector(), accessKey: 'D' },
+            { text: 'Force Reshuffle Deck', action: () => this.debugManager.forceReshuffle(), accessKey: 'R' },
+            { text: 'Set Deck to all 2s', action: () => this.debugManager.setDeckToTwos(), accessKey: '2' }
+        ], this.contentElement, false);
         createButton('Reset Game', () => this.debugManager.resetGame());
         createSeparator();
         this.createDropdownButton('Manage Funds ▸', [

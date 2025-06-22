@@ -69,6 +69,14 @@ export class Deck {
     }
 
     /**
+     * Returns a copy of the cards currently in the deck for inspection.
+     * @returns A copy of the cards array.
+     */
+    public getCards(): Card[] {
+        return [...this.cards];
+    }
+
+    /**
      * Checks if the deck needs to be shuffled based on the number of cards left.
      * @returns True if the deck needs to be shuffled, false otherwise.
      */
@@ -84,6 +92,21 @@ export class Deck {
     public reset(numDecks: number = 1): void { // Use same number of decks
         console.log("[Deck] Resetting deck...");
         this.initializeDeck(numDecks);
+        this.shuffle();
+    }
+
+    /**
+     * DEBUG: Replaces the deck with only cards of rank '2' for testing splits.
+     * @param numDecks The number of decks to base the card count on.
+     */
+    public setDeckToTwos(numDecks: number = 1): void {
+        console.warn("[Deck] DEBUG: Setting deck to all 2s.");
+        this.cards = [];
+        for (let d = 0; d < numDecks; d++) {
+            for (const suit of Object.values(Suit)) {
+                this.cards.push(new Card(suit as Suit, Rank.Two));
+            }
+        }
         this.shuffle();
     }
 }
