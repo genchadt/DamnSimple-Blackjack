@@ -514,6 +514,10 @@ export class DebugManager {
         console.log("DEBUG: Starting Split Hand Scenario");
         this.resetGame();
 
+        // Set deck to all 2s for this scenario
+        this.blackjackGame.getHandManager().setDeckToTwos();
+        console.log("DEBUG Split: Deck set to all 2s.");
+
         const initialBet = Constants.MIN_BET;
         this.blackjackGame.setCurrentBet(initialBet); // Set initial bet for GameActions
 
@@ -525,17 +529,17 @@ export class DebugManager {
 
         this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
 
-        // --- Use cards from the deck, guaranteeing a pair if possible ---
+        // --- Use cards from the deck (which is now all 2s) ---
         const handManager = this.blackjackGame.getHandManager();
 
         const playerCard1 = handManager.drawCard();
         if (!playerCard1) { console.error("DEBUG Split: Failed to draw player card 1."); return; }
         playerCard1.setFaceUp(true);
 
-        // Find a matching rank in the deck to guarantee a pair
-        const playerCard2 = handManager.findAndDrawCard(playerCard1.getRank());
+        // Deck is all 2s, so just draw another card.
+        const playerCard2 = handManager.drawCard();
         if (!playerCard2) {
-            console.error(`DEBUG Split: Could not find a matching rank for ${playerCard1.getRank()} in the deck. Aborting.`);
+            console.error(`DEBUG Split: Failed to draw player card 2.`);
             this.resetGame(); // Reset back to a clean state
             this.updateUI();
             return;
@@ -566,7 +570,7 @@ export class DebugManager {
         this.cardVisualizer.renderCards(true); // Render initial state
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true); // Move to player turn
         this.updateUI();
-        console.log("DEBUG: Split hand scenario set up. Player has a pair. Try splitting.");
+        console.log("DEBUG: Split hand scenario set up. Player has a pair of 2s. All subsequent cards will be 2s.");
     }
 
     public debugStartInsuranceHand(): void {
