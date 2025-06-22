@@ -9,6 +9,7 @@ import { PlayerFunds } from "./PlayerFunds";
 import { ScoreCalculator } from "./ScoreCalculator";
 import { GameActions } from "./GameActions";
 import { Constants } from "../Constants"; // Import Constants
+import { GameStorage } from "./GameStorage";
 
 /** Defines the structure for hand modification updates. */
 export interface HandModificationUpdate {
@@ -34,6 +35,7 @@ export class BlackjackGame {
     private handManager: HandManager;
     private playerFunds: PlayerFunds;
     private gameActions: GameActions;
+    private cardFlipCallbacks: Map<string, (card: Card) => void> = new Map();
 
     private playerHands: PlayerHandInfo[] = [];
     private activePlayerHandIndex: number = -1; // Initialize to -1
@@ -55,7 +57,8 @@ export class BlackjackGame {
 
 
     constructor() {
-        this.handManager = new HandManager();
+        const numDecks = GameStorage.loadNumDecks();
+        this.handManager = new HandManager(numDecks);
         this.playerFunds = new PlayerFunds();
         this.gameActions = new GameActions(this, this.handManager, this.playerFunds);
 
@@ -78,6 +81,21 @@ export class BlackjackGame {
         }
         console.info("[BlackjackGame] Initial Dealer Hand:", this.dealerHand.map(c => c.toString()));
         console.info(`[BlackjackGame] Initial Insurance: Taken=${this.insuranceTakenThisRound}, Bet=${this.insuranceBetPlaced}`);
+    }
+
+    /**
+     * Re-initializes the HandManager with a new deck configuration.
+     * This is intended for debug/settings changes.
+     * @param numDecks The number of decks for the new shoe.
+     */
+    public reinitializeDeck(numDecks: number): void {
+        console.log(`[BlackjackGame] Re-initializing deck with ${numDecks} deck(s).`);
+        this.handManager = new HandManager(numDecks);
+        this.gameActions.setHandManager(this.handManager); // Update GameActions with the new HandManager
+        // Re-apply all stored callbacks to the new HandManager
+        this.cardFlipCallbacks.forEach((callback, id) => {
+            this.handManager.addCardFlipCallback(id, callback);
+        });
     }
 
     /**
@@ -375,6 +393,7 @@ export class BlackjackGame {
      * @param callback The function to execute when a card is flipped, receiving the Card object.
      */
     public addCardFlipCallback(id: string, callback: (card: Card) => void): void {
-        this.handManager.addCardFlipCallback(id, callback);
+        this.cardFlipCallbacks.set(id, callback); // Store it locally
+        this.handManager.addCardFlipCallback(id, callback); // And pass to current HandManager
     }
 }

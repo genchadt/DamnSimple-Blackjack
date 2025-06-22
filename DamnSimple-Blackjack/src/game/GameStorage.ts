@@ -39,6 +39,7 @@ export interface LoadedGameState {
     insuranceTakenThisRound?: boolean;
     insuranceBetPlaced?: number;
     playerHand_legacy?: SerializedCard[] | null; // *** FIXED: For backward compatibility if old save exists
+    numDecks?: number;
 }
 
 
@@ -54,6 +55,7 @@ export class GameStorage {
     private static readonly STORAGE_KEY_UI_SCALE = "damnSimpleBlackjack_uiScaleLevel";
     private static readonly STORAGE_KEY_INSURANCE_TAKEN = "damnSimpleBlackjack_insuranceTaken";
     private static readonly STORAGE_KEY_INSURANCE_BET = "damnSimpleBlackjack_insuranceBet";
+    private static readonly STORAGE_KEY_NUM_DECKS = "damnSimpleBlackjack_numDecks";
 
     /**
      * Saves the current game state to local storage.
@@ -248,8 +250,16 @@ export class GameStorage {
                 if (isNaN(insuranceBetPlaced)) insuranceBetPlaced = 0;
             }
 
+            const savedNumDecksStr = localStorage.getItem(this.STORAGE_KEY_NUM_DECKS);
+            let numDecks = 1;
+            if (savedNumDecksStr) {
+                const num = parseInt(savedNumDecksStr, 10);
+                if (!isNaN(num) && num > 0 && num <= 8) {
+                    numDecks = num;
+                }
+            }
 
-            return { gameState, currentBet, gameResult, playerHands, activePlayerHandIndex, dealerHand, insuranceTakenThisRound, insuranceBetPlaced, playerHand_legacy: playerHandLegacy };
+            return { gameState, currentBet, gameResult, playerHands, activePlayerHandIndex, dealerHand, insuranceTakenThisRound, insuranceBetPlaced, playerHand_legacy: playerHandLegacy, numDecks };
 
         } catch (error) {
             console.error("Error loading game state:", error);
@@ -326,6 +336,33 @@ export class GameStorage {
     }
 
 
+    // --- Num Decks Save/Load ---
+    public static saveNumDecks(numDecks: number): void {
+        try {
+            localStorage.setItem(this.STORAGE_KEY_NUM_DECKS, numDecks.toString());
+        } catch (error) {
+            console.error("Error saving num decks:", error);
+        }
+    }
+
+    public static loadNumDecks(): number {
+        try {
+            const storedNumDecks = localStorage.getItem(this.STORAGE_KEY_NUM_DECKS);
+            if (storedNumDecks) {
+                const num = parseInt(storedNumDecks, 10);
+                // Assuming max 8 decks, default 1. These could be constants.
+                if (!isNaN(num) && num > 0 && num <= 8) {
+                    return num;
+                }
+            }
+            return 1; // Default to 1 deck
+        } catch (error) {
+            console.error("Error loading num decks:", error);
+            return 1; // Default to 1 deck
+        }
+    }
+
+
     // --- Utility to clear all game data ---
     public static clearAllGameData(): void {
         try {
@@ -341,6 +378,7 @@ export class GameStorage {
             localStorage.removeItem(this.STORAGE_KEY_UI_SCALE);
             localStorage.removeItem(this.STORAGE_KEY_INSURANCE_TAKEN);
             localStorage.removeItem(this.STORAGE_KEY_INSURANCE_BET);
+            localStorage.removeItem(this.STORAGE_KEY_NUM_DECKS);
             console.log("Cleared all saved game data.");
         } catch (error) {
             console.error("Error clearing all game data:", error);

@@ -51,6 +51,14 @@ export class GameActions {
         this.playerFunds = playerFunds;
     }
 
+    /**
+     * Updates the HandManager instance. Used when re-initializing the deck.
+     * @param handManager The new HandManager instance.
+     */
+    public setHandManager(handManager: HandManager): void {
+        this.handManager = handManager;
+    }
+
     // --- State ---
     /**
      * Sets the game's logical state.

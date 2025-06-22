@@ -6,8 +6,8 @@ export class HandManager {
     private deck: Deck;
     private cardFlipCallbacks: Map<string, (card: Card) => void> = new Map();
 
-    constructor() {
-        this.deck = new Deck();
+    constructor(numDecks: number = 1) {
+        this.deck = new Deck(numDecks);
     }
 
     /**
@@ -57,7 +57,7 @@ export class HandManager {
      * DEBUG: Sets the deck to contain only cards of rank '2'.
      */
     public setDeckToTwos(): void {
-        this.deck.setDeckToTwos(); // Assuming default 1 deck for now, can be parameterized if needed
+        this.deck.setDeckToTwos();
     }
 
     /**

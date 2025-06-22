@@ -80,6 +80,7 @@ export class DebugManager {
         console.log("  debug.revealDealerHole() - Reveals the dealer's hole card");
         console.log("  debug.forceReshuffle() - Forces the deck to reshuffle.");
         console.log("  debug.setDeckToTwos() - Replaces the deck with only 2s for split testing.");
+        console.log("  debug.setNumDecks(count) - Set number of decks (1-8) and resets the game.");
 
         console.log("%cFunds Commands:", "font-weight: bold; color: #2196F3;");
         console.log("  debug.setFunds(amount) - Set player funds to specific amount");
@@ -610,6 +611,17 @@ export class DebugManager {
         console.log("DEBUG: Setting deck to all 2s.");
         this.blackjackGame.getHandManager().setDeckToTwos();
         console.log(`Deck now contains only 2s. Cards remaining: ${this.blackjackGame.getHandManager().getCardsRemainingInDeck()}`);
+        this.updateUI();
+        this.updateDeckInspector();
+    }
+
+    public setNumDecks(count: number): void {
+        const numDecks = Math.max(1, Math.min(count, 8)); // Clamp between 1 and 8
+        console.log(`DEBUG: Setting number of decks to ${numDecks}.`);
+        GameStorage.saveNumDecks(numDecks);
+        this.blackjackGame.reinitializeDeck(numDecks);
+        console.log("Deck re-initialized. Resetting game to apply changes.");
+        this.resetGame();
         this.updateUI();
         this.updateDeckInspector();
     }

@@ -5,14 +5,16 @@ import { Constants } from "../Constants";
 
 export class Deck {
     private cards: Card[];
+    private numDecks: number;
 
     /**
      * Creates a new deck of cards.
      * @param numDecks The number of decks to include in the game. Default is 1.
      */
     constructor(numDecks: number = 1) { // Allow multiple decks
+        this.numDecks = numDecks;
         this.cards = [];
-        this.initializeDeck(numDecks);
+        this.initializeDeck(this.numDecks);
         this.shuffle();
         console.log(`[Deck] Initialized with ${numDecks} deck(s), ${this.cards.length} cards total.`);
     }
@@ -87,25 +89,25 @@ export class Deck {
     /**
      * Resets the deck to its initial state with the specified number of decks.
      * Shuffles the deck after resetting.
-     * @param numDecks The number of decks to include in the game. Default is 1.
      */
-    public reset(numDecks: number = 1): void { // Use same number of decks
+    public reset(): void { // Use same number of decks
         console.log("[Deck] Resetting deck...");
-        this.initializeDeck(numDecks);
+        this.initializeDeck(this.numDecks);
         this.shuffle();
     }
 
     /**
      * DEBUG: Replaces the deck with only cards of rank '2' for testing splits.
-     * @param numDecks The number of decks to base the card count on.
      */
-    public setDeckToTwos(numDecks: number = 1): void {
-        console.warn("[Deck] DEBUG: Setting deck to all 2s.");
+    public setDeckToTwos(): void {
+        console.warn(`[Deck] DEBUG: Setting deck to all 2s using ${this.numDecks} deck(s).`);
         this.cards = [];
-        for (let d = 0; d < numDecks; d++) {
-            for (const suit of Object.values(Suit)) {
-                this.cards.push(new Card(suit as Suit, Rank.Two));
-            }
+        const suits = Object.values(Suit);
+        const totalCards = 52 * this.numDecks; // Create a full-sized shoe
+        for (let i = 0; i < totalCards; i++) {
+            // Cycle through suits to ensure some variety for visual components
+            const suit = suits[i % suits.length] as Suit;
+            this.cards.push(new Card(suit, Rank.Two));
         }
         this.shuffle();
     }
