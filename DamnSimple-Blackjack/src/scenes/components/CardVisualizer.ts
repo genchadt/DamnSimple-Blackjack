@@ -618,7 +618,7 @@ export class CardVisualizer {
                 }
             });
             // console.log(`%c[CardViz] renderCards finished processing.`, 'color: #4682B4');
-            if (isRestoring && this.onAnimationCompleteCallback) {
+            if ((isRestoring || animationPromises.length > 0) && this.onAnimationCompleteCallback) {
                 setTimeout(() => {
                     if (!this.isAnimationInProgress() && this.onAnimationCompleteCallback) {
                         this.onAnimationCompleteCallback!();
@@ -706,22 +706,41 @@ export class CardVisualizer {
 
                 if (numPlayerHands > 1) {
                     // Spread out multiple player hands horizontally
-                    // Estimate width of a hand: card width + overlaps for a few cards. Max 4-5 cards visible in stack.
-                    const singleHandVisualWidth = Constants.CARD_WIDTH + (Math.min(handSize, 4) * Constants.PLAYER_CARD_STACK_X_OFFSET);
+                    const allPlayerHands = this.blackjackGame.getPlayerHands();
                     const groupSpacing = Constants.CARD_WIDTH * 0.4; // Space between hand groups
-                    const totalCombinedWidthOfAllHandGroups = (numPlayerHands * singleHandVisualWidth) + Math.max(0, (numPlayerHands - 1) * groupSpacing);
-                    const firstHandGroupTheoreticalCenterX = -totalCombinedWidthOfAllHandGroups / 2 + singleHandVisualWidth / 2;
-                    handGroupCenterX = firstHandGroupTheoreticalCenterX + handDisplayIndex * (singleHandVisualWidth + groupSpacing);
+
+                    // Calculate visual width for each hand individually, as they can have different card counts
+                    const visualWidths = allPlayerHands.map(h =>
+                        Constants.CARD_WIDTH + (Math.max(0, h.cards.length - 1) * Constants.PLAYER_CARD_STACK_X_OFFSET)
+                    );
+                    // Sum up all visual widths and spacings to get the total group width
+                    const totalCombinedWidthOfAllHandGroups = visualWidths.reduce((sum, width) => sum + width, 0) + Math.max(0, (numPlayerHands - 1) * groupSpacing);
+                    
+                    // Find the starting X position for the center of the first hand
+                    let currentHandCenter = -totalCombinedWidthOfAllHandGroups / 2 + visualWidths[0] / 2;
+
+                    // Iterate to find the center of the hand we are currently calculating for
+                    for (let i = 1; i <= handDisplayIndex; i++) {
+                        // Move from the center of the previous hand to the center of the current hand
+                        currentHandCenter += visualWidths[i - 1] / 2 + groupSpacing + visualWidths[i] / 2;
+                    }
+                    handGroupCenterX = currentHandCenter;
                 }
                 // If numPlayerHands is 1, handGroupCenterX remains 0, centering the single hand.
 
                 const stackXOffset = Constants.PLAYER_CARD_STACK_X_OFFSET;
                 const stackYOffset = Constants.PLAYER_CARD_STACK_Y_OFFSET;
 
+                // When dealing the first card of a hand, calculate its position as if it's part of a 2-card hand
+                // to prevent it from moving when the second card is dealt. This makes the initial deal smoother.
+                const effectiveHandSize = (handSize === 1 && indexInHand === 0) ? 2 : handSize;
+
                 // Calculate the offset from the handGroupCenterX to the center of card 0 of the current hand.
                 // This ensures the stack of cards for *this* hand is centered around handGroupCenterX.
-                const centerOfStackOffset = ((handSize - 1) * stackXOffset) / 2;
+                const centerOfStackOffset = ((effectiveHandSize - 1) * stackXOffset) / 2;
 
+                // Always stack rightwards ("right over left") for consistency.
+                // A higher index card will have a larger xPos, appearing to the right and on top.
                 xPos = handGroupCenterX + centerOfStackOffset - (indexInHand * stackXOffset);
                 yPos = Constants.CARD_Y_POS + (indexInHand * stackYOffset);
                 // Scaling remains Vector3.One()
@@ -747,7 +766,7 @@ export class CardVisualizer {
                 const waitingHandGroupBaseY = Constants.SPLIT_WAITING_HAND_Y;
                 // Width of a scaled card stack + spacing
                 const scaledCardWidth = Constants.CARD_WIDTH * Constants.SPLIT_WAITING_HAND_SCALE;
-                const groupOffsetIncrement = scaledCardWidth + (Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * Math.min(handSize,3)) + 0.15;
+                const groupOffsetIncrement = scaledCardWidth + (Math.max(0, handSize - 1) * Math.abs(Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE)) + 0.15;
 
 
                 // Base X for the group of waiting hands, then offset by order
@@ -757,13 +776,19 @@ export class CardVisualizer {
                 const stackXOffsetMini = Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.8; // Reduced overlap for mini cards
                 const stackYOffsetMini = Constants.PLAYER_CARD_STACK_Y_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.6; // Reduced vertical lift
 
-                const centerOfMiniStackOffset = ((handSize - 1) * stackXOffsetMini) / 2;
-                xPos = xPos + centerOfMiniStackOffset - (indexInHand * stackXOffsetMini); // Cards stack leftwards from the hand's center
+                // Apply same logic as for active hands to prevent card shifting on initial deal to split hand.
+                const effectiveHandSize = (handSize === 1 && indexInHand === 0) ? 2 : handSize;
+                const centerOfMiniStackOffset = ((effectiveHandSize - 1) * stackXOffsetMini) / 2;
+                // Waiting hands are part of a split, so stack them rightwards
+                xPos = xPos + centerOfMiniStackOffset - (indexInHand * stackXOffsetMini);
                 yPos = waitingHandGroupBaseY + (indexInHand * stackYOffsetMini);
             }
         } else { // Dealer cards
             zPos = Constants.DEALER_HAND_Z;
-            const totalWidth = (handSize - 1) * Constants.CARD_SPACING;
+            // When dealing the first card, calculate its position as if it's part of a 2-card hand
+            // to prevent it from moving when the second card is dealt.
+            const effectiveHandSize = (handSize === 1 && indexInHand === 0) ? 2 : handSize;
+            const totalWidth = (effectiveHandSize - 1) * Constants.CARD_SPACING;
             const startXDealer = -(totalWidth / 2);
             xPos = startXDealer + (indexInHand * Constants.CARD_SPACING);
             yPos = Constants.CARD_Y_POS;

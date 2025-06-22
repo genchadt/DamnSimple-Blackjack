@@ -978,16 +978,27 @@ export class GameActions {
         if (nextHandIndex < playerHands.length) {
             console.log(`%c[GameActions]   -> Moving to next player hand: Hand ${nextHandIndex}`, 'color: purple');
             this.blackjackGame.setActivePlayerHandIndex(nextHandIndex);
-            const newActiveHand = this.blackjackGame.getActivePlayerHandInfo()!;
 
-            if (newActiveHand.cards.length === 1) {
-                console.log(`%c[GameActions]   -> New active hand (Hand ${nextHandIndex}) has 1 card. Dealing second card.`, 'color: purple');
-                this.lastAction = LastAnimatedAction.DealToSplitHand;
-                this.dealCardToHand(nextHandIndex, true);
-            } else {
-                console.log(`%c[GameActions]   -> Player turn continues for Hand ${nextHandIndex}. UI update needed.`, 'color: purple');
-                this.setGameState(GameState.PlayerTurn, true, true);
-            }
+            // Use a callback to chain animations: 1. Rearrange cards, 2. Deal to new active hand.
+            // We re-use SplitCardMove action type as it triggers the desired animation-callback sequence.
+            this.lastAction = LastAnimatedAction.SplitCardMove;
+            this._postSplitAnimationCallback = () => {
+                const newActiveHand = this.blackjackGame.getActivePlayerHandInfo()!;
+                if (newActiveHand.cards.length === 1) {
+                    console.log(`%c[GameActions]   -> Post-rearrange: New active hand (Hand ${nextHandIndex}) has 1 card. Dealing second card.`, 'color: purple');
+                    this.lastAction = LastAnimatedAction.DealToSplitHand;
+                    this.dealCardToHand(nextHandIndex, true);
+                } else {
+                    // This case is unlikely with current rules but handles if the hand was already complete.
+                    console.log(`%c[GameActions]   -> Post-rearrange: Player turn continues for Hand ${nextHandIndex}.`, 'color: purple');
+                    this.lastAction = LastAnimatedAction.None;
+                    this.setGameState(GameState.PlayerTurn, true, true);
+                }
+            };
+            // This notification will trigger onGameActionComplete -> renderCards, which will animate the hands moving.
+            // The onAnimationComplete from renderCards will then trigger the callback above via onVisualAnimationComplete.
+            this.blackjackGame.notifyAnimationComplete();
+
         } else {
             console.log(`%c[GameActions]   -> All player hands resolved. Proceeding to Dealer's Turn.`, 'color: purple');
             // Notify controller immediately that we are moving to DealerTurn
