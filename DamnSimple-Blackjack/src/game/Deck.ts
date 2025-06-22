@@ -111,4 +111,24 @@ export class Deck {
         }
         this.shuffle();
     }
+
+    /**
+     * Finds and draws a card that matches a specific rank and/or suit.
+     * This is primarily for debug/scenario setup.
+     * @param rank The rank to match. Can be undefined to match any rank.
+     * @param suit The suit to match. Can be undefined to match any suit.
+     * @returns The drawn card or undefined if no matching card is found.
+     */
+    public findAndDrawCard(rank?: Rank, suit?: Suit): Card | undefined {
+        const cardIndex = this.cards.findIndex(card =>
+            (rank === undefined || card.getRank() === rank) &&
+            (suit === undefined || card.getSuit() === suit)
+        );
+
+        if (cardIndex !== -1) {
+            const card = this.cards.splice(cardIndex, 1)[0];
+            return card;
+        }
+        return undefined;
+    }
 }

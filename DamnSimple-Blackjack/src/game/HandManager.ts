@@ -1,5 +1,5 @@
 // src/game/handmanager-ts
-import { Card } from "./Card";
+import { Card, Rank, Suit } from "./Card";
 import { Deck } from "./Deck";
 
 export class HandManager {
@@ -58,6 +58,16 @@ export class HandManager {
      */
     public setDeckToTwos(): void {
         this.deck.setDeckToTwos();
+    }
+
+    /**
+     * DEBUG: Finds and draws a card that matches a specific rank and/or suit from the deck.
+     * @param rank The rank to match.
+     * @param suit The suit to match.
+     * @returns The drawn card or undefined if not found.
+     */
+    public findAndDrawCard(rank?: Rank, suit?: Suit): Card | undefined {
+        return this.deck.findAndDrawCard(rank, suit);
     }
 
     /**

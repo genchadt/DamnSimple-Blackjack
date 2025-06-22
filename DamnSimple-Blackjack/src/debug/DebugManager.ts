@@ -525,19 +525,22 @@ export class DebugManager {
 
         this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
 
-        const suits = Object.values(Suit);
-        // Find a rank that is not Ace for simpler split testing first
-        let splitRank = Rank.Seven; // Example: Pair of 7s
-        const ranks = Object.values(Rank);
-        let randomRankIndex = Math.floor(Math.random() * ranks.length);
-        if (ranks[randomRankIndex] === Rank.Ace) { // Avoid Ace for initial split test if possible
-            randomRankIndex = (randomRankIndex + 1) % ranks.length;
+        // --- Use cards from the deck, guaranteeing a pair if possible ---
+        const handManager = this.blackjackGame.getHandManager();
+
+        const playerCard1 = handManager.drawCard();
+        if (!playerCard1) { console.error("DEBUG Split: Failed to draw player card 1."); return; }
+        playerCard1.setFaceUp(true);
+
+        // Find a matching rank in the deck to guarantee a pair
+        const playerCard2 = handManager.findAndDrawCard(playerCard1.getRank());
+        if (!playerCard2) {
+            console.error(`DEBUG Split: Could not find a matching rank for ${playerCard1.getRank()} in the deck. Aborting.`);
+            this.resetGame(); // Reset back to a clean state
+            this.updateUI();
+            return;
         }
-        splitRank = ranks[randomRankIndex];
-
-
-        const playerCard1 = new Card(suits[0 % suits.length], splitRank); playerCard1.setFaceUp(true);
-        const playerCard2 = new Card(suits[1 % suits.length], splitRank); playerCard2.setFaceUp(true);
+        playerCard2.setFaceUp(true);
 
         const initialPlayerHand: PlayerHandInfo = {
             id: 'hand-0', cards: [playerCard1, playerCard2], bet: initialBet,
@@ -549,8 +552,13 @@ export class DebugManager {
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
 
-        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false);
-        const dealerCard2 = this.dealRandomCard(false, true);  dealerCard2.setFaceUp(true);
+        // Draw two cards for dealer from the deck
+        const dealerCard1 = handManager.drawCard();
+        if (!dealerCard1) { console.error("DEBUG Split: Failed to draw dealer card 1."); return; }
+        dealerCard1.setFaceUp(false);
+        const dealerCard2 = handManager.drawCard();
+        if (!dealerCard2) { console.error("DEBUG Split: Failed to draw dealer card 2."); return; }
+        dealerCard2.setFaceUp(true);
         this.blackjackGame.setDealerHand([dealerCard1, dealerCard2]);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
@@ -573,8 +581,25 @@ export class DebugManager {
         }
         this.blackjackGame.getGameActions().setGameState(GameState.Dealing, true, true);
 
-        const playerCard1 = this.dealRandomCard(true, true); playerCard1.setFaceUp(true);
-        const playerCard2 = this.dealRandomCard(true, true); playerCard2.setFaceUp(true);
+        const handManager = this.blackjackGame.getHandManager();
+
+        // Get an Ace from the deck for the dealer's upcard to ensure scenario is possible
+        const dealerUpCard = handManager.findAndDrawCard(Rank.Ace);
+        if (!dealerUpCard) {
+            console.error("DEBUG Insurance: Could not find an Ace in the deck to set up the scenario. Aborting.");
+            this.resetGame(); // Reset back to a clean state
+            this.updateUI();
+            return;
+        }
+        dealerUpCard.setFaceUp(true);
+
+        const playerCard1 = handManager.drawCard();
+        if (!playerCard1) { console.error("DEBUG Insurance: Failed to draw player card 1."); return; }
+        playerCard1.setFaceUp(true);
+
+        const playerCard2 = handManager.drawCard();
+        if (!playerCard2) { console.error("DEBUG Insurance: Failed to draw player card 2."); return; }
+        playerCard2.setFaceUp(true);
 
         const initialPlayerHand: PlayerHandInfo = {
             id: 'hand-0', cards: [playerCard1, playerCard2], bet: initialBet,
@@ -586,12 +611,13 @@ export class DebugManager {
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard1);
         this.blackjackGame.getHandManager().registerFlipCallback(playerCard2);
 
-        const dealerCard1 = this.dealRandomCard(false, false); dealerCard1.setFaceUp(false); // Hole card
-        const dealerCard2 = new Card(Suit.Spades, Rank.Ace); // Upcard is Ace
-        dealerCard2.setFaceUp(true);
-        this.blackjackGame.setDealerHand([dealerCard1, dealerCard2]);
-        this.blackjackGame.getHandManager().registerFlipCallback(dealerCard1);
-        this.blackjackGame.getHandManager().registerFlipCallback(dealerCard2);
+        const dealerHoleCard = handManager.drawCard();
+        if (!dealerHoleCard) { console.error("DEBUG Insurance: Failed to draw dealer hole card."); return; }
+        dealerHoleCard.setFaceUp(false); // Hole card from deck
+
+        this.blackjackGame.setDealerHand([dealerHoleCard, dealerUpCard]);
+        this.blackjackGame.getHandManager().registerFlipCallback(dealerHoleCard);
+        this.blackjackGame.getHandManager().registerFlipCallback(dealerUpCard);
 
         this.cardVisualizer.renderCards(true);
         this.blackjackGame.getGameActions().setGameState(GameState.PlayerTurn, true, true);
