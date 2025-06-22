@@ -729,7 +729,9 @@ export class CardVisualizer {
                 // If numPlayerHands is 1, handGroupCenterX remains 0, centering the single hand.
 
                 const stackXOffset = Constants.PLAYER_CARD_STACK_X_OFFSET;
-                const stackYOffset = Constants.PLAYER_CARD_STACK_Y_OFFSET;
+                // The Y offset must be slightly larger than the card depth to prevent z-fighting.
+                // Using CARD_DEPTH directly is more robust than relying on a separate constant.
+                const stackYOffset = Constants.CARD_DEPTH * 1.1;
 
                 // When dealing the first card of a hand, calculate its position as if it's part of a 2-card hand
                 // to prevent it from moving when the second card is dealt. This makes the initial deal smoother.
@@ -739,8 +741,7 @@ export class CardVisualizer {
                 // This ensures the stack of cards for *this* hand is centered around handGroupCenterX.
                 const centerOfStackOffset = ((effectiveHandSize - 1) * stackXOffset) / 2;
 
-                // Always stack rightwards ("right over left") for consistency.
-                // A higher index card will have a larger xPos, appearing to the right and on top.
+                // Revert to "left over right" stacking.
                 xPos = handGroupCenterX + centerOfStackOffset - (indexInHand * stackXOffset);
                 yPos = Constants.CARD_Y_POS + (indexInHand * stackYOffset);
                 // Scaling remains Vector3.One()
@@ -774,12 +775,13 @@ export class CardVisualizer {
                 xPos = waitingHandGroupBaseX - (waitingHandOrder * groupOffsetIncrement);
 
                 const stackXOffsetMini = Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.8; // Reduced overlap for mini cards
-                const stackYOffsetMini = Constants.PLAYER_CARD_STACK_Y_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.6; // Reduced vertical lift
+                // Scale the Y offset based on card depth and scale to prevent z-fighting on scaled cards.
+                const stackYOffsetMini = (Constants.CARD_DEPTH * Constants.SPLIT_WAITING_HAND_SCALE) * 1.1;
 
                 // Apply same logic as for active hands to prevent card shifting on initial deal to split hand.
                 const effectiveHandSize = (handSize === 1 && indexInHand === 0) ? 2 : handSize;
                 const centerOfMiniStackOffset = ((effectiveHandSize - 1) * stackXOffsetMini) / 2;
-                // Waiting hands are part of a split, so stack them rightwards
+                // Revert waiting hands to "left over right" stacking for consistency.
                 xPos = xPos + centerOfMiniStackOffset - (indexInHand * stackXOffsetMini);
                 yPos = waitingHandGroupBaseY + (indexInHand * stackYOffsetMini);
             }
