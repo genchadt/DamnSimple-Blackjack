@@ -64,7 +64,7 @@ const CARD_SPACING = CARD_WIDTH + 0.15; // Horizontal space between cards in han
 
 // --- Player Hand Specific Layout ---
 const PLAYER_CARD_STACK_X_OFFSET = CARD_WIDTH * 0.3; // Horizontal overlap, shows ~30% of card face. Used for player hand centering.
-const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 0.75;  // Slight vertical lift for each card in player's hand for stacking.
+const PLAYER_CARD_STACK_Y_OFFSET = CARD_DEPTH * 5.0;  // *** FIXED: Increased significantly for a larger safety margin to prevent z-fighting.
 
 // --- Split Hand Visuals ---
 const SPLIT_WAITING_HAND_X = 3.5; // X position for the rightmost waiting split hand (anchor point)

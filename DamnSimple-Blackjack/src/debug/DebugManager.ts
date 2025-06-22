@@ -499,6 +499,79 @@ export class DebugManager {
         }
     }
 
+    // --- New Diagnostic Methods ---
+
+    /**
+     * Logs the detailed visual properties of each card mesh in a given hand.
+     * @param isPlayer True for a player hand, false for the dealer's hand.
+     * @param handIndex The index of the player's hand.
+     */
+    public logHandVisuals(isPlayer: boolean, handIndex: number): void {
+        const hand = isPlayer
+            ? this.blackjackGame.getPlayerHands()[handIndex]
+            : { cards: this.blackjackGame.getDealerHand(), id: 'dealer' };
+
+        if (!hand || !hand.cards) {
+            console.error(`Hand not found for isPlayer=${isPlayer}, handIndex=${handIndex}`);
+            return;
+        }
+
+        console.log(`%c--- Visuals for ${isPlayer ? 'Player Hand ' + handIndex : 'Dealer Hand'} ---`, 'font-weight: bold; color: cyan;');
+
+        hand.cards.forEach((card, index) => {
+            const mesh = this.cardVisualizer.getCardMesh(card.getUniqueId());
+            if (mesh) {
+                console.log(
+                    `%cCard ${index}: ${card.toString()}`, 'font-weight: bold;',
+                    {
+                        position: mesh.position.toString(),
+                        y_pos: mesh.position.y,
+                        rotation: mesh.rotationQuaternion?.toEulerAngles().toString(),
+                        scaling: mesh.scaling.toString(),
+                        renderPriority: (mesh as any).renderPriority,
+                        renderingGroupId: mesh.renderingGroupId
+                    }
+                );
+            } else {
+                console.log(`Card ${index}: ${card.toString()} - MESH NOT FOUND`);
+            }
+        });
+    }
+
+    /**
+     * Logs all card-related meshes sorted by their rendering group and priority.
+     */
+    public logSceneRenderOrder(): void {
+        console.log("%c--- Scene Render Order Analysis ---", "font-weight: bold; color: orange;");
+        const meshes = this.gameScene.getScene().meshes;
+        const sortedMeshes = meshes
+            .filter(m => m.name.startsWith("card_") || m.name.includes("_overlay"))
+            .sort((a, b) => {
+                if (a.renderingGroupId !== b.renderingGroupId) {
+                    return a.renderingGroupId - b.renderingGroupId;
+                }
+                const prioA = (a as any).renderPriority || 0;
+                const prioB = (b as any).renderPriority || 0;
+                return prioA - prioB;
+            });
+
+        sortedMeshes.forEach(mesh => {
+            console.log(
+                `Group: ${mesh.renderingGroupId}, Prio: ${(mesh as any).renderPriority || 0} | Name: ${mesh.name}`,
+                { position: mesh.position.clone() }
+            );
+        });
+    }
+
+    /**
+     * Toggles the `disableDepthWrite` property on all card materials.
+     */
+    public toggleCardDepthWrite(): void {
+        this.cardVisualizer.toggleDepthWriteOnMaterials();
+        console.log("Toggled depth write on card materials. Re-rendering cards.");
+        this.renderCards();
+    }
+
     // --- Debug Menu Button Actions ---
 
     public debugStartNormalHand(): void {

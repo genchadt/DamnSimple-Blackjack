@@ -673,6 +673,16 @@ export class DebugMenuDialog extends DynamicDialog {
             { text: 'Force Dealer Win (Active Hand)', action: () => this.debugManager.forceWin(false), accessKey: 'D' },
             { text: 'Force Push (Active Hand)', action: () => this.debugManager.forcePush(), accessKey: 'U' }
         ], this.contentElement, false);
+        createSeparator();
+        this.createDropdownButton('Diagnose Visuals ▸', [
+            { text: 'Log Scene Render Order', action: () => this.debugManager.logSceneRenderOrder(), accessKey: 'O' },
+            { text: 'Toggle Card Depth Write', action: () => this.debugManager.toggleCardDepthWrite(), accessKey: 'W' },
+            { text: 'Log Player Hand 0 Visuals', action: () => this.debugManager.logHandVisuals(true, 0) },
+            { text: 'Log Player Hand 1 Visuals', action: () => this.debugManager.logHandVisuals(true, 1) },
+            { text: 'Log Player Hand 2 Visuals', action: () => this.debugManager.logHandVisuals(true, 2) },
+            { text: 'Log Player Hand 3 Visuals', action: () => this.debugManager.logHandVisuals(true, 3) },
+            { text: 'Log Dealer Hand Visuals', action: () => this.debugManager.logHandVisuals(false, 0) },
+        ], this.contentElement, false);
     }
 
     private handleGlobalClick = (event: MouseEvent): void => {

@@ -121,6 +121,7 @@ export class CardVisualizer {
             this.cardSideMaterial = new StandardMaterial("cardSideMat", this.scene);
             this.cardSideMaterial.diffuseColor = new Color3(0.85, 0.85, 0.85);
             this.cardSideMaterial.specularColor = new Color3(0.05, 0.05, 0.05);
+            this.cardSideMaterial.disableDepthWrite = true; // Make consistent with other card materials
         }
         return this.cardSideMaterial;
     }
@@ -130,6 +131,8 @@ export class CardVisualizer {
             this.dimmedMaterial = new StandardMaterial("dimmedOverlayMat", this.scene);
             this.dimmedMaterial.diffuseColor = new Color3(0.2, 0.2, 0.2); // Dark gray
             this.dimmedMaterial.alpha = 0.6; // Semi-transparent
+            this.dimmedMaterial.transparencyMode = Material.MATERIAL_ALPHABLEND;
+            this.dimmedMaterial.disableDepthWrite = true;
         }
         return this.dimmedMaterial;
     }
@@ -139,6 +142,8 @@ export class CardVisualizer {
             this.bustedMaterial = new StandardMaterial("bustedOverlayMat", this.scene);
             this.bustedMaterial.diffuseColor = new Color3(0.6, 0.1, 0.1); // Dark red
             this.bustedMaterial.alpha = 0.5; // Semi-transparent
+            this.bustedMaterial.transparencyMode = Material.MATERIAL_ALPHABLEND;
+            this.bustedMaterial.disableDepthWrite = true;
         }
         return this.bustedMaterial;
     }
@@ -160,6 +165,7 @@ export class CardVisualizer {
         const material = new StandardMaterial(materialCacheKey, this.scene);
         material.backFaceCulling = false;
         material.specularColor = new Color3(0.1, 0.1, 0.1);
+        material.disableDepthWrite = true;
         // Set a temporary color while loading
         material.diffuseColor = new Color3(0.9, 0.9, 0.9); // Light gray placeholder
 
@@ -330,6 +336,37 @@ export class CardVisualizer {
     // --- End Dimension Getters ---
 
 
+    /**
+     * Gets the mesh associated with a card's unique ID.
+     * @param cardId The unique ID of the card.
+     * @returns The card's mesh, or undefined if not found.
+     */
+    public getCardMesh(cardId: string): Mesh | undefined {
+        return this.cardMeshes.get(cardId);
+    }
+
+    /** Toggles the `disableDepthWrite` property on all primary card materials. */
+    public toggleDepthWriteOnMaterials(): void {
+        const allMaterials = [
+            this.cardBackMaterial,
+            this.cardSideMaterial,
+            ...this.cardFaceMaterials.values()
+        ];
+        let isDisabling = false;
+        // Check the state of the first material to decide whether to enable or disable for all
+        if (allMaterials[0]) {
+            isDisabling = !allMaterials[0].disableDepthWrite;
+        }
+
+        allMaterials.forEach(mat => {
+            if (mat) {
+                mat.disableDepthWrite = isDisabling;
+            }
+        });
+        console.log(`[CardViz] Set disableDepthWrite to ${isDisabling} for all card materials.`);
+    }
+
+
     /** Creates the card mesh and initiates material loading and animation.
      * @param handDisplayIndex For player, this is the index in playerHands array. For dealer, it's typically 0.
      */
@@ -431,6 +468,9 @@ export class CardVisualizer {
                 wrap: false
             }, this.scene
         );
+        
+        // *** ADDED: Set renderingGroupId on creation ***
+        cardMesh.renderingGroupId = isPlayer ? handDisplayIndex + 1 : 0;
 
         const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
             card, indexInHand, isPlayer, handInfo, handDisplayIndex, handInfo.cards.length
@@ -515,6 +555,9 @@ export class CardVisualizer {
                         // console.log(`[CardViz] renderCards: Mesh for player card ${card.toString()} (Hand ${handDisplayIndex}) not found. State is Dealing. Expecting animated path.`);
                     }
                 } else {
+                    // *** ADDED: Ensure renderingGroupId is set ***
+                    cardMesh.renderingGroupId = handDisplayIndex + 1;
+
                     const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
                         card, indexInHand, true, handInfo, handDisplayIndex, handInfo.cards.length
                     );
@@ -567,6 +610,9 @@ export class CardVisualizer {
                     }
                 }
             } else {
+                // *** ADDED: Set renderingGroupId for dealer hand ***
+                cardMesh.renderingGroupId = 0;
+
                 const { position, rotationQuaternion, scaling } = this.calculateCardTransform(
                     card, indexInHand, false, dummyDealerHandInfo, 0, dealerHandFromGame.length
                 );
@@ -581,6 +627,9 @@ export class CardVisualizer {
                     cardMesh.rotationQuaternion.copyFrom(rotationQuaternion);
                     cardMesh.scaling = scaling;
                 }
+                // Set render priority for stacking. Dealer hand is "behind" player hands.
+                // Priority 100+. Higher index is on top. Each card gets 2 slots for overlays.
+                (cardMesh as any).renderPriority = 100 + (indexInHand * 2);
                 this.removeVisualTreatmentOverlay(cardMesh);
             }
         });
@@ -662,6 +711,11 @@ export class CardVisualizer {
                 // Use the new animateMeshToTransform for consistency, but ensure it doesn't call the global callback.
                 this.animateMeshToTransform(cardMesh, newPosition, newRotation, newScaling, Constants.REPOSITION_DURATION_MS, false); // isPrimaryAnimation = false
 
+                // Also update the visual treatment (which sets renderPriority) immediately.
+                if (isPlayer && handInfo) {
+                    this.applyVisualTreatment(cardMesh, handInfo, handDisplayIndex);
+                }
+
             } else if (!cardMesh && indexInHand < newHandSize - 1) {
                 // console.warn(`[CardViz] Cannot reposition existing card ${card.toString()}, mesh not found in map during repositioning.`);
             }
@@ -700,7 +754,6 @@ export class CardVisualizer {
 
             if (showNormally) {
                 // Active Player Hand or GameOver or DealerTurn: Position hands normally, potentially spread out
-                // zPos is now constant; z-fighting is handled by material.zOffset.
                 zPos = Constants.PLAYER_HAND_Z;
                 const numPlayerHands = this.blackjackGame.getPlayerHands().length;
                 let handGroupCenterX = 0; // Center X for this specific hand's group
@@ -729,26 +782,17 @@ export class CardVisualizer {
                 }
                 // If numPlayerHands is 1, handGroupCenterX remains 0, centering the single hand.
 
-                const stackXOffset = Constants.PLAYER_CARD_STACK_X_OFFSET;
-                // The Y offset must be slightly larger than the card depth to prevent z-fighting.
-                // Using CARD_DEPTH directly is more robust than relying on a separate constant.
-                const stackYOffset = Constants.CARD_DEPTH * 1.1;
-
                 // When dealing the first card of a hand, calculate its position as if it's part of a 2-card hand
                 // to prevent it from moving when the second card is dealt. This makes the initial deal smoother.
                 const effectiveHandSize = (handSize === 1 && indexInHand === 0) ? 2 : handSize;
 
-                // Calculate the offset from the handGroupCenterX to the center of card 0 of the current hand.
-                // This ensures the stack of cards for *this* hand is centered around handGroupCenterX.
-                const centerOfStackOffset = ((effectiveHandSize - 1) * stackXOffset) / 2;
-
-                // Revert to "left over right" stacking.
-                xPos = handGroupCenterX + centerOfStackOffset - (indexInHand * stackXOffset);
-                yPos = Constants.CARD_Y_POS + (indexInHand * stackYOffset);
-                // Scaling remains Vector3.One()
+                // --- CORRECTED: Restored right-to-left stacking logic ---
+                const totalStackWidth = (effectiveHandSize - 1) * Constants.PLAYER_CARD_STACK_X_OFFSET;
+                const rightmostCardX = handGroupCenterX + (totalStackWidth / 2);
+                xPos = rightmostCardX - (indexInHand * Constants.PLAYER_CARD_STACK_X_OFFSET);
+                yPos = Constants.CARD_Y_POS + (indexInHand * Constants.PLAYER_CARD_STACK_Y_OFFSET);
 
             } else { // Waiting (Inactive) Player Hand during PlayerTurn (and Dealing if applicable)
-                // zPos is now constant for waiting hands as well.
                 zPos = Constants.SPLIT_WAITING_HAND_Z;
                 currentScaling = new Vector3(Constants.SPLIT_WAITING_HAND_SCALE, Constants.SPLIT_WAITING_HAND_SCALE, Constants.SPLIT_WAITING_HAND_SCALE);
 
@@ -769,22 +813,20 @@ export class CardVisualizer {
                 const waitingHandGroupBaseY = Constants.SPLIT_WAITING_HAND_Y;
                 // Width of a scaled card stack + spacing
                 const scaledCardWidth = Constants.CARD_WIDTH * Constants.SPLIT_WAITING_HAND_SCALE;
-                const groupOffsetIncrement = scaledCardWidth + (Math.max(0, handSize - 1) * Math.abs(Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE)) + 0.15;
+                const stackXOffsetMini = Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE;
+                const groupOffsetIncrement = scaledCardWidth + (Math.max(0, handSize - 1) * stackXOffsetMini) + 0.15;
 
-
-                // Base X for the group of waiting hands, then offset by order
-                // waitingHandOrder = 0 is the rightmost, so subtract for subsequent ones to move left
-                xPos = waitingHandGroupBaseX - (waitingHandOrder * groupOffsetIncrement);
-
-                const stackXOffsetMini = Constants.PLAYER_CARD_STACK_X_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE * 0.8; // Reduced overlap for mini cards
-                // Scale the Y offset based on card depth and scale to prevent z-fighting on scaled cards.
-                const stackYOffsetMini = (Constants.CARD_DEPTH * Constants.SPLIT_WAITING_HAND_SCALE) * 1.1;
-
-                // Apply same logic as for active hands to prevent card shifting on initial deal to split hand.
+                // When dealing the first card, calculate its position as if it's part of a 2-card hand
                 const effectiveHandSize = (handSize === 1 && indexInHand === 0) ? 2 : handSize;
-                const centerOfMiniStackOffset = ((effectiveHandSize - 1) * stackXOffsetMini) / 2;
-                // Revert waiting hands to "left over right" stacking for consistency.
-                xPos = xPos + centerOfMiniStackOffset - (indexInHand * stackXOffsetMini);
+
+                // --- CORRECTED: Restored right-to-left stacking for waiting hands ---
+                const handGroupCenterX = waitingHandGroupBaseX - (waitingHandOrder * groupOffsetIncrement);
+                const totalMiniStackWidth = (effectiveHandSize - 1) * stackXOffsetMini;
+                const rightmostCardX = handGroupCenterX + (totalMiniStackWidth / 2);
+                xPos = rightmostCardX - (indexInHand * stackXOffsetMini);
+
+                // Scale the Y offset based on card depth and scale to prevent z-fighting on scaled cards.
+                const stackYOffsetMini = Constants.PLAYER_CARD_STACK_Y_OFFSET * Constants.SPLIT_WAITING_HAND_SCALE;
                 yPos = waitingHandGroupBaseY + (indexInHand * stackYOffsetMini);
             }
         } else { // Dealer cards
@@ -808,61 +850,63 @@ export class CardVisualizer {
         const isActiveHand = handDisplayIndex === this.blackjackGame.getActivePlayerHandIndex();
         const isBusted = handInfo.result === GameResult.DealerWins && ScoreCalculator.calculateHandValue(handInfo.cards) > 21;
 
+        // *** ADDED: Set renderingGroupId for player hands ***
+        // Dealer is group 0. Player hands start at 1.
+        mesh.renderingGroupId = handDisplayIndex + 1;
+
         this.removeVisualTreatmentOverlay(mesh); // Remove any existing overlay first
 
-        // --- Z-Offset for Stacking ---
-        // Find the card's index to apply a zOffset, ensuring correct stacking.
+        // --- Stacking Order using renderPriority ---
+        // Find the card's index to apply a renderPriority, ensuring correct stacking.
         const cardId = mesh.name.replace('card_', '');
         const indexInHand = handInfo.cards.findIndex(c => c.getUniqueId() === cardId);
-        const multiMat = mesh.material as MultiMaterial;
 
-        if (multiMat && multiMat.subMaterials && indexInHand !== -1) {
-            // Negative values push the mesh "towards" the camera in the depth buffer.
-            // A larger negative value means it's more likely to be rendered on top.
-            // Since higher indexInHand cards are physically higher (Y) and should be on top,
-            // they need a larger zOffset magnitude.
-            const zOffsetValue = -indexInHand * 2;
-            multiMat.subMaterials.forEach(subMat => {
-                if (subMat) {
-                    subMat.zOffset = zOffsetValue;
+        if (indexInHand !== -1) {
+            // Use renderPriority for stacking. Higher value is rendered on top.
+            // Base priority no longer needs to be unique per hand, as renderingGroupId handles that.
+            const basePriority = 200;
+            const cardPriority = basePriority + (indexInHand * 2);
+            (mesh as any).renderPriority = cardPriority;
+
+            let overlayMaterial: StandardMaterial | null = null;
+
+            // Apply treatment if the game is in PlayerTurn state and there are multiple hands
+            if (this.blackjackGame.getGameState() === GameState.PlayerTurn && this.blackjackGame.getPlayerHands().length > 1) {
+                if (!isActiveHand) { // If the hand is not the active one
+                    if (isBusted && handInfo.isResolved) { // And it's busted and resolved (player can't act on it)
+                        overlayMaterial = this.getBustedMaterial();
+                    } else { // Not active, not busted (just waiting) or busted but not yet resolved from player perspective
+                        overlayMaterial = this.getDimmedMaterial();
+                    }
                 }
-            });
-        }
-        // --- End Z-Offset ---
+                // Active hand gets no overlay from here during PlayerTurn.
+            } else if (isBusted && handInfo.isResolved && this.blackjackGame.getGameState() !== GameState.GameOver) {
+                // If a hand busts (even if it's the only one), and is resolved, show busted overlay until game over
+                overlayMaterial = this.getBustedMaterial();
+            }
 
-        let overlayMaterial: StandardMaterial | null = null;
 
-        // Apply treatment if the game is in PlayerTurn state and there are multiple hands
-        if (this.blackjackGame.getGameState() === GameState.PlayerTurn && this.blackjackGame.getPlayerHands().length > 1) {
-            if (!isActiveHand) { // If the hand is not the active one
-                if (isBusted && handInfo.isResolved) { // And it's busted and resolved (player can't act on it)
-                    overlayMaterial = this.getBustedMaterial();
-                } else { // Not active, not busted (just waiting) or busted but not yet resolved from player perspective
-                    overlayMaterial = this.getDimmedMaterial();
+            if (overlayMaterial) {
+                let overlayMesh = mesh.getChildMeshes(true, (node) => node.name === `${mesh.name}_overlay`)[0] as Mesh;
+                if (!overlayMesh) {
+                    overlayMesh = MeshBuilder.CreatePlane(`${mesh.name}_overlay`, {
+                        width: Constants.CARD_WIDTH,
+                        height: Constants.CARD_HEIGHT
+                    }, this.scene);
+                    overlayMesh.setParent(mesh);
+                    overlayMesh.isPickable = false;
                 }
+                // *** ADDED: Ensure overlay is in the same rendering group ***
+                overlayMesh.renderingGroupId = mesh.renderingGroupId;
+                // Set overlay priority to be just above its parent card
+                (overlayMesh as any).renderPriority = cardPriority + 1;
+                overlayMesh.material = overlayMaterial;
+                overlayMesh.position = new Vector3(0, 0, -0.002); // Slightly in front of card face in local space
+                overlayMesh.rotationQuaternion = Quaternion.Identity();
+                overlayMesh.isVisible = true;
             }
-            // Active hand gets no overlay from here during PlayerTurn.
-        } else if (isBusted && handInfo.isResolved && this.blackjackGame.getGameState() !== GameState.GameOver) {
-            // If a hand busts (even if it's the only one), and is resolved, show busted overlay until game over
-            overlayMaterial = this.getBustedMaterial();
         }
-
-
-        if (overlayMaterial) {
-            let overlayMesh = mesh.getChildMeshes(true, (node) => node.name === `${mesh.name}_overlay`)[0] as Mesh;
-            if (!overlayMesh) {
-                overlayMesh = MeshBuilder.CreatePlane(`${mesh.name}_overlay`, {
-                    width: Constants.CARD_WIDTH,
-                    height: Constants.CARD_HEIGHT
-                }, this.scene);
-                overlayMesh.setParent(mesh);
-                overlayMesh.isPickable = false;
-            }
-            overlayMesh.material = overlayMaterial;
-            overlayMesh.position = new Vector3(0, 0, -0.001);
-            overlayMesh.rotationQuaternion = Quaternion.Identity();
-            overlayMesh.isVisible = true;
-        }
+        // --- End Stacking Order ---
     }
 
     private removeVisualTreatmentOverlay(mesh: Mesh): void {
@@ -870,15 +914,7 @@ export class CardVisualizer {
         if (overlayMesh) {
             overlayMesh.isVisible = false;
         }
-        // Also reset zOffset on the main mesh's materials
-        const multiMat = mesh.material as MultiMaterial;
-        if (multiMat && multiMat.subMaterials) {
-            multiMat.subMaterials.forEach(subMat => {
-                if (subMat) {
-                    subMat.zOffset = 0;
-                }
-            });
-        }
+        // zOffset is no longer used for stacking, so no need to reset it here.
     }
 
 
@@ -1026,6 +1062,11 @@ export class CardVisualizer {
         );
 
         this.animationInProgress = true;
+        // --- FIX: Set high render priority during animation to prevent clipping ---
+        mesh.renderingGroupId = isPlayer ? handDisplayIndex + 1 : 0;
+        (mesh as any).renderPriority = 1000;
+        // --- END FIX ---
+
         const slideFrames = Constants.DEAL_SLIDE_DURATION_MS / 1000 * Constants.FPS;
         const rotationFrames = Constants.DEAL_ROTATION_DURATION_MS / 1000 * Constants.FPS;
 
@@ -1057,7 +1098,16 @@ export class CardVisualizer {
                 mesh.position = targetPos;
                 mesh.rotationQuaternion = targetQuat.clone();
                 mesh.scaling = targetScaling.clone();
-                if (isPlayer) this.applyVisualTreatment(mesh, handInfo, handDisplayIndex);
+                
+                // renderingGroupId is already set from before the animation.
+                
+                // Restore final render priority.
+                if (isPlayer) {
+                    this.applyVisualTreatment(mesh, handInfo, handDisplayIndex);
+                } else {
+                    // Manually set final priority for dealer cards.
+                    (mesh as any).renderPriority = 100 + (indexInHand * 2);
+                }
 
                 const logicalCardData = isPlayer
                     ? this.blackjackGame.getPlayerHands()[handDisplayIndex]?.cards[indexInHand]
@@ -1241,6 +1291,7 @@ export class CardVisualizer {
             material.diffuseTexture = texture;
             material.useAlphaFromDiffuseTexture = true;
             material.transparencyMode = Material.MATERIAL_ALPHABLEND;
+            material.disableDepthWrite = true;
 
             this.cardBackMaterial = material;
 
